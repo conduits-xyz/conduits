@@ -1,0 +1,137 @@
+{
+  "parserOptions": {
+    "ecmaVersion": 2020,
+    "ecmaFeatures": {
+      "modules": true,
+      "jsx": true
+    },
+    "target": "ES6",
+    "module": "commonjs",
+    "sourceType": "module"
+  },
+  "plugins": [
+    "react",
+    "testing-library",
+    "jest-dom"
+  ],
+  "extends": [
+    "prettier",
+    "standard",
+    "standard-jsx",
+    "standard-react",
+    "plugin:react-hooks/recommended",
+    "plugin:testing-library/recommended",
+    "plugin:testing-library/react",
+    "plugin:jest-dom/recommended"
+  ],
+  "overrides": [
+    {
+      "files": "*.test.js",
+      "rules": {
+        "no-unused-expressions": "off"
+      }
+    }
+  ],
+  "env": {
+    "node": true,
+    "mocha": true,
+    "browser": true,
+    "jest": true
+  },
+  "globals": {
+    "location": "writable",
+    "globalThis": "writable"
+  },
+  "settings": {
+    "react": {
+      "version": "detect"
+    }
+  },
+  "rules": {
+    "camelcase": 0,
+    "no-multi-spaces": [
+      "error",
+      {
+        "ignoreEOLComments": true
+      }
+    ],
+    "operator-linebreak": [
+      "error",
+      "before"
+    ],
+    "object-property-newline": 0,
+    "brace-style": [
+      "error",
+      "1tbs"
+    ],
+    "one-var": 0,
+    "space-before-function-paren": 0,
+    "semi": [
+      2,
+      "always"
+    ],
+    "comma-dangle": [
+      "error",
+      {
+        "arrays": "always-multiline",
+        "objects": "only-multiline"
+      }
+    ],
+    "indent": [
+      "error",
+      2,
+      {
+        "ignoredNodes": [
+          "JSXElement",
+          "JSXElement *"
+        ]
+      }
+    ],
+    "react/jsx-closing-bracket-location": [
+      1,
+      {
+        "selfClosing": "after-props",
+        "nonEmpty": "after-props"
+      }
+    ],
+    "no-unused-vars": [
+      2,
+      {
+        "args": "all",
+        "argsIgnorePattern": "^_|props|err|req|res|next|env|reject"
+      }
+    ],
+    "prefer-const": 1,
+    "quotes": [
+      "error",
+      "single",
+      {
+        "avoidEscape": true
+      }
+    ],
+    "generator-star-spacing": [
+      "error",
+      {
+        "before": false,
+        "after": true
+      }
+    ],
+    "jsx-quotes": [
+      "error",
+      "prefer-double"
+    ],
+    "react/jsx-filename-extension": 0,
+    "react/prop-types": [
+      2,
+      {
+        "ignore": [
+          "children"
+        ]
+      }
+    ],
+    "react/no-unknown-property": 0,
+    "react/jsx-uses-react": 2,
+    "react/jsx-uses-vars": 2,
+    "react/react-in-jsx-scope": 2
+  }
+}

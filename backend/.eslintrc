@@ -1,0 +1,83 @@
+{
+  "parserOptions": {
+    "ecmaVersion": 2020,
+    "ecmaFeatures": {
+      "modules": true
+    },
+    "target": "ES6",
+    "module": "commonjs",
+    "sourceType": "module"
+  },
+  "plugins": [
+    "prettier"
+  ],
+  "settings": {
+    "react": {
+      "pragma": "h"
+    }
+  },
+  "extends": [
+    "standard",
+    "prettier"
+  ],
+  "overrides": [
+    {
+      "files": [
+        "*.test.js",
+        "*.spec.js"
+      ],
+      "rules": {
+        "no-unused-expressions": "off"
+      }
+    }
+  ],
+  "env": {
+    "node": true,
+    "mocha": true,
+    "es6": true
+  },
+  "globals": {
+    "location": true,
+    "ga": true,
+    "globalThis": true
+  },
+  "rules": {
+    "no-undef-init": "off",
+    "no-var": "error",
+    "camelcase": 0,
+    "object-property-newline": 0,
+    "brace-style": [
+      "error",
+      "1tbs"
+    ],
+    "one-var": 0,
+    "semi": [
+      2,
+      "always"
+    ],
+    "comma-dangle": [
+      "error",
+      {
+        "arrays": "always-multiline",
+        "objects": "only-multiline"
+      }
+    ],
+    "no-unused-vars": [
+      2,
+      {
+        "args": "all",
+        "argsIgnorePattern": "^_|options|debug|meta|props|err|req|res|next|env"
+      }
+    ],
+    "prefer-const": 1,
+    "quotes": [
+      "error",
+      "single",
+      {
+        "avoidEscape": true,
+        "allowTemplateLiterals": true
+      }
+    ],
+    "prettier/prettier": "error"
+  }
+}
