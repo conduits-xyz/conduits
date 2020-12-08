@@ -22,3 +22,6 @@ __snapshots__
 
 # .secrets/*.json
 .secrets/*.json
+
+# lint stuff
+.eslintcache
