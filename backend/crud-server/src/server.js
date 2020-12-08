@@ -77,7 +77,10 @@ if (!module.parent) {
       if (e.name === 'SequelizeUniqueConstraintError') {
         console.log('Client credentials for gateway already registered!');
         // find our privileged user... TODO: think of ways this method can fail and catch the failures....
-        user = await models.User.exists(gatewayUser.email, gatewayUser.password);
+        user = await models.User.exists(
+          gatewayUser.email,
+          gatewayUser.password
+        );
       } else {
         console.log(`Unexpected error: ${e.name}, aborting... ${e}`);
         process.exit(3);

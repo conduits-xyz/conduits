@@ -302,7 +302,9 @@ describe('Registered user creates three conduits to a previously setup `contacts
         validateRecords(recordsToValidate);
 
         // get all records from spreadsheet
-        const res1 = await gatewayServer().get('/').set('Host', conduitB.host);
+        const res1 = await gatewayServer()
+          .get('/')
+          .set('Host', conduitB.host);
         expect(res1.status).to.equal(200);
         expect(res1.body).to.haveOwnProperty('records');
         console.log('Validated and Updated records in sheet');

@@ -72,24 +72,24 @@ router.put('/user', auth.required, function (req, res, next) {
 
 // Authentication
 router.post('/users/login', function (req, res, next) {
-  passport.authenticate('local', { session: false }, function (
-    err,
-    user,
-    info
-  ) {
-    if (err) {
-      console.log('err: ', err);
-      return next(new RestApiError(500, err));
-    }
+  passport.authenticate(
+    'local',
+    { session: false },
+    function (err, user, info) {
+      if (err) {
+        console.log('err: ', err);
+        return next(new RestApiError(500, err));
+      }
 
-    if (user) {
-      const userWithJwt = user.toAuthJSON();
-      // console.log('user.with.jwt; ', userWithJwt);
-      return res.json({ user: userWithJwt });
-    } else {
-      return next(new RestApiError(422, info));
+      if (user) {
+        const userWithJwt = user.toAuthJSON();
+        // console.log('user.with.jwt; ', userWithJwt);
+        return res.json({ user: userWithJwt });
+      } else {
+        return next(new RestApiError(422, info));
+      }
     }
-  })(req, res, next);
+  )(req, res, next);
 });
 
 module.exports = router;
