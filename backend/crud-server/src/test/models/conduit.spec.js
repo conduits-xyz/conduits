@@ -14,6 +14,69 @@ const { models, dotEnvValues, config } = require('./context');
  *   test the lifecycle of the model instances
  */
 
+/* 
+  If `gc` is `true` then function generates a curi (conduit-uri) and
+  then use that to build the conduit object. Otherwise it uses the 
+  value provided in `curi` to build the conduit object.
+
+  If `rm` is non-empty then function removes listed field names from the
+  generated conduit object.
+
+  If `set` is non-empty then function sets the listed key-value pairs
+  onto the generated conduit object.
+*/
+async function newConduit(
+  uid,
+  { rm = [], set = {}, gc = true, curi = null } = {}
+) {
+  curi = gc === true ? await makeCuri('td') : curi;
+  const cdt = fakeConduit({ userId: uid, curi });
+  // remove attributes listed in `rm` from cdt
+  rm.forEach((fn) => delete cdt[fn]);
+
+  // set attribues listed in `set` onto cdt
+  Object.keys(set).forEach((k) => (cdt[k] = set[k]));
+
+  return models.Conduit.build(cdt);
+}
+
+/*
+  Assumes `cdt` is **not** null and is constructed to match test requirements, 
+  and verifies that the model layer produces and `expected` outcome.
+*/
+async function test(
+  cdt,
+  msg,
+  expected = 'success',
+  check = [],
+  debug = false
+) {
+  if (expected === 'success') {
+    // let mocha catch the error and count as a test failure
+    await cdt.save();
+
+    const json = await cdt.toJSON();
+    expect(json).to.be.an('object');
+    expect(json).to.have.property('id');
+    expect(json).to.have.property('curi');
+    expect(json).to.have.property('suriApiKey');
+    expect(json).to.have.property('suriType');
+    expect(json.curi.length).to.equal(config.conduit.settings.curiLen);
+  } else {
+    try {
+      await cdt.save();
+      // if `save` did not throw then we have an error
+      if (debug) {
+        console.log('unexpected flow will throw ', msg, cdt.toJSON());
+      }
+      throw new Error(msg);
+    } catch (e) {
+      expect(e.name).to.equal(expected);
+      check.forEach((fn) => expect(e.errors[0].path).to.equal(fn));
+    }
+  }
+}
+
 context('Conduit model', () => {
   let cdt, user;
 
@@ -25,7 +88,6 @@ context('Conduit model', () => {
       password: dotEnvValues.parsed.USER_PASSWORD,
     });
     user = userObj.toJSON();
-    await models.Conduit.sync();
   });
 
   after('populate for integration test', async function () {
@@ -34,461 +96,224 @@ context('Conduit model', () => {
   });
 
   it('should store conduit', async () => {
-    const curi = await makeCuri('td');
-    cdt = fakeConduit({ userId: user.id, curi });
-    const objCdt = models.Conduit.build(cdt);
-    await objCdt.save();
-    const createdConduit = objCdt.toJSON();
-
-    expect(createdConduit).to.be.an('object');
-    expect(createdConduit).to.have.property('suriApiKey');
-    expect(createdConduit).to.have.property('suriType');
-    expect(createdConduit.curi.length).to.equal(
-      config.conduit.settings.curiLen
-    );
+    const expected = 'success';
+    const msg = 'unable to save conduit';
+    cdt = await newConduit(user.id);
+    await test(cdt, msg, expected);
   });
 
   context('testing curi field...', () => {
-    it('should not allow no curi', (done) => {
-      const cdt = fakeConduit({ userId: user.id });
-      const objCdt = models.Conduit.build(cdt);
-      objCdt
-        .save()
-        .then(() => {
-          done(Error('Conduit was saved without a curi'));
-        })
-        .catch((e) => {
-          expect(e.name).to.equal('SequelizeValidationError');
-          expect(e.errors[0].path).to.equal('curi');
-          done();
-        });
+    it('should not allow duplicate curi', async () => {
+      const expected = 'SequelizeUniqueConstraintError';
+      const msg = 'Conduit with duplicate curi was saved';
+      const nc = await newConduit(user.id, { gc: false, curi: cdt.curi });
+      await test(nc, msg, expected);
     });
 
-    it('should not allow undefined curi', (done) => {
-      const cdt = fakeConduit({ userId: user.id, curi: undefined });
-      const objCdt = models.Conduit.build(cdt);
-      objCdt
-        .save()
-        .then(() => {
-          done(Error('Conduit was saved with undefined curi'));
-        })
-        .catch((e) => {
-          expect(e.name).to.equal('SequelizeValidationError');
-          expect(e.errors[0].path).to.equal('curi');
-          done();
-        });
+    it('should not allow no curi', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit was saved without a curi';
+      const fields = ['curi'];
+      const nc = await newConduit(user.id, { rm: fields });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow null curi', (done) => {
-      const cdt = fakeConduit({ userId: user.id, curi: null });
-      const objCdt = models.Conduit.build(cdt);
-      objCdt
-        .save()
-        .then(() => {
-          done(Error('Conduit was saved with null curi'));
-        })
-        .catch((e) => {
-          expect(e.name).to.equal('SequelizeValidationError');
-          expect(e.errors[0].path).to.equal('curi');
-          done();
-        });
+    it('should not allow non-url curi', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit was saved with non-url curi';
+      const fields = ['curi']; // delete this field
+      const set = { curi: 'not-in-url-format' }; // and set it to 'not-in-url-format'
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow empty curi', (done) => {
-      const cdt = fakeConduit({ userId: user.id, curi: '' });
-      const objCdt = models.Conduit.build(cdt);
-      objCdt
-        .save()
-        .then(() => {
-          done(Error('Conduit was saved with empty curi'));
-        })
-        .catch((e) => {
-          expect(e.name).to.equal('SequelizeValidationError');
-          expect(e.errors[0].path).to.equal('curi');
-          done();
-        });
+    // TODO: redundant? if so remove this test
+    it('should not allow blank curi', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit was saved with blank curi';
+      const fields = ['curi']; // delete this field
+      const set = { curi: '    ' }; // and set it to '    '
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow blank curi', (done) => {
-      const cdt = fakeConduit({ userId: user.id, curi: '    ' });
-      const objCdt = models.Conduit.build(cdt);
-      objCdt
-        .save()
-        .then(() => {
-          done(Error('Conduit was saved with blank curi'));
-        })
-        .catch((e) => {
-          expect(e.name).to.equal('SequelizeValidationError');
-          expect(e.errors[0].path).to.equal('curi');
-          done();
-        });
+    // TODO: redundant! remove this test
+    it('should not allow undefined curi', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit was saved with undefined curi';
+      const fields = ['curi']; // delete this field
+      const set = { curi: undefined }; // and set it to undefined
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow duplicate curi', (done) => {
-      const objCdt = models.Conduit.build(cdt);
-      objCdt
-        .save()
-        .then(() => {
-          done(Error('Conduit with duplicate curi was saved'));
-        })
-        .catch((e) => {
-          expect(e.name).to.equal('SequelizeUniqueConstraintError');
-          done();
-        });
+    // TODO: redundant! remove this test
+    it('should not allow null curi', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit was saved with null curi';
+      const fields = ['curi']; // delete this field
+      const set = { curi: null }; // and set it to null
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow non-url curi', (done) => {
-      const cdt = fakeConduit({
-        userId: user.id,
-        curi: 'not-in-url-format',
-      });
-      const objCdt = models.Conduit.build(cdt);
-      objCdt
-        .save()
-        .then(() => {
-          done(Error('Conduit was saved with non-url curi'));
-        })
-        .catch((e) => {
-          expect(e.name).to.equal('SequelizeValidationError');
-          expect(e.errors[0].path).to.equal('curi');
-          done();
-        });
+    // TODO: redundant! remove this test
+    it('should not allow empty curi', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit was saved with empty curi';
+      const fields = ['curi']; // delete this field
+      const set = { curi: '' }; // and set it to ''
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
   });
 
   context('testing suriType field...', () => {
-    it('should not allow no suriType', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          delete cdt.suriType;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit was saved with no suriType'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('suriType');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    it('should not allow no suriType', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit was saved with no suriType';
+      const fields = ['suriType'];
+      const nc = await newConduit(user.id, { rm: fields });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow undefined suriType', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.suriType = undefined;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit was saved with undefined suriType'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('suriType');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    it('should reject unsupported service types', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit was saved with empty suriType';
+      const fields = ['suriType']; // delete this field
+      const set = { suriType: 'random' }; // and set it to 'random'
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow null suriType', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.suriType = null;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit was saved with null suriType'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('suriType');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    // TODO: redundant! remove this test
+    it('should not allow undefined suriType', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit was saved with undefined suriType';
+      const fields = ['suriType']; // delete this field
+      const set = { suriType: undefined }; // and set it to undefined
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow empty suriType', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.suriType = '';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit was saved with empty suriType'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('suriType');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    // TODO: redundant! remove this test
+    it('should not allow null suriType', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit was saved with null suriType';
+      const fields = ['suriType']; // delete this field
+      const set = { suriType: null }; // and set it to null
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should reject unsupported service types', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.suriType = 'random';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error("Conduit was saved with 'random' suriType"));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('suriType');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    // TODO: redundant! remove this test
+    it('should not allow empty suriType', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit was saved with empty suriType';
+      const fields = ['suriType']; // delete this field
+      const set = { suriType: '' }; // and set it to ''
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
   });
 
   context('testing suriApiKey field...', () => {
-    it('should not allow no suriApiKey', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          delete cdt.suriApiKey;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved without required suriApiKey'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('suriApiKey');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    it('should not allow no suriApiKey', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit saved without required suriApiKey';
+      const fields = ['suriApiKey']; // delete this field
+      const nc = await newConduit(user.id, { rm: fields });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow undefined suriApiKey', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.suriApiKey = undefined;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved with undefined suriApiKey'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('suriApiKey');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    // TODO: redundant? if so remove this test
+    it('should not allow blank suriApiKey', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit saved with blank suriApiKey';
+      const fields = ['suriApiKey']; // delete this field
+      const set = { suriApiKey: '    ' }; // and set it to '    '
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
+    });  
+
+    // TODO: redundant! remove this test
+    it('should not allow undefined suriApiKey', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit saved with undefined suriApiKey';
+      const fields = ['suriApiKey']; // delete this field
+      const set = { suriApiKey: undefined }; // and set it to undefined
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow null suriApiKey', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.suriApiKey = null;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved with null suriApiKey'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('suriApiKey');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    // TODO: redundant! remove this test
+    it('should not allow null suriApiKey', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit saved with null suriApiKey';
+      const fields = ['suriApiKey']; // delete this field
+      const set = { suriApiKey: null }; // and set it to null
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow empty suriApiKey', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.suriApiKey = '';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved with empty suriApiKey'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('suriApiKey');
-              done();
-            });
-        })
-        .catch((e) => done(e));
-    });
-
-    it('should not allow blank suriApiKey', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.suriApiKey = '    ';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved with blank suriApiKey'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('suriApiKey');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    // TODO: redundant! remove this test
+    it('should not allow empty suriApiKey', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit saved with empty suriApiKey';
+      const fields = ['suriApiKey']; // delete this field
+      const set = { suriApiKey: '' }; // and set it to ''
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
   });
 
   context('testing suriObjectKey field...', () => {
-    it('should not allow no suriObjectKey', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          delete cdt.suriObjectKey;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved without required suriObjectKey'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('suriObjectKey');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    it('should not allow no suriObjectKey', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit saved without required suriObjectKey';
+      const fields = ['suriObjectKey']; // delete this field
+      const nc = await newConduit(user.id, { rm: fields });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow undefined suriObjectKey', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.suriObjectKey = undefined;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved with undefined suriObjectKey'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('suriObjectKey');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    // TODO: redundant? if so remove this test
+    it('should not allow blank suriObjectKey', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit saved with blank suriObjectKey';
+      const fields = ['suriObjectKey']; // delete this field
+      const set = { suriObjectKey: '    ' }; // and set it to '    '
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
+    });  
+
+    // TODO: redundant! remove this test
+    it('should not allow undefined suriObjectKey', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit saved with undefined suriObjectKey';
+      const fields = ['suriObjectKey']; // delete this field
+      const set = { suriObjectKey: undefined }; // and set it to undefined
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
+    });  
+
+    // TODO: redundant! remove this test
+    it('should not allow null suriObjectKey', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit saved with null suriObjectKey';
+      const fields = ['suriObjectKey']; // delete this field
+      const set = { suriObjectKey: null }; // and set it to null
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow null suriObjectKey', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.suriObjectKey = null;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved with null suriObjectKey'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('suriObjectKey');
-              done();
-            });
-        })
-        .catch((e) => done(e));
-    });
-
-    it('should not allow empty suriObjectKey', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.suriObjectKey = '';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved with empty suriObjectKey'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('suriObjectKey');
-              done();
-            });
-        })
-        .catch((e) => done(e));
-    });
-
-    it('should not allow blank suriObjectKey', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.suriObjectKey = '    ';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved with blank suriObjectKey'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('suriObjectKey');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    // TODO: redundant! remove this test
+    it('should not allow empty suriObjectKey', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit saved with empty suriObjectKey';
+      const fields = ['suriObjectKey']; // delete this field
+      const set = { suriObjectKey: '' }; // and set it to ''
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
   });
 
