@@ -8,6 +8,7 @@ const STATUS_ENUM = ['active', 'inactive'];
 const HTTP_METHODS_ENUM = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 const BOOLEAN_ENUM = [true, false];
 const SERVICE_TARGETS_ENUM = conf.targets.settings.map((i) => i.type);
+const ALLOW_LIST_PROPS = ['ip', 'comment', 'status'];
 
 module.exports = (db, DataTypes) => {
   const Conduit = db.define('conduit', {
@@ -49,6 +50,16 @@ module.exports = (db, DataTypes) => {
       allowNull: false,
       defaultValue: [],
       validate: {
+        isValidPropertyList: (value) => {
+          if (
+            !value ||
+            !value.every((prop) =>
+              Object.keys(prop).every((k) => ALLOW_LIST_PROPS.includes(k))
+            )
+          ) {
+            throw new Error('unspecified properties present');
+          }
+        },
         isValidProperty: (value) => {
           if (!value || !value.every((entry) => entry.ip && entry.status)) {
             throw new Error('missing required properties');
