@@ -43,6 +43,13 @@ async function newConduit(
 /*
   Assumes `cdt` is **not** null and is constructed to match test requirements, 
   and verifies that the model layer produces and `expected` outcome.
+
+  If `expected` is a string then `test` will look for exceptions and
+  use the fields listed in `check` to be present in the errors array
+  that is assumed to be present in the exception thrown.
+
+  If `expected` is an object then `test` will use the `keys` to be present
+  in `cdt` after saving and match the values of those `keys` in `expected`.
 */
 async function test(
   cdt,
@@ -66,12 +73,25 @@ async function test(
     try {
       await cdt.save();
       // if `save` did not throw then we have an error
-      if (debug) {
-        console.log('unexpected flow will throw ', msg, cdt.toJSON());
+      if (typeof expected === 'object') {
+        Object.keys(expected).forEach((k) => {
+          if (Array.isArray(expected[k])) {
+            // ensure expected array has all the members without
+            // regard to ordering...
+            expect(cdt[k]).to.have.members(expected[k]);
+          } else {
+            expect(cdt[k]).to.eql(expected[k]);
+          }
+        });
+      } else {
+        throw new Error(msg);
       }
-      throw new Error(msg);
     } catch (e) {
-      expect(e.name).to.equal(expected);
+      expect(e.name, msg).to.equal(expected);
+      // TODO: add check to see the error message from server matches
+      //       our expectation. At the moment we are only checking to
+      //       see the field name is returned. But the field value can
+      //       be erroneous for multiple reasons!
       check.forEach((fn) => expect(e.errors[0].path).to.equal(fn));
     }
   }
@@ -79,7 +99,6 @@ async function test(
 
 context('Conduit model', () => {
   let cdt, user;
-
   before(async () => {
     const userObj = await models.User.create({
       firstName: dotEnvValues.parsed.USER_FIRST_NAME,
@@ -136,36 +155,6 @@ context('Conduit model', () => {
       const nc = await newConduit(user.id, { rm: fields, set });
       await test(nc, msg, expected, fields);
     });
-
-    // TODO: redundant! remove this test
-    it('should not allow undefined curi', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit was saved with undefined curi';
-      const fields = ['curi']; // delete this field
-      const set = { curi: undefined }; // and set it to undefined
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    // TODO: redundant! remove this test
-    it('should not allow null curi', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit was saved with null curi';
-      const fields = ['curi']; // delete this field
-      const set = { curi: null }; // and set it to null
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    // TODO: redundant! remove this test
-    it('should not allow empty curi', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit was saved with empty curi';
-      const fields = ['curi']; // delete this field
-      const set = { curi: '' }; // and set it to ''
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
   });
 
   context('testing suriType field...', () => {
@@ -182,36 +171,6 @@ context('Conduit model', () => {
       const msg = 'Conduit was saved with empty suriType';
       const fields = ['suriType']; // delete this field
       const set = { suriType: 'random' }; // and set it to 'random'
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    // TODO: redundant! remove this test
-    it('should not allow undefined suriType', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit was saved with undefined suriType';
-      const fields = ['suriType']; // delete this field
-      const set = { suriType: undefined }; // and set it to undefined
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    // TODO: redundant! remove this test
-    it('should not allow null suriType', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit was saved with null suriType';
-      const fields = ['suriType']; // delete this field
-      const set = { suriType: null }; // and set it to null
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    // TODO: redundant! remove this test
-    it('should not allow empty suriType', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit was saved with empty suriType';
-      const fields = ['suriType']; // delete this field
-      const set = { suriType: '' }; // and set it to ''
       const nc = await newConduit(user.id, { rm: fields, set });
       await test(nc, msg, expected, fields);
     });
@@ -234,36 +193,6 @@ context('Conduit model', () => {
       const set = { suriApiKey: '    ' }; // and set it to '    '
       const nc = await newConduit(user.id, { rm: fields, set });
       await test(nc, msg, expected, fields);
-    });  
-
-    // TODO: redundant! remove this test
-    it('should not allow undefined suriApiKey', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit saved with undefined suriApiKey';
-      const fields = ['suriApiKey']; // delete this field
-      const set = { suriApiKey: undefined }; // and set it to undefined
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    // TODO: redundant! remove this test
-    it('should not allow null suriApiKey', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit saved with null suriApiKey';
-      const fields = ['suriApiKey']; // delete this field
-      const set = { suriApiKey: null }; // and set it to null
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    // TODO: redundant! remove this test
-    it('should not allow empty suriApiKey', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit saved with empty suriApiKey';
-      const fields = ['suriApiKey']; // delete this field
-      const set = { suriApiKey: '' }; // and set it to ''
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
     });
   });
 
@@ -284,864 +213,257 @@ context('Conduit model', () => {
       const set = { suriObjectKey: '    ' }; // and set it to '    '
       const nc = await newConduit(user.id, { rm: fields, set });
       await test(nc, msg, expected, fields);
-    });  
-
-    // TODO: redundant! remove this test
-    it('should not allow undefined suriObjectKey', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit saved with undefined suriObjectKey';
-      const fields = ['suriObjectKey']; // delete this field
-      const set = { suriObjectKey: undefined }; // and set it to undefined
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });  
-
-    // TODO: redundant! remove this test
-    it('should not allow null suriObjectKey', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit saved with null suriObjectKey';
-      const fields = ['suriObjectKey']; // delete this field
-      const set = { suriObjectKey: null }; // and set it to null
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    // TODO: redundant! remove this test
-    it('should not allow empty suriObjectKey', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit saved with empty suriObjectKey';
-      const fields = ['suriObjectKey']; // delete this field
-      const set = { suriObjectKey: '' }; // and set it to ''
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
     });
   });
 
   context('testing status field...', () => {
-    it("should set default status to 'inactive' if no status is set", (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          delete cdt.status;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then((objCdt) => {
-              expect(objCdt.status).to.equal('inactive');
-              done();
-            })
-            .catch((_err) => {
-              done(Error('status was not saved with default value'));
-            });
-        })
-        .catch((e) => done(e));
+    // equivalence with `status` set to undefined, or empty ('')
+    it("should set default status to 'inactive' if no status is set", async () => {
+      const expected = { status: 'inactive' };
+      const msg = 'status was not saved with default value';
+      const fields = ['status']; // delete this field
+      const nc = await newConduit(user.id, { rm: fields });
+      await test(nc, msg, expected, fields);
     });
 
-    it("should set default status to 'inactive' if status is undefined", (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.status = undefined;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then((objCdt) => {
-              expect(objCdt.status).to.equal('inactive');
-              done();
-            })
-            .catch((_err) => {
-              done(Error('status was not saved with default value'));
-            });
-        })
-        .catch((e) => done(e));
+    it('should not allow null status', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'null value was saved successfully';
+      const fields = ['status']; // delete this field
+      const set = { status: null }; // and set it to null
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow null status', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.status = null;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('null value was saved successfully'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('status');
-              done();
-            });
-        })
-        .catch((e) => done(e));
-    });
-
-    it('should not allow empty status', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.status = '';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('empty value was saved successfully'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('status');
-              done();
-            });
-        })
-        .catch((e) => done(e));
-    });
-
-    it("should allow only 'active' or 'inactive'", (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.status = 'random';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error("'random' value was saved successfully"));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('status');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    it("should allow only 'active' or 'inactive'", async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = "'random' value was saved successfully";
+      const fields = ['status']; // delete this field
+      const set = { status: 'random' }; // and set it to 'random'
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
   });
 
   context('testing throttle field...', () => {
-    it('should set default throttle to true if no throttle is set', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          delete cdt.throttle;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then((objCdt) => {
-              expect(objCdt.throttle).to.equal(true);
-              done();
-            })
-            .catch((_err) => {
-              done(Error('throttle was not saved with default value'));
-            });
-        })
-        .catch((e) => done(e));
+    // equivalence with `throttle` set to undefined, or empty ('')
+    it('should set default throttle to true if no throttle is set', async () => {
+      const expected = { throttle: true };
+      const msg = 'throttle was not saved with default value';
+      const fields = ['throttle']; // delete this field
+      const nc = await newConduit(user.id, { rm: fields });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should set default throttle to true if throttle is undefined', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.throttle = undefined;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then((objCdt) => {
-              expect(objCdt.throttle).to.equal(true);
-              done();
-            })
-            .catch((_err) => {
-              done(Error('throttle was not saved with default value'));
-            });
-        })
-        .catch((e) => done(e));
+    it('should not allow null throttle', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'null value was saved successfully';
+      const fields = ['throttle']; // delete this field
+      const set = { throttle: null }; // and set it to null
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow null throttle', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.throttle = null;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('null value was saved successfully'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('throttle');
-              done();
-            });
-        })
-        .catch((e) => done(e));
-    });
-
-    it('should not allow empty throttle', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.throttle = '';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('null value was saved successfully'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('throttle');
-              done();
-            });
-        })
-        .catch((e) => done(e));
-    });
-
-    it("should allow only 'true' or 'false' values", (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.throttle = 'random';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error("Conduit saved with 'random' throttle"));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('throttle');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    it("should allow only 'true' or 'false' values", async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = "Conduit saved with 'random' throttle";
+      const fields = ['throttle']; // delete this field
+      const set = { throttle: 'random' }; // and set it to 'random'
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
   });
 
   context('testing racm field...', () => {
-    it('should set default racm to ["GET"] if no racm is set', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          delete cdt.racm;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then((objCdt) => {
-              expect(objCdt.racm).to.eql(['GET']);
-              done();
-            })
-            .catch((_err) => {
-              done(Error('racm was not saved with default value'));
-            });
-        })
-        .catch((e) => done(e));
+    // equivalence with `racm` set to undefined, or empty ('')
+    it('should set default racm to ["GET"] if no racm is set', async () => {
+      const expected = { racm: ['GET'] };
+      const msg = 'racm was not saved with default value';
+      const fields = ['racm']; // delete this field
+      const nc = await newConduit(user.id, { rm: fields });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should set default racm to ["GET"] if racm is undefined', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.racm = undefined;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then((objCdt) => {
-              expect(objCdt.racm).to.eql(['GET']);
-              done();
-            })
-            .catch((_err) => {
-              done(Error('racm was not saved with default value'));
-            });
-        })
-        .catch((e) => done(e));
+    it('should not allow blanks', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'blank string was saved successfully';
+      const fields = ['racm']; // delete this field
+      const set = { racm: '    ' }; // and set it to '    '
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow empty string', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.racm = '';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('empty string was saved successfully'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('racm');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    it('should not allow null racm', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'null value was saved successfully';
+      const fields = ['racm']; // delete this field
+      const set = { racm: null }; // and set it to null
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow blanks', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.racm = '    ';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('blank string was saved successfully'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('racm');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    it('should not allow invalid methods in racm list', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'invalid values saved successfully';
+      const fields = ['racm']; // delete this field and set new values
+      const set = { racm: ['HEAD', 'OPTIONS', 'CONNECT', 'TRACE'] };
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow null racm', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.racm = null;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('null value was saved successfully'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('racm');
-              done();
-            });
-        })
-        .catch((e) => done(e));
-    });
-
-    it('should not allow invalid methods in racm list', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.racm = ['HEAD', 'OPTIONS', 'CONNECT', 'TRACE'];
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('invalid values saved successfully'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('racm');
-              done();
-            });
-        })
-        .catch((e) => done(e));
-    });
-
-    it('should allow valid methods in racm list', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.racm = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then((objCdt) => {
-              expect(objCdt.racm).to.eql([
-                'GET',
-                'POST',
-                'PUT',
-                'PATCH',
-                'DELETE',
-              ]);
-              done();
-            })
-            .catch((_err) => {
-              done(Error('racm was not saved with valid values'));
-            });
-        })
-        .catch((e) => done(e));
+    it('should allow valid methods in racm list', async () => {
+      const expected = { racm: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] };
+      const msg = 'racm was not saved with valid values';
+      const fields = ['racm']; // delete this field and set new values
+      const set = { racm: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] };
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
   });
 
   context('testing allowlist field...', () => {
-    it('should set default allowlist to [] if allowlist is not specified', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          delete cdt.allowlist;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then((objCdt) => {
-              expect(objCdt.allowlist).to.eql([]);
-              done();
-            })
-            .catch((_err) => {
-              done(Error('allowlist was not saved with default value'));
-            });
-        })
-        .catch((e) => done(e));
+    // equivalence with `allowlist` set to undefined, or empty ([])
+    it('should set default allowlist to [] if allowlist is not specified', async () => {
+      const expected = { allowlist: [] };
+      const msg = 'allowlist was not saved with default value';
+      const fields = ['allowlist']; // delete this field
+      const nc = await newConduit(user.id, { rm: fields });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should set default allowlist to [] if allowlist is undefined', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.allowlist = undefined;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then((objCdt) => {
-              expect(objCdt.allowlist).to.eql([]);
-              done();
-            })
-            .catch((_err) => {
-              done(Error('allowlist was not saved with default value'));
-            });
-        })
-        .catch((e) => done(e));
+    // equivalence with invalid value type
+    it('should not allow blank allowlist', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit saved with blank allowlist';
+      const fields = ['allowlist']; // delete this field
+      const set = { allowlist: '    ' }; // and set it to '    '
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow empty allowlist', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.allowlist = '';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved with empty allowlist'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('allowlist');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    it('should not allow null allowlist', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit saved with null allowlist';
+      const fields = ['allowlist']; // delete this field
+      const set = { allowlist: null }; // and set it to null
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow blank allowlist', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.allowlist = '    ';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved with blank allowlist'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('allowlist');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    it('should not allow non-specified allowlist properties', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Saved with non-specified allowlist properties';
+      const fields = ['allowlist']; // delete this field and set new values
+      const set = {
+        allowlist: [
+          {
+            ip: '192.168.1.0',
+            comments: 'test',
+            status: 'active',
+            unspecified: 'catch me',
+          },
+        ],
+      };
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields, true);
     });
 
-    it('should not allow null allowlist', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.allowlist = null;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved with null allowlist'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('allowlist');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    // equivalence with `allowlist.ip` set to undefined, or empty
+    // TODO: change this to test for `required` properties (ip, status)
+    it('should not allow no ip address in allowlist', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Saved with no ip address';
+      const fields = ['allowlist']; // delete this field and set new values
+      const set = {
+        allowlist: [
+          {
+            comments: 'test',
+            status: 'active',
+          },
+        ],
+      };
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields, true);
     });
 
-    it('should not allow non-specified allowlist properties', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.allowlist = [
-            {
-              ip: '123.234.345.456',
-              comment: 'test',
-              status: 'active',
-              unspecified: 'random',
-            },
-          ];
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Saved with non-specified allowlist properties'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('allowlist');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    it('should not allow no status in allowlist', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Saved with no status';
+      const fields = ['allowlist']; // delete this field and set new values
+      const set = {
+        allowlist: [
+          {
+            comments: 'test',
+            ip: '192.168.1.0',
+          },
+        ],
+      };
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields, true);
     });
 
-    context('testing ip address property', () => {
-      it('should not allow no ip address in allowlist', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.allowlist = [
-              {
-                comment: 'test',
-                status: 'active',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved with no ip address'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('allowlist');
-                done();
-              });
-          })
-          .catch((e) => done(e));
-      });
-
-      it('should not allow undefined ip address in allowlist', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.allowlist = [
-              {
-                ip: undefined,
-                comment: 'test',
-                status: 'active',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved with undefined ip address'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('allowlist');
-                done();
-              });
-          })
-          .catch((e) => done(e));
-      });
-
-      it('should not allow null ip address in allowlist', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.allowlist = [
-              {
-                ip: null,
-                comment: 'test',
-                status: 'active',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved with null ip address'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('allowlist');
-                done();
-              });
-          })
-          .catch((e) => done(e));
-      });
-
-      it('should not allow empty ip address in allowlist', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.allowlist = [
-              {
-                ip: '',
-                comment: 'test',
-                status: 'active',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved with empty ip address'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('allowlist');
-                done();
-              });
-          })
-          .catch((e) => done(e));
-      });
-
-      it('should not allow maligned ip address in allowlist', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.allowlist = [
-              {
-                ip: '123.234.345',
-                comment: 'test',
-                status: 'active',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved with maligned ip address'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('allowlist');
-                done();
-              });
-          })
-          .catch((e) => done(e));
-      });
-
-      it('should not allow out-of-range ip address in allowlist', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.allowlist = [
-              {
-                ip: '123.234.345.456',
-                comment: 'test',
-                status: 'active',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved with out-of-range ip address'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('allowlist');
-                done();
-              });
-          })
-          .catch((e) => done(e));
-      });
+    it('should not allow null ip address in allowlist', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Saved with null ip address';
+      const fields = ['allowlist']; // delete this field and set new values
+      const set = {
+        allowlist: [
+          {
+            ip: null,
+            status: 'active',
+          },
+        ],
+      };
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields, true);
     });
 
-    context('testing status property', () => {
-      it('should not allow no status', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.allowlist = [
-              {
-                ip: '127.0.0.1',
-                comment: 'test',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Conduit saved with no allowlist status'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('allowlist');
-                done();
-              });
-          })
-          .catch((e) => done(e));
-      });
+    it('should not allow maligned ip address in allowlist', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Saved with maligned ip address';
+      const fields = ['allowlist']; // delete this field and set new values
+      const set = {
+        allowlist: [
+          {
+            ip: '123.234.345',
+            status: 'inactive',
+          },
+        ],
+      };
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields, true);
+    });
 
-      it('should not allow undefined status', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.allowlist = [
-              {
-                ip: '127.0.0.1',
-                comment: 'test',
-                status: undefined,
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Conduit saved with undefined allowlist status'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('allowlist');
-                done();
-              });
-          })
-          .catch((e) => done(e));
-      });
+    it('should not allow out-of-range ip address in allowlist', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Saved with out-of-range ip address';
+      const fields = ['allowlist']; // delete this field and set new values
+      const set = {
+        allowlist: [
+          {
+            ip: '123.234.345.456',
+            status: 'inactive',
+          },
+        ],
+      };
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields, true);
+    });
 
-      it('should not allow null status', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.allowlist = [
-              {
-                ip: '127.0.0.1',
-                comment: 'test',
-                status: null,
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Conduit saved with null allowlist status'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('allowlist');
-                done();
-              });
-          })
-          .catch((e) => done(e));
-      });
-
-      it('should not allow empty status', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.allowlist = [
-              {
-                ip: '127.0.0.1',
-                comment: 'test',
-                status: '',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Conduit saved with null allowlist status'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('allowlist');
-                done();
-              });
-          })
-          .catch((e) => done(e));
-      });
-
-      it("should allow only 'active' or 'inactive' status", (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.allowlist = [
-              {
-                ip: '123.234.345.456',
-                comment: 'test',
-                status: 'random',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error("Conduit saved with 'random' allowlist status"));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('allowlist');
-                done();
-              });
-          })
-          .catch((e) => done(e));
-      });
+    it("should allow only 'active' or 'inactive' status", async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = "Conduit saved with 'random' allowlist status";
+      const fields = ['allowlist']; // delete this field and set new values
+      const set = {
+        allowlist: [
+          {
+            ip: '192.168.1.0',
+            status: 'random',
+          },
+        ],
+      };
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields, true);
     });
   });
 
