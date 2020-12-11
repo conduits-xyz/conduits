@@ -42,7 +42,7 @@ async function newConduit(
 
 /*
   Assumes `cdt` is **not** null and is constructed to match test requirements, 
-  and verifies that the model layer produces and `expected` outcome.
+  and verifies that the model layer produces an `expected` outcome.
 
   If `expected` is a string then `test` will look for exceptions and
   use the fields listed in `check` to be present in the errors array
@@ -92,6 +92,9 @@ async function test(
       //       our expectation. At the moment we are only checking to
       //       see the field name is returned. But the field value can
       //       be erroneous for multiple reasons!
+      if (debug) {
+        console.log(e.errors[0].message);
+      }
       check.forEach((fn) => expect(e.errors[0].path).to.equal(fn));
     }
   }
@@ -365,7 +368,7 @@ context('Conduit model', () => {
         ],
       };
       const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields, true);
+      await test(nc, msg, expected, fields);
     });
 
     // equivalence with `allowlist.ip` set to undefined, or empty
@@ -383,7 +386,7 @@ context('Conduit model', () => {
         ],
       };
       const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields, true);
+      await test(nc, msg, expected, fields);
     });
 
     it('should not allow no status in allowlist', async () => {
@@ -399,7 +402,7 @@ context('Conduit model', () => {
         ],
       };
       const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields, true);
+      await test(nc, msg, expected, fields);
     });
 
     it('should not allow null ip address in allowlist', async () => {
@@ -415,7 +418,7 @@ context('Conduit model', () => {
         ],
       };
       const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields, true);
+      await test(nc, msg, expected, fields);
     });
 
     it('should not allow maligned ip address in allowlist', async () => {
@@ -431,7 +434,7 @@ context('Conduit model', () => {
         ],
       };
       const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields, true);
+      await test(nc, msg, expected, fields);
     });
 
     it('should not allow out-of-range ip address in allowlist', async () => {
@@ -447,7 +450,7 @@ context('Conduit model', () => {
         ],
       };
       const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields, true);
+      await test(nc, msg, expected, fields);
     });
 
     it("should allow only 'active' or 'inactive' status", async () => {
@@ -463,467 +466,183 @@ context('Conduit model', () => {
         ],
       };
       const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields, true);
+      await test(nc, msg, expected, fields);
     });
   });
 
   context('testing hidden form field...', () => {
-    it('should set default hff to [] if hff is not specified', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          delete cdt.hiddenFormField;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then((objCdt) => {
-              expect(objCdt.hiddenFormField).to.eql([]);
-              done();
-            })
-            .catch((_err) => {
-              done(Error('HFF was not saved with default value'));
-            });
-        })
-        .catch((e) => done(e));
+    // equivalence with `allowlist` set to undefined, or empty ([])
+    it('should set default hff to [] if hff is not specified', async () => {
+      const expected = { hiddenFormField: [] };
+      const msg = 'HFF was not saved with default value';
+      const fields = ['hiddenFormField']; // delete this field
+      const nc = await newConduit(user.id, { rm: fields });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should set default hff to [] if hff is undefined', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.hiddenFormField = undefined;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then((objCdt) => {
-              expect(objCdt.hiddenFormField).to.eql([]);
-              done();
-            })
-            .catch((_err) => {
-              done(Error('HFF was not saved with default value'));
-            });
-        })
-        .catch((e) => done(e));
+    // equivalence with invalid value type
+    it('should not allow blank hff', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit saved with blank HFF';
+      const fields = ['hiddenFormField']; // delete this field
+      const set = { hiddenFormField: '    ' }; // and set it to '    '
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow empty hff', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.hiddenFormField = '';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved with empty HFF'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('hiddenFormField');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    it('should not allow null hff', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Conduit saved with null HFF';
+      const fields = ['hiddenFormField']; // delete this field
+      const set = { hiddenFormField: null }; // and set it to null
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
-    it('should not allow blank hff', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.hiddenFormField = '    ';
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved with blank HFF'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('hiddenFormField');
-              done();
-            });
-        })
-        .catch((e) => done(e));
-    });
-
-    it('should not allow null hff', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.hiddenFormField = null;
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Conduit saved with null HFF'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('hiddenFormField');
-              done();
-            });
-        })
-        .catch((e) => done(e));
-    });
-
-    it('should not allow non-specified hff properties', (done) => {
-      makeCuri('td')
-        .then((curi) => fakeConduit({ userId: user.id, curi }))
-        .then((cdt) => {
-          cdt.hiddenFormField = [
-            {
-              fieldName: 'campaign',
-              policy: 'pass-if-match',
-              include: true,
-              value: 'black friday sale',
-              unspecified: 'random',
-            },
-          ];
-          return models.Conduit.build(cdt);
-        })
-        .then((objCdt) => {
-          objCdt
-            .save()
-            .then(() => {
-              done(Error('Saved with non-specified HFF properties'));
-            })
-            .catch((e) => {
-              expect(e.name).to.equal('SequelizeValidationError');
-              expect(e.errors[0].path).to.equal('hiddenFormField');
-              done();
-            });
-        })
-        .catch((e) => done(e));
+    it('should not allow non-specified hff properties', async () => {
+      const expected = 'SequelizeValidationError';
+      const msg = 'Saved with non-specified HFF properties';
+      const fields = ['hiddenFormField']; // delete this field and set new values
+      const set = {
+        hiddenFormField: [
+          {
+            fieldName: 'campaign',
+            policy: 'pass-if-match',
+            include: true,
+            value: 'black friday sale',
+            unspecified: 'random',
+          },
+        ],
+      };
+      const nc = await newConduit(user.id, { rm: fields, set });
+      await test(nc, msg, expected, fields);
     });
 
     context('testing fieldname property', () => {
-      it('should not allow no fieldName', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.hiddenFormField = [
-              {
-                policy: 'pass-if-match',
-                include: true,
-                value: 'black friday sale',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved without HFF fieldName property'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('hiddenFormField');
-                done();
-              });
-          })
-          .catch((e) => done(e));
+      it('should not allow no fieldName', async () => {
+        const expected = 'SequelizeValidationError';
+        const msg = 'Saved without HFF fieldName property';
+        const fields = ['hiddenFormField']; // delete this field and set new values
+        const set = {
+          hiddenFormField: [
+            {
+              policy: 'pass-if-match',
+              include: true,
+              value: 'black friday sale',
+            },
+          ],
+        };
+        const nc = await newConduit(user.id, { rm: fields, set });
+        await test(nc, msg, expected, fields);
       });
 
-      it('should not allow undefined fieldName', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.hiddenFormField = [
-              {
-                fieldName: undefined,
-                policy: 'pass-if-match',
-                include: true,
-                value: 'black friday sale',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved with undefined fieldName'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('hiddenFormField');
-                done();
-              });
-          })
-          .catch((e) => done(e));
+      it('should not allow null fieldName', async () => {
+        const expected = 'SequelizeValidationError';
+        const msg = 'Saved with null fieldName';
+        const fields = ['hiddenFormField']; // delete this field and set new values
+        const set = {
+          hiddenFormField: [
+            {
+              fieldName: null,
+              policy: 'pass-if-match',
+              include: true,
+              value: 'black friday sale',
+            },
+          ],
+        };
+        const nc = await newConduit(user.id, { rm: fields, set });
+        await test(nc, msg, expected, fields);
       });
 
-      it('should not allow null fieldName', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.hiddenFormField = [
-              {
-                fieldName: null,
-                policy: 'pass-if-match',
-                include: true,
-                value: 'black friday sale',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved with null fieldName'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('hiddenFormField');
-                done();
-              });
-          })
-          .catch((e) => done(e));
-      });
-
-      it('should not allow empty fieldName', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.hiddenFormField = [
-              {
-                fieldName: '',
-                policy: 'pass-if-match',
-                include: true,
-                value: 'black friday sale',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved with empty fieldName'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('hiddenFormField');
-                done();
-              });
-          })
-          .catch((e) => done(e));
-      });
-
-      it('should not allow blank fieldName', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.hiddenFormField = [
-              {
-                fieldName: '    ',
-                policy: 'pass-if-match',
-                include: true,
-                value: 'black friday sale',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved with blank fieldName'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('hiddenFormField');
-                done();
-              });
-          })
-          .catch((e) => done(e));
+      it('should not allow blank fieldName', async () => {
+        const expected = 'SequelizeValidationError';
+        const msg = 'Saved with blank fieldName';
+        const fields = ['hiddenFormField']; // delete this field and set new values
+        const set = {
+          hiddenFormField: [
+            {
+              fieldName: '    ',
+              policy: 'pass-if-match',
+              include: true,
+              value: 'black friday sale',
+            },
+          ],
+        };
+        const nc = await newConduit(user.id, { rm: fields, set });
+        await test(nc, msg, expected, fields);
       });
     });
 
     context('testing policy property', () => {
-      it('should not allow no policy', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.hiddenFormField = [
-              {
-                fieldName: 'campaign',
-                include: true,
-                value: 'black friday sale',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved without HFF policy property'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('hiddenFormField');
-                done();
-              });
-          })
-          .catch((e) => done(e));
+      it('should not allow no policy', async () => {
+        const expected = 'SequelizeValidationError';
+        const msg = 'Saved without HFF policy property';
+        const fields = ['hiddenFormField']; // delete this field and set new values
+        const set = {
+          hiddenFormField: [
+            {
+              fieldName: 'campaign',
+              include: true,
+              value: 'black friday sale',
+            },
+          ],
+        };
+        const nc = await newConduit(user.id, { rm: fields, set });
+        await test(nc, msg, expected, fields);
       });
 
-      it('should not allow undefined policy', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.hiddenFormField = [
-              {
-                fieldName: 'campaign',
-                policy: undefined,
-                include: true,
-                value: 'black friday sale',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved with undefined policy'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('hiddenFormField');
-                done();
-              });
-          })
-          .catch((e) => done(e));
+      it('should not allow null policy', async () => {
+        const expected = 'SequelizeValidationError';
+        const msg = 'Saved with null policy';
+        const fields = ['hiddenFormField']; // delete this field and set new values
+        const set = {
+          hiddenFormField: [
+            {
+              fieldName: 'campaign',
+              policy: null,
+              include: true,
+              value: 'black friday sale',
+            },
+          ],
+        };
+        const nc = await newConduit(user.id, { rm: fields, set });
+        await test(nc, msg, expected, fields);
       });
 
-      it('should not allow null policy', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.hiddenFormField = [
-              {
-                fieldName: 'campaign',
-                policy: null,
-                include: true,
-                value: 'black friday sale',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved with null policy'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('hiddenFormField');
-                done();
-              });
-          })
-          .catch((e) => done(e));
+      it('should not allow blank policy', async () => {
+        const expected = 'SequelizeValidationError';
+        const msg = 'Saved with blank policy';
+        const fields = ['hiddenFormField']; // delete this field and set new values
+        const set = {
+          hiddenFormField: [
+            {
+              fieldName: 'campaign',
+              policy: '    ',
+              include: true,
+              value: 'black friday sale',
+            },
+          ],
+        };
+        const nc = await newConduit(user.id, { rm: fields, set });
+        await test(nc, msg, expected, fields);
       });
 
-      it('should not allow empty policy', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.hiddenFormField = [
-              {
-                fieldName: 'campaign',
-                policy: '',
-                include: true,
-                value: 'black friday sale',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved with empty policy'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('hiddenFormField');
-                done();
-              });
-          })
-          .catch((e) => done(e));
-      });
-
-      it('should not allow blank policy', (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.hiddenFormField = [
-              {
-                fieldName: 'campaign',
-                policy: '    ',
-                include: true,
-                value: 'black friday sale',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error('Saved with blank policy'));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('hiddenFormField');
-                done();
-              });
-          })
-          .catch((e) => done(e));
-      });
-
-      it("should allow only 'pass-if-match' or 'drop-if-filled' policy", (done) => {
-        makeCuri('td')
-          .then((curi) => fakeConduit({ userId: user.id, curi }))
-          .then((cdt) => {
-            cdt.hiddenFormField = [
-              {
-                fieldName: 'campaign',
-                policy: 'random',
-                include: true,
-                value: 'black friday sale',
-              },
-            ];
-            return models.Conduit.build(cdt);
-          })
-          .then((objCdt) => {
-            objCdt
-              .save()
-              .then(() => {
-                done(Error("Conduit saved with 'random' HFF policy"));
-              })
-              .catch((e) => {
-                expect(e.name).to.equal('SequelizeValidationError');
-                expect(e.errors[0].path).to.equal('hiddenFormField');
-                done();
-              });
-          })
-          .catch((e) => done(e));
+      it("should allow only 'pass-if-match' or 'drop-if-filled' policy", async () => {
+        const expected = 'SequelizeValidationError';
+        const msg = "Conduit saved with 'random' HFF policy";
+        const fields = ['hiddenFormField']; // delete this field and set new values
+        const set = {
+          hiddenFormField: [
+            {
+              fieldName: 'campaign',
+              policy: 'random',
+              include: true,
+              value: 'black friday sale',
+            },
+          ],
+        };
+        const nc = await newConduit(user.id, { rm: fields, set });
+        await test(nc, msg, expected, fields);
       });
     });
   });
