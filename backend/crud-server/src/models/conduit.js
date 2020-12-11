@@ -2,7 +2,8 @@ const validator = require('validator');
 const conf = require('../../../config');
 
 // cache frequently used objects and enumerations
-const HFF_PROPS = ['fieldName', 'include', 'policy', 'value'].join('');
+const HFF_PROPS = ['fieldName', 'include', 'policy', 'value'];
+const HFF_PROPS_SIG = ['fieldName', 'include', 'policy', 'value'].join('');
 const HFF_POLICY = ['drop-if-filled', 'pass-if-match'];
 const STATUS_ENUM = ['active', 'inactive'];
 const HTTP_METHODS_ENUM = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
@@ -129,11 +130,22 @@ module.exports = (db, DataTypes) => {
       allowNull: true,
       defaultValue: [],
       validate: {
+        isValidPropertyList: (value) => {
+          if (
+            !value ||
+            !value.every((prop) =>
+              Object.keys(prop).every((k) => HFF_PROPS.includes(k))
+            )
+          ) {
+            throw new Error('unspecified properties present');
+          }
+        },
+
         isValidProperty: (value) => {
           if (
             !value ||
             !value.every(
-              (entry) => Object.keys(entry).sort().join('') === HFF_PROPS
+              (entry) => Object.keys(entry).sort().join('') === HFF_PROPS_SIG
             )
           ) {
             throw new Error('missing required properties');
