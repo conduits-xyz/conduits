@@ -9,6 +9,9 @@ const { models, config } = require('./context');
 
 context('User model', () => {
   const fup = fakeUserProfile();
+  before('running tests', async () => {
+    await models.db.sync({ force: true });
+  });
 
   it('should store new user(s)', async () => {
     const user = models.User.build({ ...fup });
@@ -21,6 +24,26 @@ context('User model', () => {
     expect(newUser).to.have.property('firstName');
     expect(newUser).to.have.property('email');
     expect(newUser.firstName).to.equal(fup.firstName);
+  });
+
+  it('includes checks for not null constraints of critical fields', async () => {
+    try {
+      const fakeUserProfile2 = fakeUserProfile({
+        firstName: null,
+        lastName: null,
+        email: null,
+        password: null,
+      });
+      const user2 = models.User.build({ ...fakeUserProfile2 });
+      await user2.save();
+    } catch ({ name, ...rest }) {
+      expect(name).to.match(/TypeError/);
+      // v.a: Sequelize behaviour changed from throwing SequelizeValidationError
+      // with a list of errors to throwing a single TypeError instead... moving
+      // on for now but making sure that this behaviour doesn't change by
+      // checking for an empty error list.
+      expect(rest).to.be.empty;
+    }
   });
 
   it('should validate whether user exists', async function () {
