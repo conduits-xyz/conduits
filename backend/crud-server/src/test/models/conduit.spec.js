@@ -72,9 +72,13 @@ async function test(
   } else {
     try {
       await cdt.save();
-      // if `save` did not throw then we have an error
+      // if `save` did not throw then we have an error condition or have
+      // to check the return value
       if (typeof expected === 'object') {
         Object.keys(expected).forEach((k) => {
+          if (debug) {
+            console.log('expected: ', expected, 'received: ', cdt.toJSON());
+          }
           if (Array.isArray(expected[k])) {
             // ensure expected array has all the members without
             // regard to ordering...
@@ -124,526 +128,144 @@ context('Conduit model', () => {
     await test(cdt, msg, expected);
   });
 
-  context('testing curi field...', () => {
-    it('should not allow duplicate curi', async () => {
-      const expected = 'SequelizeUniqueConstraintError';
-      const msg = 'Conduit with duplicate curi was saved';
-      const nc = await newConduit(user.id, { gc: false, curi: cdt.curi });
-      await test(nc, msg, expected);
-    });
-
-    it('should not allow no curi', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit was saved without a curi';
-      const fields = ['curi'];
-      const nc = await newConduit(user.id, { rm: fields });
-      await test(nc, msg, expected, fields);
-    });
-
-    it('should not allow non-url curi', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit was saved with non-url curi';
-      const fields = ['curi']; // delete this field
-      const set = { curi: 'not-in-url-format' }; // and set it to 'not-in-url-format'
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    // TODO: redundant? if so remove this test
-    it('should not allow blank curi', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit was saved with blank curi';
-      const fields = ['curi']; // delete this field
-      const set = { curi: '    ' }; // and set it to '    '
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
+  it('should reject null curi', async () => {
+    const expected = 'SequelizeValidationError';
+    const msg = 'Conduit was saved with blank curi';
+    const fields = ['curi']; // delete this field
+    const set = { curi: null }; // and set it to null
+    const nc = await newConduit(user.id, { rm: fields, set });
+    await test(nc, msg, expected, fields);
   });
 
-  context('testing suriType field...', () => {
-    it('should not allow no suriType', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit was saved with no suriType';
-      const fields = ['suriType'];
-      const nc = await newConduit(user.id, { rm: fields });
-      await test(nc, msg, expected, fields);
-    });
-
-    it('should reject unsupported service types', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit was saved with empty suriType';
-      const fields = ['suriType']; // delete this field
-      const set = { suriType: 'random' }; // and set it to 'random'
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
+  it('should reject duplicate curi', async () => {
+    const expected = 'SequelizeUniqueConstraintError';
+    const msg = 'Conduit with duplicate curi was saved';
+    const nc = await newConduit(user.id, { gc: false, curi: cdt.curi });
+    await test(nc, msg, expected);
   });
 
-  context('testing suriApiKey field...', () => {
-    it('should not allow no suriApiKey', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit saved without required suriApiKey';
-      const fields = ['suriApiKey']; // delete this field
-      const nc = await newConduit(user.id, { rm: fields });
-      await test(nc, msg, expected, fields);
-    });
-
-    // TODO: redundant? if so remove this test
-    it('should not allow blank suriApiKey', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit saved with blank suriApiKey';
-      const fields = ['suriApiKey']; // delete this field
-      const set = { suriApiKey: '    ' }; // and set it to '    '
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
+  it('should reject null suriType', async () => {
+    const expected = 'SequelizeValidationError';
+    const msg = 'Conduit was saved with empty suriType';
+    const fields = ['suriType']; // delete this field
+    const set = { suriType: null }; // and set it to 'null'
+    const nc = await newConduit(user.id, { rm: fields, set });
+    await test(nc, msg, expected, fields);
   });
 
-  context('testing suriObjectKey field...', () => {
-    it('should not allow no suriObjectKey', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit saved without required suriObjectKey';
-      const fields = ['suriObjectKey']; // delete this field
-      const nc = await newConduit(user.id, { rm: fields });
-      await test(nc, msg, expected, fields);
-    });
-
-    // TODO: redundant? if so remove this test
-    it('should not allow blank suriObjectKey', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit saved with blank suriObjectKey';
-      const fields = ['suriObjectKey']; // delete this field
-      const set = { suriObjectKey: '    ' }; // and set it to '    '
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
+  it('should reject null suriApiKey', async () => {
+    const expected = 'SequelizeValidationError';
+    const msg = 'Conduit saved with null suriApiKey';
+    const fields = ['suriApiKey']; // delete this field
+    const set = { suriApiKey: null }; // and set it to null
+    const nc = await newConduit(user.id, { rm: fields, set });
+    await test(nc, msg, expected, fields);
   });
 
-  context('testing status field...', () => {
-    // equivalence with `status` set to undefined, or empty ('')
-    it("should set default status to 'inactive' if no status is set", async () => {
-      const expected = { status: 'inactive' };
-      const msg = 'status was not saved with default value';
-      const fields = ['status']; // delete this field
-      const nc = await newConduit(user.id, { rm: fields });
-      await test(nc, msg, expected, fields);
-    });
-
-    it('should not allow null status', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'null value was saved successfully';
-      const fields = ['status']; // delete this field
-      const set = { status: null }; // and set it to null
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    it("should allow only 'active' or 'inactive'", async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = "'random' value was saved successfully";
-      const fields = ['status']; // delete this field
-      const set = { status: 'random' }; // and set it to 'random'
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
+  it('should reject null suriObjectKey', async () => {
+    const expected = 'SequelizeValidationError';
+    const msg = 'Conduit saved with null suriObjectKey';
+    const fields = ['suriObjectKey']; // delete this field
+    const set = { suriObjectKey: null }; // and set it to null
+    const nc = await newConduit(user.id, { rm: fields, set });
+    await test(nc, msg, expected, fields);
   });
 
-  context('testing throttle field...', () => {
-    // equivalence with `throttle` set to undefined, or empty ('')
-    it('should set default throttle to true if no throttle is set', async () => {
-      const expected = { throttle: true };
-      const msg = 'throttle was not saved with default value';
-      const fields = ['throttle']; // delete this field
-      const nc = await newConduit(user.id, { rm: fields });
-      await test(nc, msg, expected, fields);
-    });
-
-    it('should not allow null throttle', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'null value was saved successfully';
-      const fields = ['throttle']; // delete this field
-      const set = { throttle: null }; // and set it to null
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    it("should allow only 'true' or 'false' values", async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = "Conduit saved with 'random' throttle";
-      const fields = ['throttle']; // delete this field
-      const set = { throttle: 'random' }; // and set it to 'random'
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
+  it('should reject null status', async () => {
+    const expected = 'SequelizeValidationError';
+    const msg = 'null value was saved successfully';
+    const fields = ['status']; // delete this field
+    const set = { status: null }; // and set it to null
+    const nc = await newConduit(user.id, { rm: fields, set });
+    await test(nc, msg, expected, fields);
   });
 
-  context('testing racm field...', () => {
-    // equivalence with `racm` set to undefined, or empty ('')
-    it('should set default racm to ["GET"] if no racm is set', async () => {
-      const expected = { racm: ['GET'] };
-      const msg = 'racm was not saved with default value';
-      const fields = ['racm']; // delete this field
-      const nc = await newConduit(user.id, { rm: fields });
-      await test(nc, msg, expected, fields);
-    });
-
-    it('should not allow blanks', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'blank string was saved successfully';
-      const fields = ['racm']; // delete this field
-      const set = { racm: '    ' }; // and set it to '    '
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    it('should not allow null racm', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'null value was saved successfully';
-      const fields = ['racm']; // delete this field
-      const set = { racm: null }; // and set it to null
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    it('should not allow invalid methods in racm list', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'invalid values saved successfully';
-      const fields = ['racm']; // delete this field and set new values
-      const set = { racm: ['HEAD', 'OPTIONS', 'CONNECT', 'TRACE'] };
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    it('should allow valid methods in racm list', async () => {
-      const expected = { racm: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] };
-      const msg = 'racm was not saved with valid values';
-      const fields = ['racm']; // delete this field and set new values
-      const set = { racm: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] };
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
+  // equivalence with `status` set to undefined, or empty ('')
+  it('should default to inactive when status is not set', async () => {
+    const expected = { status: 'inactive' };
+    const msg = 'status was not saved with default value';
+    const fields = ['status']; // delete this field
+    const nc = await newConduit(user.id, { rm: fields });
+    await test(nc, msg, expected, fields);
   });
 
-  context('testing allowlist field...', () => {
-    // equivalence with `allowlist` set to undefined, or empty ([])
-    it('should set default allowlist to [] if allowlist is not specified', async () => {
-      const expected = { allowlist: [] };
-      const msg = 'allowlist was not saved with default value';
-      const fields = ['allowlist']; // delete this field
-      const nc = await newConduit(user.id, { rm: fields });
-      await test(nc, msg, expected, fields);
-    });
-
-    // equivalence with invalid value type
-    it('should not allow blank allowlist', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit saved with blank allowlist';
-      const fields = ['allowlist']; // delete this field
-      const set = { allowlist: '    ' }; // and set it to '    '
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    it('should not allow null allowlist', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit saved with null allowlist';
-      const fields = ['allowlist']; // delete this field
-      const set = { allowlist: null }; // and set it to null
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    it('should not allow non-specified allowlist properties', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Saved with non-specified allowlist properties';
-      const fields = ['allowlist']; // delete this field and set new values
-      const set = {
-        allowlist: [
-          {
-            ip: '192.168.1.0',
-            comments: 'test',
-            status: 'active',
-            unspecified: 'catch me',
-          },
-        ],
-      };
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    // equivalence with `allowlist.ip` set to undefined, or empty
-    // TODO: change this to test for `required` properties (ip, status)
-    it('should not allow no ip address in allowlist', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Saved with no ip address';
-      const fields = ['allowlist']; // delete this field and set new values
-      const set = {
-        allowlist: [
-          {
-            comments: 'test',
-            status: 'active',
-          },
-        ],
-      };
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    it('should not allow no status in allowlist', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Saved with no status';
-      const fields = ['allowlist']; // delete this field and set new values
-      const set = {
-        allowlist: [
-          {
-            comments: 'test',
-            ip: '192.168.1.0',
-          },
-        ],
-      };
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    it('should not allow null ip address in allowlist', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Saved with null ip address';
-      const fields = ['allowlist']; // delete this field and set new values
-      const set = {
-        allowlist: [
-          {
-            ip: null,
-            status: 'active',
-          },
-        ],
-      };
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    it('should not allow maligned ip address in allowlist', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Saved with maligned ip address';
-      const fields = ['allowlist']; // delete this field and set new values
-      const set = {
-        allowlist: [
-          {
-            ip: '123.234.345',
-            status: 'inactive',
-          },
-        ],
-      };
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    it('should not allow out-of-range ip address in allowlist', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Saved with out-of-range ip address';
-      const fields = ['allowlist']; // delete this field and set new values
-      const set = {
-        allowlist: [
-          {
-            ip: '123.234.345.456',
-            status: 'inactive',
-          },
-        ],
-      };
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
-
-    it("should allow only 'active' or 'inactive' status", async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = "Conduit saved with 'random' allowlist status";
-      const fields = ['allowlist']; // delete this field and set new values
-      const set = {
-        allowlist: [
-          {
-            ip: '192.168.1.0',
-            status: 'random',
-          },
-        ],
-      };
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
+  it('should reject null throttle', async () => {
+    const expected = 'SequelizeValidationError';
+    const msg = 'null value was saved successfully';
+    const fields = ['throttle']; // delete this field
+    const set = { throttle: null }; // and set it to null
+    const nc = await newConduit(user.id, { rm: fields, set });
+    await test(nc, msg, expected, fields);
   });
 
-  context('testing hidden form field...', () => {
-    // equivalence with `allowlist` set to undefined, or empty ([])
-    it('should set default hff to [] if hff is not specified', async () => {
-      const expected = { hiddenFormField: [] };
-      const msg = 'HFF was not saved with default value';
-      const fields = ['hiddenFormField']; // delete this field
-      const nc = await newConduit(user.id, { rm: fields });
-      await test(nc, msg, expected, fields);
-    });
+  // equivalence with `throttle` set to undefined, or empty ('')
+  it('should default to true when throttle is not set', async () => {
+    const expected = { throttle: true };
+    const msg = 'throttle was not saved with default value';
+    const fields = ['throttle']; // delete this field
+    const nc = await newConduit(user.id, { rm: fields });
+    await test(nc, msg, expected, fields);
+  });
 
-    // equivalence with invalid value type
-    it('should not allow blank hff', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit saved with blank HFF';
-      const fields = ['hiddenFormField']; // delete this field
-      const set = { hiddenFormField: '    ' }; // and set it to '    '
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
+  it('should reject null allowlist', async () => {
+    const expected = 'SequelizeValidationError';
+    const msg = 'Conduit saved with null allowlist';
+    const fields = ['allowlist']; // delete this field
+    const set = { allowlist: null }; // and set it to null
+    const nc = await newConduit(user.id, { rm: fields, set });
+    await test(nc, msg, expected, fields);
+  });
 
-    it('should not allow null hff', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Conduit saved with null HFF';
-      const fields = ['hiddenFormField']; // delete this field
-      const set = { hiddenFormField: null }; // and set it to null
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
+  // equivalence with `allowlist` set to undefined, or empty ([])
+  it('should default to [] when allowlist is not set', async () => {
+    const expected = { allowlist: [] };
+    const msg = 'allowlist was not saved with default value';
+    const fields = ['allowlist']; // delete this field
+    const nc = await newConduit(user.id, { rm: fields });
+    await test(nc, msg, expected, fields);
+  });
 
-    it('should not allow non-specified hff properties', async () => {
-      const expected = 'SequelizeValidationError';
-      const msg = 'Saved with non-specified HFF properties';
-      const fields = ['hiddenFormField']; // delete this field and set new values
-      const set = {
-        hiddenFormField: [
-          {
-            fieldName: 'campaign',
-            policy: 'pass-if-match',
-            include: true,
-            value: 'black friday sale',
-            unspecified: 'random',
-          },
-        ],
-      };
-      const nc = await newConduit(user.id, { rm: fields, set });
-      await test(nc, msg, expected, fields);
-    });
+  it('should reject null racm', async () => {
+    const expected = 'SequelizeValidationError';
+    const msg = 'null value was saved successfully';
+    const fields = ['racm']; // delete this field
+    const set = { racm: null }; // and set it to null
+    const nc = await newConduit(user.id, { rm: fields, set });
+    await test(nc, msg, expected, fields);
+  });
 
-    context('testing fieldname property', () => {
-      it('should not allow no fieldName', async () => {
-        const expected = 'SequelizeValidationError';
-        const msg = 'Saved without HFF fieldName property';
-        const fields = ['hiddenFormField']; // delete this field and set new values
-        const set = {
-          hiddenFormField: [
-            {
-              policy: 'pass-if-match',
-              include: true,
-              value: 'black friday sale',
-            },
-          ],
-        };
-        const nc = await newConduit(user.id, { rm: fields, set });
-        await test(nc, msg, expected, fields);
-      });
+  // equivalence with `racm` set to undefined, or empty ('')
+  it('should default ["GET"] when racm is not set', async () => {
+    const expected = { racm: ['GET'] };
+    const msg = 'racm was not saved with default value';
+    const fields = ['racm']; // delete this field
+    const nc = await newConduit(user.id, { rm: fields });
+    await test(nc, msg, expected, fields);
+  });
 
-      it('should not allow null fieldName', async () => {
-        const expected = 'SequelizeValidationError';
-        const msg = 'Saved with null fieldName';
-        const fields = ['hiddenFormField']; // delete this field and set new values
-        const set = {
-          hiddenFormField: [
-            {
-              fieldName: null,
-              policy: 'pass-if-match',
-              include: true,
-              value: 'black friday sale',
-            },
-          ],
-        };
-        const nc = await newConduit(user.id, { rm: fields, set });
-        await test(nc, msg, expected, fields);
-      });
+  it('should reject null hff', async () => {
+    const expected = 'SequelizeValidationError';
+    const msg = 'Conduit saved with null HFF';
+    const fields = ['hiddenFormField']; // delete this field
+    const set = { hiddenFormField: null }; // and set it to null
+    const nc = await newConduit(user.id, { rm: fields, set });
+    await test(nc, msg, expected, fields);
+  });
 
-      it('should not allow blank fieldName', async () => {
-        const expected = 'SequelizeValidationError';
-        const msg = 'Saved with blank fieldName';
-        const fields = ['hiddenFormField']; // delete this field and set new values
-        const set = {
-          hiddenFormField: [
-            {
-              fieldName: '    ',
-              policy: 'pass-if-match',
-              include: true,
-              value: 'black friday sale',
-            },
-          ],
-        };
-        const nc = await newConduit(user.id, { rm: fields, set });
-        await test(nc, msg, expected, fields);
-      });
-    });
+  // equivalence with `hff` set to undefined, or empty ([])
+  it('should default to [] when hff is not set', async () => {
+    const expected = { hiddenFormField: [] };
+    const msg = 'HFF was not saved with default value';
+    const fields = ['hiddenFormField']; // delete this field
+    const nc = await newConduit(user.id, { rm: fields });
+    await test(nc, msg, expected, fields);
+  });
 
-    context('testing policy property', () => {
-      it('should not allow no policy', async () => {
-        const expected = 'SequelizeValidationError';
-        const msg = 'Saved without HFF policy property';
-        const fields = ['hiddenFormField']; // delete this field and set new values
-        const set = {
-          hiddenFormField: [
-            {
-              fieldName: 'campaign',
-              include: true,
-              value: 'black friday sale',
-            },
-          ],
-        };
-        const nc = await newConduit(user.id, { rm: fields, set });
-        await test(nc, msg, expected, fields);
-      });
-
-      it('should not allow null policy', async () => {
-        const expected = 'SequelizeValidationError';
-        const msg = 'Saved with null policy';
-        const fields = ['hiddenFormField']; // delete this field and set new values
-        const set = {
-          hiddenFormField: [
-            {
-              fieldName: 'campaign',
-              policy: null,
-              include: true,
-              value: 'black friday sale',
-            },
-          ],
-        };
-        const nc = await newConduit(user.id, { rm: fields, set });
-        await test(nc, msg, expected, fields);
-      });
-
-      it('should not allow blank policy', async () => {
-        const expected = 'SequelizeValidationError';
-        const msg = 'Saved with blank policy';
-        const fields = ['hiddenFormField']; // delete this field and set new values
-        const set = {
-          hiddenFormField: [
-            {
-              fieldName: 'campaign',
-              policy: '    ',
-              include: true,
-              value: 'black friday sale',
-            },
-          ],
-        };
-        const nc = await newConduit(user.id, { rm: fields, set });
-        await test(nc, msg, expected, fields);
-      });
-
-      it("should allow only 'pass-if-match' or 'drop-if-filled' policy", async () => {
-        const expected = 'SequelizeValidationError';
-        const msg = "Conduit saved with 'random' HFF policy";
-        const fields = ['hiddenFormField']; // delete this field and set new values
-        const set = {
-          hiddenFormField: [
-            {
-              fieldName: 'campaign',
-              policy: 'random',
-              include: true,
-              value: 'black friday sale',
-            },
-          ],
-        };
-        const nc = await newConduit(user.id, { rm: fields, set });
-        await test(nc, msg, expected, fields);
-      });
-    });
+  it('should default to empty string when description is not set', async () => {
+    const expected = { description: '' };
+    const msg = 'description was not saved with default value';
+    const fields = ['description']; // delete this field
+    const nc = await newConduit(user.id, { rm: fields });
+    await test(nc, msg, expected, fields);
   });
 });

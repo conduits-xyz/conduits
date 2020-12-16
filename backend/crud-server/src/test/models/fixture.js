@@ -250,7 +250,7 @@ const generateTestData = async (userId) => {
   );
 
   // flood user with random conduits
-  generateConduits(userId, 200);
+  generateConduits(userId, 25);
 
   // generate random users and conduits for integration test
   const users = await generateUsers(10);
