@@ -124,6 +124,7 @@ module.exports = (db, DataTypes) => {
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
+      defaultValue: ''
     },
     hiddenFormField: {
       type: DataTypes.JSON,
