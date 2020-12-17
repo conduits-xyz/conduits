@@ -8,12 +8,3 @@
 require('./test/models/user.spec.js');
 require('./test/models/conduit.spec.js');
 
-// Rest API
-// - Auth
-// - Cors
-// - User
-// - Conduit
-// - Secrets
-// - Allow List
-
-

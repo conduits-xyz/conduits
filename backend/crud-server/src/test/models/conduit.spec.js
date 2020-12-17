@@ -59,9 +59,10 @@ async function test(
   debug = false
 ) {
   if (expected === 'success') {
-    // let mocha catch the error and count as a test failure
+    // on error, let mocha catch the error and treat it as a test failure
     await cdt.save();
 
+    // on success, assert expected attributes to be present
     const json = await cdt.toJSON();
     expect(json).to.be.an('object');
     expect(json).to.have.property('id');

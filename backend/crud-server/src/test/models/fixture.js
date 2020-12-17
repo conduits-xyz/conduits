@@ -258,6 +258,7 @@ const generateTestData = async (userId) => {
     await generateConduits(users[i].id);
   }
 };
+
 /* prettier-ignore */
 module.exports = {
   expect,
