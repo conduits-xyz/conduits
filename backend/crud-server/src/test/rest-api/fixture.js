@@ -13,11 +13,11 @@ const apiServer = server.app.listen(server.port);
 const Api = () => chai.request(apiServer);
 
 before(async () => {
-  console.log(`Praas API server is listening on port ${server.port}`);
+  console.log(`Resource API server is listening on port ${server.port}`);
 });
 
 after(async () => {
-  console.log('Shutting down app server');
+  console.log('Shutting down resource API server');
   apiServer.close();
 });
 

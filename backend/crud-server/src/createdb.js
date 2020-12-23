@@ -2,11 +2,9 @@ const { db, User } = require('./models');
 
 db.sync({ force: true }).then(() => {
   const user = new User();
-
-  user.firstName = 'Admin';
-  user.lastName = 'Admin';
-  user.email = 'admin@praas.com';
-  user.password = 'praas';
-
+  user.firstName = 'Jake';
+  user.lastName = 'Jacob';
+  user.email = 'jake1000@jake.jake';
+  user.password = 'jakejake';
   user.save();
 });

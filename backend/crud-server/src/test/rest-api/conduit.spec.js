@@ -3,6 +3,7 @@ const {
   pickRandomlyFrom 
 } = require('./fixture');
 const { jake, conf, targets } = require('./context');
+const util = require('util');
 
 // NOTE:
 // reword/rephrase resource-error messages to fit this pattern
@@ -89,112 +90,67 @@ describe('Praas REST API', () => {
 
     // POST method
     context('to create new service endpoints', function () {
-      context('should validate request body', function () {
+      context('basic request validation', function () {
         it('should reject empty requests', async function () {
-          // empty request body
-          const empty = await Api()
+          // equivalance with {conduit: {}}
+          const res = await Api()
             .post('/conduits')
             .set('Authorization', `Token ${jakeUser.token}`)
             .send();
-          expect(empty.status).to.equal(422);
-          expect(empty.body).to.have.property('errors');
-          expect(empty.body.errors).to.have.property('conduit');
-          expect(empty.body.errors.conduit).to.equal('is required');
+          expect(res.status).to.equal(422);
+          expect(res.body).to.have.property('errors');
 
-          // no conduit information
-          const emptyConduit = await Api()
-            .post('/conduits')
-            .set('Authorization', `Token ${jakeUser.token}`)
-            .send({ conduit: {} });
-          expect(emptyConduit.status).to.equal(422);
-          expect(emptyConduit.body).to.have.property('errors');
+          for (const error of res.body.errors) {
+            expect(error.msg).to.match(/.* is required/);
+            expect(error.param).to.match(/Type|ObjectKey|ApiKey|status/);
+          }    
         });
 
         it('should reject invalid target service parameters', async function () {
-          // check for Service Type ( suriType )
-          const withoutSuriType = fakeConduit();
-          delete withoutSuriType.suriType;
-          const noSuriType = await Api()
+          const fc = fakeConduit();
+          /* invalid values should be caught */
+          fc.suriType = 'smartsheet is gone!';
+          fc.racm = ['PUT', 'HEAD', 'OPTIONS', 'CONNECT', 'TRACE', 'PATCH'];
+          fc.throttle = "not-a-boolean";
+          fc.status = "not-good-status-value"
+          fc.description = null;
+
+          const res = await Api()
             .post('/conduits')
             .set('Authorization', `Token ${jakeUser.token}`)
-            .send({ conduit: withoutSuriType });
-          expect(noSuriType.status).to.equal(422);
-          expect(Object.keys(noSuriType.body.errors)).to.include('suriType');
-          expect(noSuriType.body.errors.suriType).to.match(ERROR_PATTERN);
-
-          // check for unsupported service type
-          const withUnmatchedService = fakeConduit();
-          withUnmatchedService.suriType = 'smartsheet is gone!';
-          const res = await Api()
-            .post(`/conduits`)
-            .set('Authorization', `Token ${jakeUser.token}`)
-            .send({ conduit: withUnmatchedService });
+            .send({ conduit: fc });
           expect(res.status).to.equal(422);
-          expect(res.body.errors.suriType).to.match(ERROR_PATTERN);
+          expect(res.body).to.have.property('errors');
 
-          // check for Service API Key ( suriApiKey )
-          const withoutSuriApiKey = fakeConduit();
-          delete withoutSuriApiKey.suriApiKey;
-          const noSuriApiKey = await Api()
-            .post('/conduits')
-            .set('Authorization', `Token ${jakeUser.token}`)
-            .send({ conduit: withoutSuriApiKey });
-          expect(noSuriApiKey.status).to.equal(422);
-          expect(Object.keys(noSuriApiKey.body.errors)).to.include(
-            'suriApiKey'
-          );
-          expect(noSuriApiKey.body.errors.suriApiKey).to.match(ERROR_PATTERN);
+          for (const error of res.body.errors) {
+            expect(error.msg).to.match(/not supported|cannot be|invalid value|is required|should be/i);
+            expect(error.param).to.match(/Type|ObjectKey|ApiKey|status|racm|throttle|description/);
+          }
+       });
 
-          // check for Service Object Key ( suriObjectKey )
-          const withoutSuriObjectKey = fakeConduit();
-          delete withoutSuriObjectKey.suriObjectKey;
-          const noSuriObjectKey = await Api()
-            .post('/conduits')
-            .set('Authorization', `Token ${jakeUser.token}`)
-            .send({ conduit: withoutSuriObjectKey });
-          expect(noSuriObjectKey.status).to.equal(422);
-          expect(Object.keys(noSuriObjectKey.body.errors)).to.include(
-            'suriObjectKey'
-          );
-          expect(noSuriObjectKey.body.errors.suriObjectKey).to.match(
-            ERROR_PATTERN
-          );
-        });
-
-        it('should reject invalid methods in racm list', async function () {
+       context('allowlist validation', function () {
+         // server should reject:
+         // - invalid ip address {null, bad ip address}
+         // - unspecified props in allowlist entry
+         // - invalid status {null, invalid enumeration}
+         // - null comment
+        it.only('should reject items with null valued props', async function () {
           const conduit = fakeConduit();
-          conduit.racm = ['HEAD', 'OPTIONS', 'CONNECT', 'TRACE'];
-          const res = await Api()
-            .post(`/conduits`)
-            .set('Authorization', `Token ${jakeUser.token}`)
-            .send({ conduit: conduit });
-          expect(res.status).to.equal(422);
-          expect(res.body.errors[0].racm).to.match(ERROR_PATTERN);
-        });
-
-        xit('should accept valid methods in racm list', async () => {
-          const conduit = fakeConduit();
-          conduit.racm = { racm: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] };
-          const res = await Api()
-            .post(`/conduits`)
-            .set('Authorization', `Token ${jakeUser.token}`)
-            .send({ conduit: conduit });
-          expect(res.status).to.equal(422);
-          expect(res.body.errors[0].racm).to.match(ERROR_PATTERN);
-        });
-
-        it('should reject invalid IP address', async function () {
-          const conduit = fakeConduit();
-          conduit.allowlist = [{ ip: '123.456.789.0' }];
+          conduit.allowlist = [{ ip: null, comment: null, status: null }];
           const res = await Api()
             .post(`/conduits`)
             .set('Authorization', `Token ${jakeUser.token}`)
             .send({ conduit });
           expect(res.status).to.equal(422);
           expect(res.body).to.have.property('errors');
-          res.body.errors.forEach((error) =>
-            expect(error.allowlist).to.match(ERROR_PATTERN)
-          );
+          for (const error of res.body.errors) {
+            expect(error.msg).to.match(/not supported|missing required|cannot be|invalid value|is required|should be/i);
+            expect(error.param).to.match(/Type|allowlist|ObjectKey|ApiKey|status|racm|throttle|description/);
+          }
+
+          // res.body.errors.forEach((error) =>
+          //   expect(error.allowlist).to.match(ERROR_PATTERN)
+          // );
         });
 
         it('should reject invalid props in allowlist', async function () {
@@ -316,6 +272,10 @@ describe('Praas REST API', () => {
       await test(nc, msg, expected, fields);
     });
 
+*/
+  });
+       
+/*
     it('should not allow non-specified hff properties', async () => {
       const expected = 'SequelizeValidationError';
       const msg = 'Saved with non-specified HFF properties';

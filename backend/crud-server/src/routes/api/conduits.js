@@ -1,5 +1,8 @@
 const router = require('express').Router();
 const { Op } = require('sequelize');
+const { body, param, validationResult, check } = require('express-validator');
+const validator = require('validator');
+
 
 const auth = require('../auth');
 const helpers = require('../../../../lib/helpers');
@@ -21,37 +24,150 @@ const conduitOptFields = [
 // cache frequently used objects
 const serviceTargets = conf.targets.settings.map((i) => i.type);
 
+// move to helpers ...
+const validate = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return next(new RestApiError(422, errors.array()));
+  }
+  next();
+};
+
+const SERVICE_TARGETS_ENUM = conf.targets.settings.map((i) => i.type);
+const HTTP_METHODS_ENUM = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+const ALLOW_LIST_PROPS = ['ip', 'comment', 'status'];
+const STATUS_ENUM = ['active', 'inactive'];
+const BOOLEAN_ENUM = [true, false];
+
+const isMethodSupported = (value) => {
+  value.forEach(m => {
+    if (!HTTP_METHODS_ENUM.includes(m)) {
+      throw new Error(`${m} not supported`);
+    }
+  });
+  
+  return true;
+}
+
+const allowlistValidation =   (value) => {
+  const validations = {
+    isValidPropertyList: (value) => {
+      if (
+        !value ||
+        !value.every((prop) =>
+          Object.keys(prop).every((k) => ALLOW_LIST_PROPS.includes(k))
+        )
+      ) {
+        throw new Error('unspecified properties present');
+      }
+
+      return true;
+    },
+    isValidProperty: (value) => {
+      console.log('~~~~', value);
+      if (!value || !value.every((entry) => entry.ip && entry.status)) {
+        throw new Error('missing required properties');
+      }
+
+      return true;
+    },
+    isValidIP: (value) => {
+      if (
+        !value ||
+        !value.every((entry) => entry.ip && validator.isIP(entry.ip))
+      ) {
+        throw new Error('invalid ip address');
+      }
+
+      return true;
+    },
+    isValidStatus: (value) => {
+      if (
+        !value ||
+        !value.every((entry) => STATUS_ENUM.includes(entry.status))
+      ) {
+        throw new Error('invalid status value');
+      }
+
+      return true;
+    },
+  };
+
+  let valid = true;
+  for (validation in validations) {
+    valid = valid && validations[validation](value);
+  }
+  return valid;
+};
+
+const validations = [
+  body('conduit.suriType')
+    .exists().withMessage('Resource type is required')
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage('Resource type cannot be empty')
+    .isIn(SERVICE_TARGETS_ENUM),
+  body('conduit.suriObjectKey') 
+    .exists()
+    .withMessage('Object key is required')
+    .bail()
+    .notEmpty()
+    .withMessage('Object key cannot be empty'),
+  body('conduit.suriApiKey')
+    .exists()
+    .withMessage('Api key is required')
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage('Api key cannot be empty'),
+  body('conduit.racm') // Array
+    .optional()
+    .exists({checkFalsy: true})
+    .toArray()
+    .custom(isMethodSupported),
+  body('conduit.allowlist') // Array
+    .optional()
+    .exists({checkFalsy: true})
+    .toArray()
+    .custom(allowlistValidation),
+  body('conduit.status')
+    .exists()
+    .withMessage('Status is required')
+    .bail()
+    .isIn(STATUS_ENUM)
+    .withMessage('Status should be boolean'),
+  body('conduit.throttle')
+    .optional()
+    .exists()
+    .isIn(BOOLEAN_ENUM)
+    .toBoolean(true)
+    .withMessage('Throttle should be boolean'),
+  body('conduit.description')
+    .optional()
+    .exists({checkNull: true})
+    .trim()
+    .withMessage('Description cannot be null'),
+];
+
 // add conduit
-router.post('/', auth.required, async function (req, res, next) {
-  const conduit = new Conduit();
-  const errors = {};
+router.post('/', auth.required, validations, async function (req, res, next) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    console.log('~~~~~~~~~~~~~~ ', errors);
+    return next(new RestApiError(422, errors.array()));
+  }
+
+  const conduit = Conduit.build(req.body.conduit);
 
   conduit.userId = req.payload.id;
   conduit.curi = await helpers.makeCuri(conf.conduit.settings.prefix);
 
-  helpers.processInput(
-    await req.body.conduit,
-    conduitReqdFields,
-    conduitOptFields,
-    conduit,
-    errors
-  );
-
-  if (Object.keys(errors).length) {
-    return next(new RestApiError(422, errors));
-  }
-
-  if (serviceTargets.includes(req.body.conduit.suriType) === false) {
-    return next(
-      new RestApiError(422, {
-        suriType: `'${req.body.conduit.suriType}' unsupported`,
-      })
-    );
-  }
 
   try {
     await conduit.save();
   } catch (error) {
+    // console.log('!!!!!!', error, conduit, req.body.conduit);
     if (error.name === 'SequelizeValidationError') {
       return next(new RestApiError(422, error));
     }
