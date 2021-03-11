@@ -5,7 +5,6 @@ const server = require('../../server');
 const util = require('../../../../lib/util');
 const helpers = require('../../../../lib/helpers');
 
-
 const expect = chai.expect;
 chai.use(chaiHttp);
 
