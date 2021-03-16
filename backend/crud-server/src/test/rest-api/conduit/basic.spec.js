@@ -122,5 +122,110 @@ describe('Conduit endpoint - basic', () => {
       expect(getDeleted.body).to.have.property('errors');
       expect(getDeleted.body.errors.conduit).to.equal('not found');
     });
+//       it('should not DELETE an active service endpoint', async function () {
+//         const res = await Api()
+//           .delete(`/conduits/${ctId1}`)
+//           .set('Authorization', `Token ${jakeUser.token}`);
+//         expect(res.status).to.equal(403);
+//         expect(res.body).to.have.property('errors');
+//         expect(res.body.errors.conduit).to.equal('cannot delete when active');
+//       });
+
+//       it('should not DELETE non-existent conduits', async function () {
+//         const res = await Api()
+//           .delete('/conduits/non-existent')
+//           .set('Authorization', `Token ${jakeUser.token}`);
+//         expect(res.status).to.equal(404);
+//         expect(res.body).to.have.property('errors');
+//         expect(res.body.errors.conduit).to.equal('not found');
+//       });
+
+//     // PATCH method
+//     context('update existing service endpoints', function () {
+//       it('should not update service endpoint URI', async function () {
+//         const conduitUri = { conduit: { curi: 'td-12345.trickle.cc' } };
+//         const res = await Api()
+//           .patch(`/conduits/${ctId1}`)
+//           .set('Authorization', `Token ${jakeUser.token}`)
+//           .send(conduitUri);
+//         expect(res.status).to.equal(403);
+//         expect(res.body).to.have.property('errors');
+//         expect(res.body.errors.conduit).to.equal('is immutable');
+//       });
+
+//       it('should not update non-existent service endpoint', async function () {
+//         const res = await Api()
+//           .patch('/conduits/non-existent')
+//           .set('Authorization', `Token ${jakeUser.token}`);
+//         expect(res.status).to.equal(404);
+//         expect(res.body).to.have.property('errors');
+//         expect(res.body.errors.conduit).to.match(ERROR_PATTERN);
+//       });
+//     });
+//     });
+
+//     // PUT method
+//     context('overwrite existing service endpoints', function () {
+//       it('should overwrite an existing service endpoint', async function () {
+//         const conduit = await Api()
+//           .get('/conduits/' + ctId1)
+//           .set('Authorization', `Token ${jakeUser.token}`);
+//         expect(conduit.body).to.haveOwnProperty('conduit');
+
+//         const putData = await fakeConduit();
+
+//         const res = await Api()
+//           .put('/conduits/' + ctId1)
+//           .set('Authorization', `Token ${jakeUser.token}`)
+//           .send({ conduit: putData });
+//         expect(res.status).to.equal(200);
+//         expect(res.body.conduit).to.not.eql(conduit.body.conduit);
+//         expect(res.body.conduit.suriApiKey).to.equal(putData.suriApiKey);
+//         expect(res.body.conduit.suriObjectKey).to.equal(
+//           putData.suriObjectKey
+//         );
+//         expect(res.body.conduit.suriType).to.equal(putData.suriType);
+//         expect(res.body.conduit.allowlist).to.eql(putData.allowlist);
+//         expect(res.body.conduit.racm).to.eql(putData.racm);
+//         expect(res.body.conduit.hiddenFormField).to.eql(
+//           putData.hiddenFormField
+//         );
+//       });
+
+//       it('should reject an invalid service endpoint', async function () {
+//         const invalidConduit = await fakeConduit();
+//         delete invalidConduit.suriType;
+
+//         const res = await Api()
+//           .put('/conduits/' + ctId1)
+//           .set('Authorization', `Token ${jakeUser.token}`)
+//           .send({ conduit: invalidConduit });
+//         expect(res.status).to.equal(422);
+//         expect(Object.keys(res.body.errors)).to.include('suriType');
+//         expect(res.body.errors.suriType).to.match(ERROR_PATTERN);
+//       });
+
+//       it('should not update service endpoint URI', async function () {
+//         const conduitUri = { conduit: { curi: 'td-12345.trickle.cc' } };
+//         const res = await Api()
+//           .put(`/conduits/${ctId1}`)
+//           .set('Authorization', `Token ${jakeUser.token}`)
+//           .send(conduitUri);
+//         expect(res.status).to.equal(403);
+//         expect(res.body).to.have.property('errors');
+//         expect(res.body.errors.conduit).to.equal('is immutable');
+//       });
+
+//       it('should not update non-existent service endpoint', async function () {
+//         const res = await Api()
+//           .put('/conduits/non-existent')
+//           .set('Authorization', `Token ${jakeUser.token}`);
+//         expect(res.status).to.equal(404);
+//         expect(res.body).to.have.property('errors');
+//         expect(res.body.errors.conduit).to.equal('not found');
+//       });
+//     });
+
+
   });
 });

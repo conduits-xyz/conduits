@@ -11,6 +11,8 @@ chai.use(chaiHttp);
 const apiServer = server.app.listen(server.port);
 const Api = () => chai.request(apiServer);
 
+const ERROR_PATTERN = /^invalid.*$|^missing.*$|not found|unsupported|cannot be blank|cannot be null|unspecified properties present/;
+
 before(async () => {
   console.log(`Resource API server is listening on port ${server.port}`);
 });
@@ -26,5 +28,6 @@ module.exports = {
   expect,
   jwt,
   fakeConduit: helpers.fakeConduit,
-  pickRandomlyFrom: util.pickRandomlyFrom
+  pickRandomlyFrom: util.pickRandomlyFrom,
+  ERROR_PATTERN
 };
