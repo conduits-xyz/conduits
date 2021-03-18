@@ -1,8 +1,6 @@
 // Vijay, please move allow-list context from
 // `conduit-advanced.spec` to here...
 
-
-
 //        context('allowlist validation', function () {
 //          // server should reject:
 //          // - invalid ip address {null, bad ip address}

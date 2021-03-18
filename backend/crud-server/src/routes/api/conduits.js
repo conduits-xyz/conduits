@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { Op } = require('sequelize');
+const util = require('util');
 // const { body, param, validationResult, check } = require('express-validator');
 // const validator = require('validator');
 const yup = require('yup');
@@ -32,21 +33,23 @@ const serviceTargets = conf.targets.settings.map((i) => i.type);
 
 /// `schema` is a validation schema object constructed using `yup` primitives
 /// `path` identifies the payload to be validated against the schema
+/// `onError` is a http status code to be returned on error
 const validate = ({ schema, path, onError }) => {
   async function middleware(req, res, next) {
     // console.log('!!!!!!!!!!!!', schema, path);
     // do something with schema
     const payload = req.body[path];
     try {
-      /* const isValid = */ await schema.validate(payload);
-    } catch (error) {
-      console.log('~~~~~~~~~', error);
+      /* const _ignore = */ await schema.validate(
+        payload, {abortEarly: false}
+      );
+      // console.log('~~~ request-validity: ', validated);
+    } catch (errors) {
+      for (const error of errors.inner) {
+        console.log('~~~~~~~~~', error.path, error.errors[0]);
+      }
       if (onError) {
-        // const errors = validationResult(req);
-        // if (!errors.isEmpty() ) {
-        // return next(new RestApiError(onError, errors.array()));
-        return next(new RestApiError(onError, error));
-        // }
+        return next(new RestApiError(onError, {later: "I promise"}));
       }
     }
     next();

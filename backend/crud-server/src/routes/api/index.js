@@ -1,5 +1,31 @@
 const router = require('express').Router();
 
+/*
+REST API:
+- on success: return 200, 201
+- on error: return 400, 404, ...
+
+On error the API returns a list of one or more errors in the specified
+format below. The key in each item can be one of:
+ { field-name, location, or error-domain}
+
+Example:
+{
+  "errors": [
+    {
+      "status": "is required",  // field name
+    },
+    {
+      "body": "cannot be empty" // location in request
+    },
+    {
+      "authorization": 'token not found or malformed' // error domain
+    }
+  ]
+}
+
+*/
+
 // v.a:
 // we mount users at root since it supports /user
 // and /users endpoints. TODO: check what is the

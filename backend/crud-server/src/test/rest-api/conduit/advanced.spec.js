@@ -28,32 +28,13 @@
 //     after('logout', async () => {
 //       jakeUser.token = '';
 //     });
-
-//     context('manage conduits..', function() {
-
-//       context('basic request validation', function () {
-//         it('should reject empty requests', async function () {
-//           // equivalance with {conduit: {}}
-//           const res = await Api()
-//             .post('/conduits')
-//             .set('Authorization', `Token ${jakeUser.token}`)
-//             .send();
-//           expect(res.status).to.equal(422);
-//           expect(res.body).to.have.property('errors');
-
-//           for (const error of res.body.errors) {
-//             expect(error.msg).to.match(/.* is required/);
-//             expect(error.param).to.match(/Type|ObjectKey|ApiKey|status/);
-//           }
-//         });
-
 // */
 // });
 
 // /*
 // */
 // });
-////////////////////////////////////////////////////////////////////////////////
+/// /////////////////////////////////////////////////////////////////////////////
 // /***************** scratch area  **********/
 // //---
 // import assert from 'assert';
