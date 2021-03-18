@@ -64,81 +64,88 @@ describe('Conduit endpoint - hff', () => {
             expect(error.hiddenFormField).to.match(ERROR_PATTERN)
         );
     });
+
+    it('should not allow no fieldName', async () => {
+        const conduit = fakeConduit();
+        conduit.hiddenFormField = [
+            {
+                policy: 'pass-if-match',
+                include: true,
+                value: 'black friday sale',
+            },
+        ];
+        const res = await Api()
+            .post(`/conduits`)
+            .set('Authorization', `Token ${token}`)
+            .send({ conduit });
+        expect(res.status).to.equal(422);
+        expect(res.body).to.have.property('errors');
+        res.body.errors.forEach((error) =>
+            expect(error.hiddenFormField).to.match(ERROR_PATTERN)
+        ); 
+    });
+
+    it('should not allow null fieldName', async () => {
+        const conduit = fakeConduit();
+        conduit.hiddenFormField = [
+            {
+                fieldName: null,
+                policy: 'pass-if-match',
+                include: true,
+                value: 'black friday sale',
+            },
+        ];
+        const res = await Api()
+            .post(`/conduits`)
+            .set('Authorization', `Token ${token}`)
+            .send({ conduit });
+        expect(res.status).to.equal(422);
+        expect(res.body).to.have.property('errors');
+        res.body.errors.forEach((error) =>
+            expect(error.hiddenFormField).to.match(ERROR_PATTERN)
+        ); 
+    });
+
+    it('should not allow blank fieldName', async () => {
+        const conduit = fakeConduit();
+        conduit.hiddenFormField = [
+            {
+                fieldName: '     ',
+                policy: 'pass-if-match',
+                include: true,
+                value: 'black friday sale',
+            },
+        ];
+        const res = await Api()
+            .post(`/conduits`)
+            .set('Authorization', `Token ${token}`)
+            .send({ conduit });
+        expect(res.status).to.equal(422);
+        expect(res.body).to.have.property('errors');
+        res.body.errors.forEach((error) =>
+            expect(error.hiddenFormField).to.match(ERROR_PATTERN)
+        ); 
+    });
+
+    it("should allow only 'pass-if-match' or 'drop-if-filled' policy", async () => {
+        const conduit = fakeConduit();
+        conduit.hiddenFormField = [
+            {
+                fieldName: 'campaign',
+                policy: 'random',
+                include: true,
+                value: 'black friday sale',
+            },
+        ];
+        const res = await Api()
+            .post(`/conduits`)
+            .set('Authorization', `Token ${token}`)
+            .send({ conduit });
+        expect(res.status).to.equal(422);
+        expect(res.body).to.have.property('errors');
+        res.body.errors.forEach((error) =>
+            expect(error.hiddenFormField).to.match(ERROR_PATTERN)
+        ); 
+    });
+
 });
-
-
-//     context('testing fieldname property', () => {
-//       it('should not allow no fieldName', async () => {
-//         const expected = 'SequelizeValidationError';
-//         const msg = 'Saved without HFF fieldName property';
-//         const fields = ['hiddenFormField']; // delete this field and set new values
-//         const set = {
-//           hiddenFormField: [
-//             {
-//               policy: 'pass-if-match',
-//               include: true,
-//               value: 'black friday sale',
-//             },
-//           ],
-//         };
-//         const nc = await newConduit(user.id, { rm: fields, set });
-//         await test(nc, msg, expected, fields);
-//       });
-
-//       it('should not allow null fieldName', async () => {
-//         const expected = 'SequelizeValidationError';
-//         const msg = 'Saved with null fieldName';
-//         const fields = ['hiddenFormField']; // delete this field and set new values
-//         const set = {
-//           hiddenFormField: [
-//             {
-//               fieldName: null,
-//               policy: 'pass-if-match',
-//               include: true,
-//               value: 'black friday sale',
-//             },
-//           ],
-//         };
-//         const nc = await newConduit(user.id, { rm: fields, set });
-//         await test(nc, msg, expected, fields);
-//       });
-
-//       it('should not allow blank fieldName', async () => {
-//         const expected = 'SequelizeValidationError';
-//         const msg = 'Saved with blank fieldName';
-//         const fields = ['hiddenFormField']; // delete this field and set new values
-//         const set = {
-//           hiddenFormField: [
-//             {
-//               fieldName: '    ',
-//               policy: 'pass-if-match',
-//               include: true,
-//               value: 'black friday sale',
-//             },
-//           ],
-//         };
-//         const nc = await newConduit(user.id, { rm: fields, set });
-//         await test(nc, msg, expected, fields);
-//       });
-//     });
-
-//     context('testing policy property', () => {
-//       it("should allow only 'pass-if-match' or 'drop-if-filled' policy", async () => {
-//         const expected = 'SequelizeValidationError';
-//         const msg = "Conduit saved with 'random' HFF policy";
-//         const fields = ['hiddenFormField']; // delete this field and set new values
-//         const set = {
-//           hiddenFormField: [
-//             {
-//               fieldName: 'campaign',
-//               policy: 'random',
-//               include: true,
-//               value: 'black friday sale',
-//             },
-//           ],
-//         };
-//         const nc = await newConduit(user.id, { rm: fields, set });
-//         await test(nc, msg, expected, fields);
-//       });
-//     });
-//   });

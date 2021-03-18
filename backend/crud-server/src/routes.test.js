@@ -14,6 +14,7 @@ require('./test/rest-api/conduit/basic.spec.js');
 require('./test/rest-api/conduit/sort.spec.js');
 require('./test/rest-api/conduit/allow-list.spec.js');
 require('./test/rest-api/conduit/hff.spec.js');
+require('./test/rest-api/conduit/racm.spec.js');
 
 // Rest API - pending migration of Siraj's model refactor changes
 // - Auth
