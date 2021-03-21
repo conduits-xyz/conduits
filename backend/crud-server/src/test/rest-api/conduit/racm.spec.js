@@ -65,6 +65,6 @@ describe('Conduit endpoint - racm', () => {
             .send({ conduit });
         expect(res.status).to.equal(422);
         expect(res.body).to.have.property('errors');
-        console.log(res.body.conduit);
+        // console.log(res.body.conduit);
     });
 });

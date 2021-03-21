@@ -45,11 +45,15 @@ const validate = ({ schema, path, onError }) => {
       );
       // console.log('~~~ request-validity: ', validated);
     } catch (errors) {
+      const validationErrors = [];
       for (const error of errors.inner) {
-        console.log('~~~~~~~~~', error.path, error.errors[0]);
+        // console.log('~~~~~~~~~', error.path, error.errors[0]);
+        validationErrors.push({[error.path]: error.errors[0]});
       }
       if (onError) {
-        return next(new RestApiError(onError, {later: "I promise"}));
+        // return next(new RestApiError(onError, {later: "I promise"}));
+        // console.log(validationErrors);
+        return next(new RestApiError(onError, validationErrors));
       }
     }
     next();
