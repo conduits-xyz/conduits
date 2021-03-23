@@ -61,12 +61,17 @@ describe('Conduit endpoint - basic', () => {
         .send();
       expect(res.status).to.equal(422);
       expect(res.body).to.have.property('errors');
-
-      for (const error of res.body.errors) {
-        const {key, value} = error;
-        expect(key).to.match(/Type|ObjectKey|ApiKey|status/);
-        expect(value).to.match(/.* is required/);
-      }
+      
+      let errors = res.body.errors;
+      for(let i=0; i<errors.length; i++){
+        let error = errors[i], key;
+        for (key in error) {
+          if (error.hasOwnProperty(key)) {
+              expect(key).to.match(/Type|ObjectKey|ApiKey|status/);
+              expect(error[key]).to.match(/.* is required/);
+          }
+        }
+      }      
     });
 
     it('can create new conduits', async function () {
