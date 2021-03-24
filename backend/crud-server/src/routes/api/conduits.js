@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { Op } = require('sequelize');
-const util = require('util');
+// const util = require('util');
 // const { body, param, validationResult, check } = require('express-validator');
 // const validator = require('validator');
 const yup = require('yup');
@@ -40,15 +40,15 @@ const validate = ({ schema, path, onError }) => {
     // do something with schema
     const payload = req.body[path];
     try {
-      /* const _ignore = */ await schema.validate(
-        payload, {abortEarly: false}
-      );
+      /* const _ignore = */ await schema.validate(payload, {
+        abortEarly: false,
+      });
       // console.log('~~~ request-validity: ', validated);
     } catch (errors) {
       const validationErrors = [];
       for (const error of errors.inner) {
         // console.log('~~~~~~~~~', error.path, error.errors[0]);
-        validationErrors.push({[error.path]: error.errors[0]});
+        validationErrors.push({ [error.path]: error.errors[0] });
       }
       if (onError) {
         // return next(new RestApiError(onError, {later: "I promise"}));
