@@ -1,5 +1,7 @@
 const router = require('express').Router();
 const { Op } = require('sequelize');
+const { validate } = require('../validate');
+
 // const util = require('util');
 // const { body, param, validationResult, check } = require('express-validator');
 // const validator = require('validator');
@@ -31,37 +33,6 @@ const STATUS_ENUM = ['active', 'inactive'];
 // cache frequently used objects
 const serviceTargets = conf.targets.settings.map((i) => i.type);
 
-/// `schema` is a validation schema object constructed using `yup` primitives
-/// `path` identifies the payload to be validated against the schema
-/// `onError` is a http status code to be returned on error
-const validate = ({ schema, path, onError }) => {
-  async function middleware(req, res, next) {
-    // console.log('!!!!!!!!!!!!', schema, path);
-    // do something with schema
-    const payload = req.body[path];
-    try {
-      /* const _ignore = */ await schema.validate(payload, {
-        abortEarly: false,
-      });
-      // console.log('~~~ request-validity: ', validated);
-    } catch (errors) {
-      const validationErrors = [];
-      for (const error of errors.inner) {
-        // console.log('~~~~~~~~~', error.path, error.errors[0]);
-        validationErrors.push({ [error.path]: error.errors[0] });
-      }
-      if (onError) {
-        // return next(new RestApiError(onError, {later: "I promise"}));
-        // console.log(validationErrors);
-        return next(new RestApiError(onError, validationErrors));
-      }
-    }
-    next();
-  }
-
-  return middleware;
-};
-
 const conduitSchema = yup.object({
   suriType: yup
     .string()
@@ -82,6 +53,7 @@ const postValidation = validate({
   path: 'conduit',
   onError: 422,
 });
+
 router.post(
   '/',
   auth.required,
@@ -264,43 +236,54 @@ router.put('/:id', auth.required, async (req, res, next) => {
   }
 });
 
-// Update conduit
-
-router.patch('/:id', auth.required, async (req, res, next) => {
-  try {
-    const conduit = await Conduit.findByPk(req.params.id);
-    if (!conduit) {
-      return next(
-        new RestApiError(404, { conduit: `'${req.params.id}' not found` })
-      );
-    }
-
-    if (req.body.conduit.curi) {
-      return next(new RestApiError(403, { conduit: 'is immutable' }));
-    }
-
-    // FIXME!
-    // Since the mode of access to supported service types is vastly
-    // different, we should not allow service type for an existing
-    // conduit to be changed. Tests, UI and this logic needs to
-    // fixed
-    if (
-      req.body.conduit.suriType &&
-      serviceTargets.includes(req.body.conduit.suriType) === false
-    ) {
-      return next(
-        new RestApiError(422, {
-          suriType: `'${req.body.conduit.suriType}' unsupported`,
-        })
-      );
-    }
-
-    await conduit.update(await req.body.conduit);
-    return res.status(200).json({ conduit: conduit.toJSON() });
-  } catch (error) {
-    return next(new RestApiError(500, error));
-  }
+/*
+// Patch conduit
+const patchValidation = validate({
+  schema: conduitSchema,
+  path: 'conduit',
+  onError: 422,
 });
+*/
+router.patch(
+  '/:id',
+  auth.required,
+  // patchValidation,
+  async (req, res, next) => {
+    try {
+      const conduit = await Conduit.findByPk(req.params.id);
+      if (!conduit) {
+        return next(
+          new RestApiError(404, { conduit: `'${req.params.id}' not found` })
+        );
+      }
+
+      if (req.body.conduit.curi) {
+        return next(new RestApiError(403, { conduit: 'is immutable' }));
+      }
+
+      // FIXME!
+      // Since the mode of access to supported service types is vastly
+      // different, we should not allow service type for an existing
+      // conduit to be changed. Tests, UI and this logic needs to
+      // fixed
+      if (
+        req.body.conduit.suriType &&
+        serviceTargets.includes(req.body.conduit.suriType) === false
+      ) {
+        return next(
+          new RestApiError(422, {
+            suriType: `'${req.body.conduit.suriType}' unsupported`,
+          })
+        );
+      }
+
+      await conduit.update(await req.body.conduit);
+      return res.status(200).json({ conduit: conduit.toJSON() });
+    } catch (error) {
+      return next(new RestApiError(500, error));
+    }
+  }
+);
 
 // Delete conduit
 router.delete('/:id', auth.required, async (req, res, next) => {

@@ -20,3 +20,12 @@ require('./test/rest-api/conduit/racm.spec.js');
 // - Auth
 // - Secrets
 // - Allow List
+
+// Siraj's gripes:
+// - test module just too big
+// - processInput (replace with standard request validation)
+// - remove validation at the data model layer (gripe of Vijay)
+//   - evaluated express-validator
+//     - fell apart in validating json fields
+//   - currently evaluating yup
+//     - it needs more code to handle request than express-validator

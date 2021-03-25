@@ -98,6 +98,8 @@ describe('Conduit endpoint - basic', () => {
         .get(`/conduits/${ctId1}`)
         .set('Authorization', `Token ${jakeUser.token}`);
       expect(res.status).to.equal(200);
+      expect(res.body).to.have.property('conduit');
+
       expect(res.body.conduit).to.have.property('suriApiKey');
       expect(res.body.conduit).to.have.property('suriType');
       expect(res.body.conduit).to.have.property('suriObjectKey');
@@ -124,6 +126,8 @@ describe('Conduit endpoint - basic', () => {
         .set('Authorization', `Token ${jakeUser.token}`)
         .send({ conduit: { status: 'active' } });
       expect(res.status).to.equal(200);
+      expect(res.body).to.have.property('conduit');
+
       expect(res.body.conduit.status).to.eql('active');
 
       res = await Api()
@@ -131,6 +135,8 @@ describe('Conduit endpoint - basic', () => {
         .set('Authorization', `Token ${jakeUser.token}`)
         .send({ conduit: { status: 'inactive' } });
       expect(res.status).to.equal(200);
+      expect(res.body).to.have.property('conduit');
+
       expect(res.body.conduit.status).to.eql('inactive');
     });
 
@@ -139,6 +145,7 @@ describe('Conduit endpoint - basic', () => {
         .delete(`/conduits/${ctId3}`)
         .set('Authorization', `Token ${jakeUser.token}`);
       expect(deleteInactive.status).to.equal(200);
+      expect(deleteInactive.body).to.have.property('conduit');
 
       // verify...
       // note this eliminates the need to test deletion of non-existent endpoint
