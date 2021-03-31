@@ -236,18 +236,32 @@ router.put('/:id', auth.required, async (req, res, next) => {
   }
 });
 
-/*
+
 // Patch conduit
+const conduitPatchSchema = yup.object({
+  suriType: yup
+    .string()
+    .oneOf(SERVICE_TARGETS_ENUM),
+  suriObjectKey: yup.string(),
+  suriApiKey: yup.string(),
+  racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
+  allowlist: yup.array(),
+  status: yup.string().oneOf(STATUS_ENUM),
+  throttle: yup.boolean(),
+  description: yup.string().ensure(),
+  hiddenFormField: yup.array(),
+});
+
 const patchValidation = validate({
-  schema: conduitSchema,
+  schema: conduitPatchSchema,
   path: 'conduit',
   onError: 422,
 });
-*/
+
 router.patch(
   '/:id',
   auth.required,
-  // patchValidation,
+  patchValidation,
   async (req, res, next) => {
     try {
       const conduit = await Conduit.findByPk(req.params.id);

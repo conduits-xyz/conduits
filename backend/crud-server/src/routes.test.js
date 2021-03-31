@@ -8,7 +8,7 @@
 //
 // NOTE:
 // - test suites have order dependencies; do *not* rearrange the __require__s
-require('./test/rest-api/cors.spec.js');
+// require('./test/rest-api/cors.spec.js');
 require('./test/rest-api/user.spec.js');
 require('./test/rest-api/conduit/basic.spec.js');
 require('./test/rest-api/conduit/sort.spec.js');

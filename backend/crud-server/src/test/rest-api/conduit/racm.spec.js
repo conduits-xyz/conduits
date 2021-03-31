@@ -9,7 +9,6 @@ describe('Conduit endpoint - racm', () => {
   before(function () {
     ctId1 = jake.testData.ctId1;
     token = jake.token;
-    console.log('ctId1', ctId1);
   });
 
   it('should allow valid racm methods', async function () {
@@ -38,6 +37,5 @@ describe('Conduit endpoint - racm', () => {
       .send({ conduit });
     expect(res.status).to.equal(422);
     expect(res.body).to.have.property('errors');
-    console.log(res.body.conduit);
   });
 });

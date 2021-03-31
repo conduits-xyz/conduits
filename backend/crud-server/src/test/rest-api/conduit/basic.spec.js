@@ -121,6 +121,7 @@ describe('Conduit endpoint - basic', () => {
 
     it('should allow changing conduit status', async function () {
       // deliberately set status of ctId2 to 'active' and ctId3 to 'inactive'
+      const conduitActive = fakeConduit();
       let res = await Api()
         .patch(`/conduits/${ctId2}`)
         .set('Authorization', `Token ${jakeUser.token}`)
@@ -130,6 +131,7 @@ describe('Conduit endpoint - basic', () => {
 
       expect(res.body.conduit.status).to.eql('active');
 
+      const conduitInactive = fakeConduit();
       res = await Api()
         .patch(`/conduits/${ctId3}`)
         .set('Authorization', `Token ${jakeUser.token}`)
