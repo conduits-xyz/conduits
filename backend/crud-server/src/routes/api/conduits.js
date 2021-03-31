@@ -188,8 +188,29 @@ router.get('/', auth.required, async (req, res, next) => {
   }
 });
 
+// Patch conduit
+const conduitPatchSchema = yup.object({
+  suriType: yup
+    .string()
+    .oneOf(SERVICE_TARGETS_ENUM),
+  suriObjectKey: yup.string(),
+  suriApiKey: yup.string(),
+  racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
+  allowlist: yup.array(),
+  status: yup.string().oneOf(STATUS_ENUM),
+  throttle: yup.boolean(),
+  description: yup.string().ensure(),
+  hiddenFormField: yup.array(),
+});
+
+const updateValidation = validate({
+  schema: conduitPatchSchema,
+  path: 'conduit',
+  onError: 422,
+});
+
 // Replace conduit
-router.put('/:id', auth.required, async (req, res, next) => {
+router.put('/:id', auth.required, updateValidation, async (req, res, next) => {
   try {
     const conduit = await Conduit.findByPk(req.params.id);
     if (!conduit) {
@@ -209,7 +230,7 @@ router.put('/:id', auth.required, async (req, res, next) => {
     delete conduit.description;
     Object.assign(conduit, objCdt);
 
-    helpers.processInput(
+   /*  helpers.processInput(
       req.body.conduit,
       conduitReqdFields,
       conduitOptFields,
@@ -219,7 +240,7 @@ router.put('/:id', auth.required, async (req, res, next) => {
 
     if (Object.keys(errors).length) {
       return next(new RestApiError(422, errors));
-    }
+    } */
 
     if (serviceTargets.includes(req.body.conduit.suriType) === false) {
       return next(
@@ -237,31 +258,18 @@ router.put('/:id', auth.required, async (req, res, next) => {
 });
 
 
-// Patch conduit
-const conduitPatchSchema = yup.object({
-  suriType: yup
-    .string()
-    .oneOf(SERVICE_TARGETS_ENUM),
-  suriObjectKey: yup.string(),
-  suriApiKey: yup.string(),
-  racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
-  allowlist: yup.array(),
-  status: yup.string().oneOf(STATUS_ENUM),
-  throttle: yup.boolean(),
-  description: yup.string().ensure(),
-  hiddenFormField: yup.array(),
-});
 
-const patchValidation = validate({
+
+/* const patchValidation = validate({
   schema: conduitPatchSchema,
   path: 'conduit',
   onError: 422,
-});
+}); */
 
 router.patch(
   '/:id',
   auth.required,
-  patchValidation,
+  updateValidation,
   async (req, res, next) => {
     try {
       const conduit = await Conduit.findByPk(req.params.id);
