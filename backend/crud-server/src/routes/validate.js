@@ -41,9 +41,6 @@ function validate({ schema, path, onError }) {
   async function middleware(req, res, next) {
     // console.log('!!!!!!!!!!!!', schema, path);
     // do something with schema
-    // if (req.method === 'PATCH') {
-    //   console.log('~~~~', req.method, req.body);
-    // }
     const payload = req.body[path];
     try {
       /* const _ignore = */ await schema.validate(payload, {
@@ -52,8 +49,15 @@ function validate({ schema, path, onError }) {
       // console.log('~~~ request-validity: ', validated);
     } catch (errors) {
       const validationErrors = [];
+      // let displayErrors = false;
+      // if (req.method === 'PATCH') {
+      //   console.log('~~~~', req.method, req.body);
+      //   displayErrors = true;
+      // }
       for (const error of errors.inner) {
-        // console.log('~~~~~~~~~', error.path, error.errors[0]);
+        // if (displayErrors) {
+        //   console.log('~~~~~~~~~', error.path, error.errors[0]);
+        // }
         validationErrors.push({ [error.path]: error.errors[0] });
       }
       if (onError) {

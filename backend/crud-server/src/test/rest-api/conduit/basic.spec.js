@@ -121,7 +121,6 @@ describe('Conduit endpoint - basic', () => {
 
     it('should allow changing conduit status', async function () {
       // deliberately set status of ctId2 to 'active' and ctId3 to 'inactive'
-      const conduitActive = fakeConduit();
       let res = await Api()
         .patch(`/conduits/${ctId2}`)
         .set('Authorization', `Token ${jakeUser.token}`)
@@ -131,7 +130,6 @@ describe('Conduit endpoint - basic', () => {
 
       expect(res.body.conduit.status).to.eql('active');
 
-      const conduitInactive = fakeConduit();
       res = await Api()
         .patch(`/conduits/${ctId3}`)
         .set('Authorization', `Token ${jakeUser.token}`)
@@ -208,6 +206,37 @@ describe('Conduit endpoint - basic', () => {
       expect(res.body.conduit.hiddenFormField).to.eql(
         putData.hiddenFormField
       );
+    });
+
+    it('should reject invalid updates to mutable conduit properties', async function () {
+      // all updates require suriType, suriObjectKey and suriApiKey
+      const conduit = await Api()
+        .get('/conduits/' + ctId1)
+        .set('Authorization', `Token ${jakeUser.token}`);
+      expect(conduit.body).to.haveOwnProperty('conduit');
+      // prettier-ignore
+      // const {curi, suriType } = conduit.body.conduit;
+
+      const putData = await fakeConduit();
+      // delete required properties to trigger error validation
+      delete putData.suriApiKey;
+      delete putData.suriType;
+      delete putData.suriObjectKey;
+
+      const res = await Api()
+        .put('/conduits/' + ctId1)
+        .set('Authorization', `Token ${jakeUser.token}`)
+        .send({ conduit: putData });
+
+      expect(res.status).to.equal(422);
+      expect(res.body).to.have.property('errors');
+      
+
+      for (const error of res.body.errors) {
+        const [key, value] = Object.entries(error)[0];
+        expect(key).to.match(/.*Type|ObjectKey|ApiKey/);
+        expect(value).to.match(/.*is required/, value);
+      }
     });
   });
 });

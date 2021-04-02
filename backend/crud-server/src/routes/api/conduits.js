@@ -5,51 +5,28 @@ const { validate } = require('../validate');
 // const util = require('util');
 // const { body, param, validationResult, check } = require('express-validator');
 // const validator = require('validator');
-const yup = require('yup');
+// const yup = require('yup');
 
 const auth = require('../auth');
 const helpers = require('../../../../lib/helpers');
 const conf = require('../../../../config');
 const { Conduit } = require('../../models');
 const { RestApiError } = require('../../../../lib/error');
+const { schemaFor, serviceTargets } = require('../schema');
 
-const conduitReqdFields = ['suriType', 'suriObjectKey', 'suriApiKey'];
+// const conduitReqdFields = ['suriType', 'suriObjectKey', 'suriApiKey'];
 
-const conduitOptFields = [
-  'throttle', // default: true
-  'status', // default: inactive
-  'description', // nulls allowed
-  'hiddenFormField', // default: []
-  'allowlist', // default: []
-  'racm', // default: []
-];
-
-const SERVICE_TARGETS_ENUM = conf.targets.settings.map((i) => i.type);
-const HTTP_METHODS_ENUM = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
-// const ALLOW_LIST_PROPS = ['ip', 'comment', 'status'];
-const STATUS_ENUM = ['active', 'inactive'];
-// const BOOLEAN_ENUM = [true, false];
-
-// cache frequently used objects
-const serviceTargets = conf.targets.settings.map((i) => i.type);
-
-const conduitSchema = yup.object({
-  suriType: yup
-    .string()
-    .required('resource type is required')
-    .oneOf(SERVICE_TARGETS_ENUM),
-  suriObjectKey: yup.string().required('object key is required'),
-  suriApiKey: yup.string().required('api key is required'),
-  racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
-  allowlist: yup.array(),
-  status: yup.string().required('status is required').oneOf(STATUS_ENUM),
-  throttle: yup.boolean(),
-  description: yup.string().ensure(),
-  hiddenFormField: yup.array(),
-});
+// const conduitOptFields = [
+//   'throttle', // default: true
+//   'status', // default: inactive
+//   'description', // nulls allowed
+//   'hiddenFormField', // default: []
+//   'allowlist', // default: []
+//   'racm', // default: []
+// ];
 
 const postValidation = validate({
-  schema: conduitSchema,
+  schema: schemaFor('conduit', 'POST'),
   path: 'conduit',
   onError: 422,
 });
@@ -188,29 +165,14 @@ router.get('/', auth.required, async (req, res, next) => {
   }
 });
 
-// Patch conduit
-const conduitPatchSchema = yup.object({
-  suriType: yup
-    .string()
-    .oneOf(SERVICE_TARGETS_ENUM),
-  suriObjectKey: yup.string(),
-  suriApiKey: yup.string(),
-  racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
-  allowlist: yup.array(),
-  status: yup.string().oneOf(STATUS_ENUM),
-  throttle: yup.boolean(),
-  description: yup.string().ensure(),
-  hiddenFormField: yup.array(),
-});
-
-const updateValidation = validate({
-  schema: conduitPatchSchema,
+const putValidation = validate({
+  schema: schemaFor('conduit', 'PUT'),
   path: 'conduit',
   onError: 422,
 });
 
 // Replace conduit
-router.put('/:id', auth.required, updateValidation, async (req, res, next) => {
+router.put('/:id', auth.required, putValidation, async (req, res, next) => {
   try {
     const conduit = await Conduit.findByPk(req.params.id);
     if (!conduit) {
@@ -221,7 +183,6 @@ router.put('/:id', auth.required, updateValidation, async (req, res, next) => {
       return next(new RestApiError(403, { conduit: 'is immutable' }));
     }
 
-    const errors = {};
     const newCdt = new Conduit();
     const objCdt = newCdt.toJSON();
     delete objCdt.id;
@@ -230,26 +191,6 @@ router.put('/:id', auth.required, updateValidation, async (req, res, next) => {
     delete conduit.description;
     Object.assign(conduit, objCdt);
 
-   /*  helpers.processInput(
-      req.body.conduit,
-      conduitReqdFields,
-      conduitOptFields,
-      conduit,
-      errors
-    );
-
-    if (Object.keys(errors).length) {
-      return next(new RestApiError(422, errors));
-    } */
-
-    if (serviceTargets.includes(req.body.conduit.suriType) === false) {
-      return next(
-        new RestApiError(422, {
-          suriType: `'${req.body.conduit.suriType}' unsupported`,
-        })
-      );
-    }
-
     await conduit.update(req.body.conduit);
     res.status(200).json({ conduit: conduit.toJSON() });
   } catch (error) {
@@ -257,14 +198,11 @@ router.put('/:id', auth.required, updateValidation, async (req, res, next) => {
   }
 });
 
-
-
-
-/* const patchValidation = validate({
-  schema: conduitPatchSchema,
+const updateValidation = validate({
+  schema: schemaFor('conduit', 'PATCH'),
   path: 'conduit',
   onError: 422,
-}); */
+});
 
 router.patch(
   '/:id',
