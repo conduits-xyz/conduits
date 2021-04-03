@@ -16,35 +16,19 @@ module.exports = (db, DataTypes) => {
     suriApiKey: {
       type: DataTypes.STRING,
       allowNull: false,
-      validate: {
-        notEmpty: true,
-      },
     },
     suriType: {
       type: DataTypes.STRING,
       allowNull: false,
-      validate: {
-        notEmpty: true,
-        isIn: {
-          args: [SERVICE_TARGETS_ENUM],
-          msg: 'unsupported',
-        },
-      },
     },
     suriObjectKey: {
       type: DataTypes.STRING,
       allowNull: false,
-      validate: {
-        notEmpty: true,
-      },
     },
     curi: {
       type: DataTypes.STRING(512),
       allowNull: false,
       unique: true,
-      validate: {
-        isUrl: true,
-      },
     },
     allowlist: {
       type: DataTypes.JSON,
@@ -88,16 +72,6 @@ module.exports = (db, DataTypes) => {
       type: DataTypes.JSON,
       allowNull: false,
       defaultValue: ['GET'],
-      validate: {
-        isValidHTTPMethod: (value) => {
-          if (
-            !value ||
-            !value.every((method) => HTTP_METHODS_ENUM.includes(method))
-          ) {
-            throw new Error('invalid method');
-          }
-        },
-      },
     },
     throttle: {
       type: DataTypes.BOOLEAN,
@@ -114,12 +88,6 @@ module.exports = (db, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: false,
       defaultValue: 'inactive',
-      validate: {
-        isIn: {
-          args: [STATUS_ENUM],
-          msg: 'invalid status value',
-        },
-      },
     },
     description: {
       type: DataTypes.TEXT,
