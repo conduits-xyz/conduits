@@ -7,9 +7,6 @@ module.exports = (db, DataTypes) => {
     firstName: {
       type: DataTypes.STRING,
       allowNull: false,
-      validate: {
-        notEmpty: true,
-      },
     },
     lastName: {
       type: DataTypes.STRING,
@@ -18,10 +15,6 @@ module.exports = (db, DataTypes) => {
     email: {
       type: DataTypes.STRING,
       allowNull: false,
-      validate: {
-        is: /\S+@\S+\.\S+/,
-        notEmpty: true,
-      },
       unique: true,
       set(email) {
         this.setDataValue('email', email.toString().toLowerCase());
