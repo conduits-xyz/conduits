@@ -10,6 +10,7 @@ const STATUS_ENUM = ['active', 'inactive'];
 // cache frequently used objects
 const serviceTargets = conf.targets.settings.map((i) => i.type);
 
+// Post conduit
 const conduitSchemaForPost = yup.object({
   suriType: yup
     .string()
@@ -25,23 +26,7 @@ const conduitSchemaForPost = yup.object({
   hiddenFormField: yup.array(),
 });
 
-/*
-const conduitReqdFields = [
-  'suriType', 
-  'suriObjectKey', 
-  'suriApiKey'
-];
-
-const conduitOptFields = [
-  'throttle', // default: true
-  'status', // default: inactive
-  'description', // nulls allowed
-  'hiddenFormField', // default: []
-  'allowlist', // default: []
-  'racm', // default: []
-];
-*/
-
+// Put conduit
 const conduitSchemaForPut = yup.object({
   suriType: yup
     .string()
@@ -70,6 +55,14 @@ const conduitSchemaForPatch = yup.object({
   hiddenFormField: yup.array(),
 });
 
+// Post User
+const userSchemaForPost = yup.object({
+  firstName: yup.string().required('first name is required'),
+  lastName: yup.string(),
+  email: yup.string().email().required('email is required'),
+  password: yup.string().required('password is required'),
+});
+
 function schemaFor(path, method) {
   const schemas = {
     conduit: {
@@ -78,7 +71,7 @@ function schemaFor(path, method) {
       PATCH: conduitSchemaForPatch,
     },
     user: {
-      POST: {},
+      POST: userSchemaForPost,
       PUT: {},
       PATCH: {},
     },

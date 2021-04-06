@@ -23,10 +23,8 @@ describe('User endpoint)', () => {
           user: { firstName, lastName, email: email.toLowerCase(), password },
         });
       expect(res.status).to.equal(422);
-      const errors = res.body.errors;
-      for (const error of Object.keys(errors)) {
-        expect(errors[error]).to.match(/^email.*$|^unknown.*$/);
-      }
+      expect(res.body).to.have.property('errors');
+      expect(res.body.errors.email).to.equal('email must be unique');
     });
 
     it('should return errors for bad registration data of user', async () => {
@@ -132,7 +130,6 @@ describe('User endpoint)', () => {
 
       // update jake on success for subsequent tests to pass
       jake.user = { ...jake.user, ...user };
-      // console.log('jake is now: ', jake);
     });
 
     it('should allow user to change password', async function () {

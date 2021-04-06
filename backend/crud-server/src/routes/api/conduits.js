@@ -14,17 +14,6 @@ const { Conduit } = require('../../models');
 const { RestApiError } = require('../../../../lib/error');
 const { schemaFor, serviceTargets } = require('../schema');
 
-// const conduitReqdFields = ['suriType', 'suriObjectKey', 'suriApiKey'];
-
-// const conduitOptFields = [
-//   'throttle', // default: true
-//   'status', // default: inactive
-//   'description', // nulls allowed
-//   'hiddenFormField', // default: []
-//   'allowlist', // default: []
-//   'racm', // default: []
-// ];
-
 const postValidation = validate({
   schema: schemaFor('conduit', 'POST'),
   path: 'conduit',
@@ -36,6 +25,7 @@ router.post(
   auth.required,
   postValidation,
   async function (req, res, next) {
+    // note - do not move conduit build and make curi inside try/catch block
     const conduit = Conduit.build(req.body.conduit);
     conduit.userId = req.payload.id;
     conduit.curi = await helpers.makeCuri(conf.conduit.settings.prefix);
@@ -43,7 +33,6 @@ router.post(
     try {
       await conduit.save();
     } catch (error) {
-      // console.log('!!!!!!', error, conduit, req.body.conduit);
       if (error.name === 'SequelizeValidationError') {
         return next(new RestApiError(422, error));
       }

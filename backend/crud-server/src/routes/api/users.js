@@ -4,6 +4,8 @@ const auth = require('../auth');
 const helpers = require('../../../../lib/helpers');
 const passport = require('passport');
 const { RestApiError } = require('../../../../lib/error');
+const { validate } = require('../validate');
+const { schemaFor } = require('../schema');
 
 router.get('/user', auth.required, async (req, res, next) => {
   try {
@@ -15,34 +17,25 @@ router.get('/user', auth.required, async (req, res, next) => {
   }
 });
 
+const postValidation = validate({
+  schema: schemaFor('user', 'POST'),
+  path: 'user',
+  onError: 422,
+});
+
 // Registration
-router.post('/users', async (req, res, next) => {
-  const user = new User();
-  const errors = {};
-
-  const userReqFields = ['firstName', 'email', 'password'];
-  const userOptFields = ['lastName'];
-  helpers.processInput(
-    req.body.user,
-    userReqFields,
-    userOptFields,
-    user,
-    errors
-  );
-  if (Object.keys(errors).length) {
-    return next(new RestApiError(422, errors));
-  }
-
+router.post('/users', postValidation, async (req, res, next) => {
   try {
+    const user = User.build(req.body.user);
     const result = await user.save();
     return res.json({ user: result.toAuthJSON() });
-  } catch ({ name, errors: dberrors, fields }) {
-    // console.log(name, errors, fields);
+  } catch ({ name, errors, fields }) {
     if (name === 'SequelizeUniqueConstraintError') {
+      const dberrors = {};
       for (let i = 0; i < fields.length; i++) {
-        errors[fields[i]] = dberrors[i].message;
+        dberrors[fields[i]] = errors[i].message;
       }
-      return next(new RestApiError(422, errors));
+      return next(new RestApiError(422, dberrors));
     } else {
       errors.unknown = `unknown error ${name}, please contact support`;
       return next(new RestApiError(500, errors));

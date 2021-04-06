@@ -1,14 +1,14 @@
 const validator = require('validator');
-const conf = require('../../../config');
+// const conf = require('../../../config');
 
 // cache frequently used objects and enumerations
 const HFF_PROPS = ['fieldName', 'include', 'policy', 'value'];
 const HFF_PROPS_SIG = ['fieldName', 'include', 'policy', 'value'].join('');
 const HFF_POLICY = ['drop-if-filled', 'pass-if-match'];
 const STATUS_ENUM = ['active', 'inactive'];
-const HTTP_METHODS_ENUM = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+// const HTTP_METHODS_ENUM = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 const BOOLEAN_ENUM = [true, false];
-const SERVICE_TARGETS_ENUM = conf.targets.settings.map((i) => i.type);
+// const SERVICE_TARGETS_ENUM = conf.targets.settings.map((i) => i.type);
 const ALLOW_LIST_PROPS = ['ip', 'comment', 'status'];
 
 module.exports = (db, DataTypes) => {

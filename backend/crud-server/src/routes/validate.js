@@ -42,15 +42,16 @@ function validate({ schema, path, onError }) {
     // console.log('!!!!!!!!!!!!', schema, path);
     // do something with schema
     const payload = req.body[path];
+    // console.log('>>> print payload:', payload);
     try {
       /* const _ignore = */ await schema.validate(payload, {
         abortEarly: false,
       });
-      // console.log('~~~ request-validity: ', validated);
+      // console.log('~~~ request-validity: ');
     } catch (errors) {
       const validationErrors = [];
       // let displayErrors = false;
-      // if (req.method === 'PATCH') {
+      // if (req.method === 'POST' /*&& path === 'user'*/) {
       //   console.log('~~~~', req.method, req.body);
       //   displayErrors = true;
       // }
