@@ -65,7 +65,7 @@ describe('Conduit endpoint - basic', () => {
       for (const error of res.body.errors) {
         const [key, value] = Object.entries(error)[0];
         expect(key).to.match(/.*Type|ObjectKey|ApiKey|status/);
-        expect(value).to.match(/.*is required/, value);
+        expect(value).to.match(/.* required/, value);
       }
     });
 
@@ -232,7 +232,7 @@ describe('Conduit endpoint - basic', () => {
       for (const error of res.body.errors) {
         const [key, value] = Object.entries(error)[0];
         expect(key).to.match(/.*Type|ObjectKey|ApiKey/);
-        expect(value).to.match(/.*is required/, value);
+        expect(value).to.match(/.* required/, value);
       }
     });
   });

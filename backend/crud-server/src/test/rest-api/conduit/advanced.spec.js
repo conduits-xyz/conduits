@@ -111,25 +111,6 @@
 //   hiddenFormField
 // })
 
-//   body('conduit.status')
-//     .exists()
-//     .withMessage('Status is required')
-//     .bail()
-//     .isIn(STATUS_ENUM)
-//     .withMessage('Status should be boolean'),
-//   body('conduit.throttle')
-//     .optional()
-//     .exists()
-//     .isIn(BOOLEAN_ENUM)
-//     .toBoolean(true)
-//     .withMessage('Throttle should be boolean'),
-//   body('conduit.description')
-//     .optional()
-//     .exists({checkNull: true})
-//     .trim()
-//     .withMessage('Description cannot be null'),
-// ];
-
 // const conduitReqdFields = [
 //   {suriType: [optional, isString, trim, {isIn: SERVICE_TARGETS_ENUM}]},
 //   {suriObjectKey: [isString, trim]},
@@ -162,13 +143,3 @@
 //     throw new Error(warning);
 //   }
 // });
-
-// const conduitOptFields = [
-//   'throttle', // default: true
-//   'status', // default: inactive
-//   'description', // nulls allowed
-//   'hiddenFormField', // default: []
-//   'allowlist', // default: []
-//   'racm', // default: []
-// ];
-// //---

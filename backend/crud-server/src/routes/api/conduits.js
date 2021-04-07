@@ -47,6 +47,12 @@ router.post(
       if (error.name === 'SequelizeUniqueConstraintError') {
         conduit.curi = await helpers.makeCuri(conf.conduit.settings.prefix);
         await conduit.save();
+        return res.status(201).json({
+          conduit: {
+            id: conduit.id,
+            curi: conduit.curi,
+          },
+        });
       } else {
         return next(new RestApiError(500, error));
       }
