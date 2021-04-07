@@ -1,5 +1,14 @@
 // ///----
 
+// Yup Howto:
+// - https://stackoverflow.com/questions/63534689/how-to-validate-individual-element-of-an-array-of-json-objects-using-yup
+// - https://stackoverflow.com/questions/53384140/how-to-condense-yup-when-validations
+// - https://codesandbox.io/s/xk4r7nq9z?file=/validation-shapes.js
+//
+// - https://medium.com/weekly-webtips/validate-a-form-yup-i-can-do-that-ad08620689c9
+// - [Yup array validation for each field in an array](https://github.com/jquense/yup/issues/952)
+// - https://stackoverflow.com/questions/63649830/yup-create-and-modify-a-validation-schema-at-runtime
+
 /// /////////////////////////////////////////////////////////////////////////////
 // //--
 // const validationSchema = Yup.object({
@@ -57,7 +66,8 @@
 //   // filtered array vechicles that doens't have registrationNumber
 //   const filteredArray = parent.filter((e) => !e.registrationNumber);
 
-//   // If length of vehicles that doesn't have registrationNumber is equals to vehicles  array length then return false;
+//   // If length of vehicles that doesn't have registrationNumber is equals
+//   // to vehicles  array length then return false;
 //   if (filteredArray.length === parent.length) return false;
 
 //   return true;

@@ -19,7 +19,9 @@ const conduitSchemaForPost = yup.object({
   suriObjectKey: yup.string().required('object key is required'),
   suriApiKey: yup.string().required('api key is required'),
   racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
-  allowlist: yup.array(),
+  allowlist: yup.array(yup.object({
+    // TODO!
+  })).ensure(),
   status: yup.string().required('status is required').oneOf(STATUS_ENUM),
   throttle: yup.boolean(),
   description: yup.string().ensure(),
