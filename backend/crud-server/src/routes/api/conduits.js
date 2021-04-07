@@ -25,13 +25,20 @@ router.post(
   auth.required,
   postValidation,
   async function (req, res, next) {
-    // note - do not move conduit build and make curi inside try/catch block
-    const conduit = Conduit.build(req.body.conduit);
-    conduit.userId = req.payload.id;
-    conduit.curi = await helpers.makeCuri(conf.conduit.settings.prefix);
+    let conduit;
 
     try {
+      conduit = Conduit.build(req.body.conduit);
+      conduit.userId = req.payload.id;
+      conduit.curi = await helpers.makeCuri(conf.conduit.settings.prefix);
       await conduit.save();
+
+      return res.status(201).json({
+        conduit: {
+          id: conduit.id,
+          curi: conduit.curi,
+        },
+      });
     } catch (error) {
       if (error.name === 'SequelizeValidationError') {
         return next(new RestApiError(422, error));
@@ -44,13 +51,6 @@ router.post(
         return next(new RestApiError(500, error));
       }
     }
-
-    return res.status(201).json({
-      conduit: {
-        id: conduit.id,
-        curi: conduit.curi,
-      },
-    });
   }
 );
 
