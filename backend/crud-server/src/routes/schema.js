@@ -6,7 +6,9 @@ const SERVICE_TARGETS_ENUM = conf.targets.settings.map((i) => i.type);
 const HTTP_METHODS_ENUM = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 const ALLOW_LIST_PROPS = ['ip', 'comment', 'status'];
 const STATUS_ENUM = ['active', 'inactive'];
-// const BOOLEAN_ENUM = [true, false];
+const HFF_PROPS = ['fieldName', 'include', 'policy', 'value'];
+const HFF_POLICY = ['drop-if-filled', 'pass-if-match'];
+const BOOLEAN_ENUM = [true, false];
 
 // cache frequently used objects
 const serviceTargets = conf.targets.settings.map((i) => i.type);
@@ -49,6 +51,58 @@ bevrage: yup.string().test('is-tea',
 '${path} is not tea',
 value => value === 'tea')
 */
+
+/*
+      validate: {
+        isValidPropertyList: (value) => {
+          if (
+            !value ||
+            !value.every((prop) =>
+              Object.keys(prop).every((k) => HFF_PROPS.includes(k))
+            )
+          ) {
+            throw new Error('unspecified properties present');
+          }
+        },
+
+        isValidProperty: (value) => {
+          if (
+            !value ||
+            !value.every(
+              (entry) => Object.keys(entry).sort().join('') === HFF_PROPS_SIG
+            )
+          ) {
+            throw new Error('missing required properties');
+          }
+        },
+        isValidField: (value) => {
+          if (
+            !value ||
+            value.some(
+              (entry) => !entry.fieldName || entry.fieldName.trim() === ''
+            )
+          ) {
+            throw new Error('invalid fieldName value');
+          }
+        },
+        isValidPolicy: (value) => {
+          if (
+            !value ||
+            !value.every((entry) => HFF_POLICY.includes(entry.policy))
+          ) {
+            throw new Error('invalid policy value');
+          }
+        },
+        isValidInclude: (value) => {
+          if (
+            !value ||
+            !value.every((entry) => BOOLEAN_ENUM.includes(entry.include))
+          ) {
+            throw new Error('invalid include value');
+          }
+        },
+      },
+*/
 function allowlistPropsAreValid() {
   // In this case, parent is the entire array
   const props = this.parent.allowlist ?? [];
@@ -57,6 +111,24 @@ function allowlistPropsAreValid() {
       Object.keys(prop).every((k) => ALLOW_LIST_PROPS.includes(k))
   );
 };
+
+function allowlistPropsRequired() {
+  // In this case, parent is the entire array
+  const props = this.parent.allowlist ?? [];
+  // console.log('~~~~~~~~~~~~~~', props /*, this.parent.*/);
+  return props.every((prop) =>
+      Object.keys(prop).every((entry) => entry.ip && validator.isIP(entry.ip))
+  );
+};
+
+
+function hffPropsAreValid() {
+  const props = this.parent.hiddenFormField ?? [];
+  // console.log('>>>>', props /* this.parent.hiddenFormField */);
+  return props.every((prop) => 
+    Object.keys(prop).every((k) => HFF_PROPS.includes(k))
+  );
+}
 
 // Post conduit
 const conduitSchemaForPost = yup.object({
@@ -71,11 +143,18 @@ const conduitSchemaForPost = yup.object({
     ip: yup.string().nullable().test('valid-ip', 'invalid ip address', val => val && validator.isIP(val)),
     status: yup.string().ensure('status is required').oneOf(STATUS_ENUM),
     comment: yup.string()
-  })).test('valid-props', 'unspecified properties present', allowlistPropsAreValid),
+  })).test('valid-props', 'unspecified properties present', allowlistPropsAreValid)
+     /* .test('requied-props', 'required properties missing', allowlistPropsRequired) */,
+
   status: yup.string().required('status is required').oneOf(STATUS_ENUM),
   throttle: yup.boolean(),
   description: yup.string().ensure(),
-  hiddenFormField: yup.array(),
+  hiddenFormField: yup.array(yup.object({
+    fieldName: yup.string().ensure('fieldName is required'), 
+    include: yup.boolean(), 
+    policy: yup.string().oneOf(HFF_POLICY), 
+    value: yup.string()
+  })).test('valid-props', 'unspecified properties present', hffPropsAreValid),
 });
 
 // Put conduit

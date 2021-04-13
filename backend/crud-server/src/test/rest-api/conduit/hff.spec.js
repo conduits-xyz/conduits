@@ -142,8 +142,10 @@ describe('Conduit endpoint - hff', () => {
       .send({ conduit });
     expect(res.status).to.equal(422);
     expect(res.body).to.have.property('errors');
-    res.body.errors.forEach((error) =>
-      expect(error.hiddenFormField).to.match(ERROR_PATTERN)
-    );
+    
+    for (const error of res.body.errors) {
+      const [key, value] = Object.entries(error)[0];
+      expect(key).to.match(/.*Type|ObjectKey|ApiKey|status|allowlist|policy/);
+    }
   });
 });

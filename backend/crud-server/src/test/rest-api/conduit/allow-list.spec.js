@@ -26,7 +26,7 @@ describe('Conduit endpoint - allow list', () => {
     expect(res.status).to.equal(422);
     expect(res.body).to.have.property('errors');
 
-    console.log('~~~~~~~~~~', res.body.errors);
+    // console.log('~~~~~~~~~~', res.body.errors);
     for (const error of res.body.errors) {
       const [key, value] = Object.entries(error)[0];
       expect(key).to.match(/.*Type|ObjectKey|ApiKey|status|allowlist/);
@@ -34,7 +34,7 @@ describe('Conduit endpoint - allow list', () => {
     }
   });
 
-  it('should reject invalid props in allowlist', async function () {
+  it('should reject unspecified props in allowlist', async function () {
     const conduit = fakeConduit();
     conduit.allowlist = [
       {
@@ -53,10 +53,34 @@ describe('Conduit endpoint - allow list', () => {
 
     for (const error of res.body.errors) {
       const [key, value] = Object.entries(error)[0];
-      expect(key).to.match(/.*Type|ObjectKey|ApiKey|status|allowlist/);
-      expect(value).to.match(/.* required|invalid|unspecified/, value);
+      expect(key).to.match(/allowlist/);
+      expect(value).to.match(/unspecified/, value);
     }
   });
+
+  /*
+  it('should not allow allowlist with missing required props', async () => {
+    const conduit = fakeConduit();
+    conduit.allowlist = [
+        {
+          comments: 'test',
+          ip: '192.168.1.0',
+        },
+    ];
+    const res = await Api()
+      .post(`/conduits`)
+      .set('Authorization', `Token ${token}`)
+      .send({ conduit });
+    expect(res.status).to.equal(422);
+    expect(res.body).to.have.property('errors');
+
+    for (const error of res.body.errors) {
+      const [key, value] = Object.entries(error)[0];
+      expect(key).to.match(/allowlist/);
+      expect(value).to.match(/required/, value);
+    }
+  });
+  */
 
   /*
   // equivalence with `allowlist.ip` set to undefined, or empty
