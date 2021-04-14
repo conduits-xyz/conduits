@@ -1,35 +1,5 @@
 const { RestApiError } = require('../../../lib/error');
 
-/*
-const signUpValidationSchemaArray = [
-{ name: 'username', validation: string().trim().required() },
-{ name: 'password', validation: string().trim().required() }
-{ name: 'role', validation: string().trim().required() }
-{ name: 'address', validation: addressSchema.default(null).nullable().when(role, isAdminRole(object().required()))}
-
-const buildYupSchema = (fields: any[]) => {
-    const newSchema = {};
-    fields.forEach(field => newSchema[field.name] = field.validation);
-    return object().shape(newSchema);
-}
-
-buildYupSchema(signUpValidationSchemaArray);
---------------
-const signUpValidationSchemaArray = [
-{ name: 'username', validation: {create: string().trim().required(), update: string().trim().optional()} },
-{ name: 'password', validation: [string().trim().required() }
-{ name: 'role', validation: string().trim().required() }
-{ name: 'address', validation: addressSchema.default(null).nullable().when(role, isAdminRole(object().required()))}
-
-const buildYupSchema = (what, fields: any[]) => {
-    const newSchema = {};
-    fields.forEach(field => newSchema[field.name] = field.validation[what]);
-    return object().shape(newSchema);
-}
-
-buildYupSchema('create', signUpValidationSchemaArray);
-*/
-
 /// Returns a validation middleware that validates a request
 /// to match a given schema, and optionally return error to
 /// to a client.
@@ -41,13 +11,21 @@ function validate({ schema, path, onError }) {
   async function middleware(req, res, next) {
     // console.log('!!!!!!!!!!!!', schema, path);
     // do something with schema
-    const payload = req.body[path];
-    // console.log('>>> print payload:', payload);
+    // console.log('>>> print payload:', req.body[path]);
+    const payload = req.body[path] ?? {};
     try {
-      /* const _ignore = */ await schema.validate(payload, {
+      const validated = await schema.validate(payload, {
         abortEarly: false,
+        strict: true,
       });
-      // console.log('~~~ request-validity: ');
+      res.locals.validatedBody = {[path]: validated};
+
+      // console.log('1.0 ~~~~~~~~~~~', res.locals.validatedBody);
+      // if (path === 'conduit') {
+      //   if (_ignore.description !== 'ignore me') {
+      //     console.log('~~~ request-validity: ', validated);
+      //   }
+      // }
     } catch (errors) {
       const validationErrors = [];
       // let displayErrors = false;
@@ -72,5 +50,6 @@ function validate({ schema, path, onError }) {
 
   return middleware;
 }
+
 
 module.exports = { validate };

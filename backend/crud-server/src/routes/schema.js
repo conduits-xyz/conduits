@@ -12,115 +12,6 @@ const BOOLEAN_ENUM = [true, false];
 
 // cache frequently used objects
 const serviceTargets = conf.targets.settings.map((i) => i.type);
-/*
-validate: {
-  isValidPropertyList: (value) => {
-    if (
-      !value ||
-      !value.every((prop) =>
-        Object.keys(prop).every((k) => ALLOW_LIST_PROPS.includes(k))
-      )
-    ) {
-      throw new Error('unspecified properties present');
-    }
-  },
-  isValidProperty: (value) => {
-    if (!value || !value.every((entry) => entry.ip && entry.status)) {
-      throw new Error('missing required properties');
-    }
-  },
-  isValidIP: (value) => {
-    if (
-      !value ||
-      !value.every((entry) => entry.ip && validator.isIP(entry.ip))
-    ) {
-      throw new Error('invalid ip address');
-    }
-  },
-  isValidStatus: (value) => {
-    if (
-      !value ||
-      !value.every((entry) => STATUS_ENUM.includes(entry.status))
-    ) {
-      throw new Error('invalid status value');
-    }
-  },
-},
-
-bevrage: yup.string().test('is-tea',
-'${path} is not tea',
-value => value === 'tea')
-*/
-
-/*
-      validate: {
-        isValidPropertyList: (value) => {
-          if (
-            !value ||
-            !value.every((prop) =>
-              Object.keys(prop).every((k) => HFF_PROPS.includes(k))
-            )
-          ) {
-            throw new Error('unspecified properties present');
-          }
-        },
-
-        isValidProperty: (value) => {
-          if (
-            !value ||
-            !value.every(
-              (entry) => Object.keys(entry).sort().join('') === HFF_PROPS_SIG
-            )
-          ) {
-            throw new Error('missing required properties');
-          }
-        },
-        isValidField: (value) => {
-          if (
-            !value ||
-            value.some(
-              (entry) => !entry.fieldName || entry.fieldName.trim() === ''
-            )
-          ) {
-            throw new Error('invalid fieldName value');
-          }
-        },
-        isValidPolicy: (value) => {
-          if (
-            !value ||
-            !value.every((entry) => HFF_POLICY.includes(entry.policy))
-          ) {
-            throw new Error('invalid policy value');
-          }
-        },
-        isValidInclude: (value) => {
-          if (
-            !value ||
-            !value.every((entry) => BOOLEAN_ENUM.includes(entry.include))
-          ) {
-            throw new Error('invalid include value');
-          }
-        },
-      },
-*/
-function allowlistPropsAreValid() {
-  // In this case, parent is the entire array
-  const props = this.parent.allowlist ?? [];
-  // console.log('~~~~~~~~~~~~~~', props /*, this.parent.*/);
-  return props.every((prop) =>
-      Object.keys(prop).every((k) => ALLOW_LIST_PROPS.includes(k))
-  );
-};
-
-function allowlistPropsRequired() {
-  // In this case, parent is the entire array
-  const props = this.parent.allowlist ?? [];
-  // console.log('~~~~~~~~~~~~~~', props /*, this.parent.*/);
-  return props.every((prop) =>
-      Object.keys(prop).every((entry) => entry.ip && validator.isIP(entry.ip))
-  );
-};
-
 
 function hffPropsAreValid() {
   const props = this.parent.hiddenFormField ?? [];
@@ -129,6 +20,15 @@ function hffPropsAreValid() {
     Object.keys(prop).every((k) => HFF_PROPS.includes(k))
   );
 }
+
+const allowlist = yup.array(yup.object({
+  ip: yup.string()
+        .required('ip address is required')
+        .test('valid-ip', 'invalid ip address', val => val && validator.isIP(val)),
+  status: yup.string()
+            .required('status is required').oneOf(STATUS_ENUM),
+  comment: yup.string().default("")
+}).noUnknown());
 
 // Post conduit
 const conduitSchemaForPost = yup.object({
@@ -139,13 +39,7 @@ const conduitSchemaForPost = yup.object({
   suriObjectKey: yup.string().required('object key is required'),
   suriApiKey: yup.string().required('api key is required'),
   racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
-  allowlist: yup.array(yup.object({
-    ip: yup.string().nullable().test('valid-ip', 'invalid ip address', val => val && validator.isIP(val)),
-    status: yup.string().ensure('status is required').oneOf(STATUS_ENUM),
-    comment: yup.string()
-  })).test('valid-props', 'unspecified properties present', allowlistPropsAreValid)
-     /* .test('requied-props', 'required properties missing', allowlistPropsRequired) */,
-
+  allowlist,
   status: yup.string().required('status is required').oneOf(STATUS_ENUM),
   throttle: yup.boolean(),
   description: yup.string().ensure(),
@@ -154,7 +48,7 @@ const conduitSchemaForPost = yup.object({
     include: yup.boolean(), 
     policy: yup.string().oneOf(HFF_POLICY), 
     value: yup.string()
-  })).test('valid-props', 'unspecified properties present', hffPropsAreValid),
+  })),//.test('valid-props', 'unspecified properties present', hffPropsAreValid),
 });
 
 // Put conduit
@@ -166,7 +60,7 @@ const conduitSchemaForPut = yup.object({
   suriObjectKey: yup.string().required('object key is required'),
   suriApiKey: yup.string().required('api key is required'),
   racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
-  allowlist: yup.array(),
+  allowlist,
   status: yup.string().oneOf(STATUS_ENUM),
   throttle: yup.boolean(),
   description: yup.string().ensure(),
@@ -179,7 +73,7 @@ const conduitSchemaForPatch = yup.object({
   suriObjectKey: yup.string(),
   suriApiKey: yup.string(),
   racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
-  allowlist: yup.array(),
+  allowlist,
   status: yup.string().oneOf(STATUS_ENUM),
   throttle: yup.boolean(),
   description: yup.string().ensure(),
@@ -210,5 +104,43 @@ function schemaFor(path, method) {
 
   return schemas[path][method];
 }
+
+/* 
+YUP: noUnknown with/out validate({strict: true})
+
+1. noUnknown *not* specified, strict is false:
+  => unspecifed props *not* caught
+  => caught by data layer which we are trying to eliminate
+  !!!! [ { allowlist: 'unspecified properties present' } ]
+
+2. noUnknown *not specified, strict is true:
+  => unspecifed props *not* caught
+  => caught by data layer which we are trying to eliminate
+  !!!! [ { allowlist: 'unspecified properties present' } ]
+
+3. noUnknown specified, strict is false:
+  => unspecified props removed by yup! (which is good)
+  => but tests for explicit unspecified prop detection fail [:-(]
+      should reject unspecified props in allowlist:
+
+      AssertionError: expected 201 to equal 422
+      + expected - actual
+
+      -201
+      +422
+
+4. noUnknown specified, strict is true:
+  => unspecified props caught by yup!
+  => tests for explicit prop detection pass!!!
+    ✓ should reject unspecified props in allowlist
+  !!!! [
+    { 'allowlist[0]': 'allowlist[0] field has unspecified keys: foobar' }
+  ]
+
+Conclusion:
+ => validate({strict: true, abortEarly: false})
+    AND 
+ => use noUnknown() on shapes
+*/
 
 module.exports = { schemaFor, serviceTargets };
