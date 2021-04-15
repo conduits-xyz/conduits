@@ -13,22 +13,26 @@ const BOOLEAN_ENUM = [true, false];
 // cache frequently used objects
 const serviceTargets = conf.targets.settings.map((i) => i.type);
 
-function hffPropsAreValid() {
-  const props = this.parent.hiddenFormField ?? [];
-  // console.log('>>>>', props /* this.parent.hiddenFormField */);
-  return props.every((prop) => 
-    Object.keys(prop).every((k) => HFF_PROPS.includes(k))
-  );
-}
-
+// allow list json blob
 const allowlist = yup.array(yup.object({
   ip: yup.string()
-        .required('ip address is required')
-        .test('valid-ip', 'invalid ip address', val => val && validator.isIP(val)),
+    .required('ip address is required')
+    .test('valid-ip', 'invalid ip address', val => val && validator.isIP(val)),
   status: yup.string()
-            .required('status is required').oneOf(STATUS_ENUM),
+    .required('status is required').oneOf(STATUS_ENUM),
   comment: yup.string().default("")
-}).noUnknown());
+}).noUnknown()).default([]);
+
+
+// hidden form field json blob
+const hiddenFormField = yup.array(yup.object({
+  fieldName: yup.string()
+    .required('fieldName is required')
+    .test('is-valid-field-name', 'invalid fieldName value', val => !val || val.trim() === ''), 
+  include: yup.boolean().required('invalid include value').oneOf(BOOLEAN_ENUM), 
+  policy: yup.string().required('invalid policy value').oneOf(HFF_POLICY), 
+  value: yup.string().default("")
+}).noUnknown()).default([]);
 
 // Post conduit
 const conduitSchemaForPost = yup.object({
@@ -43,12 +47,7 @@ const conduitSchemaForPost = yup.object({
   status: yup.string().required('status is required').oneOf(STATUS_ENUM),
   throttle: yup.boolean(),
   description: yup.string().ensure(),
-  hiddenFormField: yup.array(yup.object({
-    fieldName: yup.string().ensure('fieldName is required'), 
-    include: yup.boolean(), 
-    policy: yup.string().oneOf(HFF_POLICY), 
-    value: yup.string()
-  })),//.test('valid-props', 'unspecified properties present', hffPropsAreValid),
+  hiddenFormField,
 });
 
 // Put conduit
@@ -64,7 +63,7 @@ const conduitSchemaForPut = yup.object({
   status: yup.string().oneOf(STATUS_ENUM),
   throttle: yup.boolean(),
   description: yup.string().ensure(),
-  hiddenFormField: yup.array(),
+  hiddenFormField,
 });
 
 // Patch conduit
@@ -77,7 +76,7 @@ const conduitSchemaForPatch = yup.object({
   status: yup.string().oneOf(STATUS_ENUM),
   throttle: yup.boolean(),
   description: yup.string().ensure(),
-  hiddenFormField: yup.array(),
+  hiddenFormField,
 });
 
 // Post User
@@ -112,6 +111,10 @@ YUP: noUnknown with/out validate({strict: true})
   => unspecifed props *not* caught
   => caught by data layer which we are trying to eliminate
   !!!! [ { allowlist: 'unspecified properties present' } ]
+  => work around is to use .test() but can only do one test
+  => however we needed two tests:
+     - one to catch unspecified properties
+     - one to catch required properties
 
 2. noUnknown *not specified, strict is true:
   => unspecifed props *not* caught
