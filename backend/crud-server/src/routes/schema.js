@@ -27,12 +27,12 @@ const allowlist = yup.array(yup.object({
 // hidden form field json blob
 const hiddenFormField = yup.array(yup.object({
   fieldName: yup.string()
-    .required('fieldName is required')
-    .test('is-valid-field-name', 'invalid fieldName value', val => !val || val.trim() === ''), 
+    .required('fieldName is required'),
+    /*.test('is-valid-field-name', 'invalid fieldName value', val => !val || val.trim() === ''),*/
   include: yup.boolean().required('invalid include value').oneOf(BOOLEAN_ENUM), 
   policy: yup.string().required('invalid policy value').oneOf(HFF_POLICY), 
   value: yup.string().default("")
-}).noUnknown()).default([]);
+}).noUnknown());
 
 // Post conduit
 const conduitSchemaForPost = yup.object({

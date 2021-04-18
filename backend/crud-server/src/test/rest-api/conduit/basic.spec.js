@@ -79,6 +79,7 @@ describe('Conduit endpoint - basic', () => {
           .post('/conduits')
           .set('Authorization', `Token ${jakeUser.token}`)
           .send({ conduit: fakeConduit() });
+        console.log('>>>>', res.body.errors);
         expect(res.status).to.equal(201);
         expect(res.body).to.have.property('conduit');
         expect(res.body.conduit).to.have.property('id');
