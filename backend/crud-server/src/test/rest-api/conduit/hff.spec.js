@@ -1,4 +1,4 @@
-const { Api, expect, fakeConduit, ERROR_PATTERN } = require('../fixture');
+const { Api, expect, fakeConduit } = require('../fixture');
 const { jake } = require('../context');
 
 describe('Conduit endpoint - hff', () => {
@@ -90,7 +90,7 @@ describe('Conduit endpoint - hff', () => {
     for (const error of res.body.errors) {
       const [key, value] = Object.entries(error)[0];
       expect(key).to.match(/hiddenFormField.*fieldName/);
-      expect(value).to.match(/.*required/, value);
+      expect(value).to.match(/.*fieldName/, value);
     }
   });
 
@@ -162,7 +162,10 @@ describe('Conduit endpoint - hff', () => {
     for (const error of res.body.errors) {
       const [key, value] = Object.entries(error)[0];
       expect(key).to.match(/.*policy/);
-      expect(value).to.match(/policy must be one of the following values: drop-if-filled, pass-if-match/, value);
+      expect(value).to.match(
+        /policy must be one of the following values: drop-if-filled, pass-if-match/,
+        value
+      );
     }
   });
 });

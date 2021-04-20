@@ -27,14 +27,16 @@ describe('Conduit endpoint - allow list', () => {
     expect(res.body).to.have.property('errors');
 
     // console.log('~~~~~~~~~~', res.body.errors);
+    expect(res.body.errors.length).to.equal(3);
+
     for (const error of res.body.errors) {
       const [key, value] = Object.entries(error)[0];
-      expect(key).to.match(/.*Type|ObjectKey|ApiKey|status|allowlist/);
-      // expect(value).to.match(/.* required|invalid/, value);
+      expect(key).to.match(/allowlist/);
+      expect(value).to.match(/.* required|invalid|active|inactive/, value);
     }
   });
 
-  it('should reject unspecified props in allowlist', async function () {
+  it('should reject unspecified props', async function () {
     const conduit = fakeConduit();
     conduit.allowlist = [
       {
@@ -42,6 +44,7 @@ describe('Conduit endpoint - allow list', () => {
         comment: 'test',
         status: 'active',
         foobar: 'catch me',
+        random: 'unknown',
       },
     ];
     const res = await Api()
@@ -52,22 +55,24 @@ describe('Conduit endpoint - allow list', () => {
     expect(res.body).to.have.property('errors');
 
     // console.log('!!!!', res.body.errors);
+    expect(res.body.errors.length).to.equal(1);
+
     for (const error of res.body.errors) {
       const [key, value] = Object.entries(error)[0];
       expect(key).to.match(/allowlist/);
-      expect(value).to.match(/unspecified/, value);
+      expect(value).to.match(/unspecified|foobar|random/, value);
     }
   });
 
-
-  it('should not allow allowlist with missing required props', async () => {
+  // equivalence with null, undefined, or empty (ip, status) fields
+  it('should reject when required props are not present', async () => {
     const conduit = fakeConduit();
     conduit.allowlist = [
-        {
-          comment: 'test',
-          ip: '192.168.1.0',
-          // status: "is missing by design!" 
-        },
+      {
+        comment: 'test',
+        // ip:'192.168.1.0',
+        // status: "is missing by design!"
+      },
     ];
     const res = await Api()
       .post(`/conduits`)
@@ -75,112 +80,78 @@ describe('Conduit endpoint - allow list', () => {
       .send({ conduit });
     expect(res.status).to.equal(422);
     expect(res.body).to.have.property('errors');
+
     // console.log('~~~~', res.body.errors);
+    expect(res.body.errors.length).to.equal(3);
+    // expect the following errors:
+    // [
+    //   { 'allowlist[0].ip': 'ip address is required' },
+    //   { 'allowlist[0].ip': 'invalid ip address' },
+    //   { 'allowlist[0].status': 'status is required' }
+    // ]
+
     for (const error of res.body.errors) {
       const [key, value] = Object.entries(error)[0];
       expect(key).to.match(/allowlist/);
-      expect(value).to.match(/required/, value);
+      expect(value).to.match(/required|invalid/, value);
     }
   });
 
+  it('should reject bad ip address', async () => {
+    const conduit = fakeConduit();
+    const badness = [
+      {
+        status: 'inactive',
+        ip: '123.234.345', // maligned ip address
+      },
+      {
+        status: 'active',
+        ip: '123.234.345.456', // out of range
+      },
+    ];
 
-  /*
-  // equivalence with `allowlist.ip` set to undefined, or empty
-  // TODO: change this to test for `required` properties (ip, status)
-  it('should not allow no ip address in allowlist', async () => {
-    const expected = 'SequelizeValidationError';
-    const msg = 'Saved with no ip address';
-    const fields = ['allowlist']; // delete this field and set new values
-    const set = {
-      allowlist: [
-        {
-          comments: 'test',
-          status: 'active',
-        },
-      ],
-    };
-    const nc = await newConduit(user.id, { rm: fields, set });
-    await test(nc, msg, expected, fields);
+    for (const bad of badness) {
+      conduit.allowlist = [bad];
+      const res = await Api()
+        .post(`/conduits`)
+        .set('Authorization', `Token ${token}`)
+        .send({ conduit });
+      expect(res.status).to.equal(422);
+      expect(res.body).to.have.property('errors');
+
+      // console.log('~~~~', res.body.errors);
+      expect(res.body.errors.length).to.equal(1);
+
+      for (const error of res.body.errors) {
+        const [key, value] = Object.entries(error)[0];
+        expect(key).to.match(/allowlist/);
+        expect(value).to.match(/required|invalid/, value);
+      }
+    }
   });
 
-  it('should not allow no status in allowlist', async () => {
-    const expected = 'SequelizeValidationError';
-    const msg = 'Saved with no status';
-    const fields = ['allowlist']; // delete this field and set new values
-    const set = {
-      allowlist: [
-        {
-          comments: 'test',
-          ip: '192.168.1.0',
-        },
-      ],
-    };
-    const nc = await newConduit(user.id, { rm: fields, set });
-    await test(nc, msg, expected, fields);
-  });
+  it('should reject invalid status', async function () {
+    const conduit = fakeConduit();
+    conduit.allowlist = [
+      {
+        ip: '192.168.1.0',
+        status: 'random',
+      },
+    ];
+    const res = await Api()
+      .post(`/conduits`)
+      .set('Authorization', `Token ${token}`)
+      .send({ conduit });
+    expect(res.status).to.equal(422);
+    expect(res.body).to.have.property('errors');
 
-  it('should not allow null ip address in allowlist', async () => {
-    const expected = 'SequelizeValidationError';
-    const msg = 'Saved with null ip address';
-    const fields = ['allowlist']; // delete this field and set new values
-    const set = {
-      allowlist: [
-        {
-          ip: null,
-          status: 'active',
-        },
-      ],
-    };
-    const nc = await newConduit(user.id, { rm: fields, set });
-    await test(nc, msg, expected, fields);
-  });
+    // console.log('!!!!', res.body.errors);
+    expect(res.body.errors.length).to.equal(1);
 
-  it('should not allow maligned ip address in allowlist', async () => {
-    const expected = 'SequelizeValidationError';
-    const msg = 'Saved with maligned ip address';
-    const fields = ['allowlist']; // delete this field and set new values
-    const set = {
-      allowlist: [
-        {
-          ip: '123.234.345',
-          status: 'inactive',
-        },
-      ],
-    };
-    const nc = await newConduit(user.id, { rm: fields, set });
-    await test(nc, msg, expected, fields);
+    for (const error of res.body.errors) {
+      const [key, value] = Object.entries(error)[0];
+      expect(key).to.match(/allowlist/);
+      expect(value).to.match(/active|inactive/, value);
+    }
   });
-
-  it('should not allow out-of-range ip address in allowlist', async () => {
-    const expected = 'SequelizeValidationError';
-    const msg = 'Saved with out-of-range ip address';
-    const fields = ['allowlist']; // delete this field and set new values
-    const set = {
-      allowlist: [
-        {
-          ip: '123.234.345.456',
-          status: 'inactive',
-        },
-      ],
-    };
-    const nc = await newConduit(user.id, { rm: fields, set });
-    await test(nc, msg, expected, fields);
-  });
-
-  it("should allow only 'active' or 'inactive' status", async () => {
-    const expected = 'SequelizeValidationError';
-    const msg = "Conduit saved with 'random' allowlist status";
-    const fields = ['allowlist']; // delete this field and set new values
-    const set = {
-      allowlist: [
-        {
-          ip: '192.168.1.0',
-          status: 'random',
-        },
-      ],
-    };
-    const nc = await newConduit(user.id, { rm: fields, set });
-    await test(nc, msg, expected, fields);
-  });
-*/
 });

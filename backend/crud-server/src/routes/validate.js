@@ -18,7 +18,7 @@ function validate({ schema, path, onError }) {
         abortEarly: false,
         strict: true,
       });
-      res.locals.validatedBody = {[path]: validated};
+      res.locals.validatedBody = { [path]: validated };
 
       // console.log('1.0 ~~~~~~~~~~~', res.locals.validatedBody);
       // if (path === 'conduit') {
@@ -50,6 +50,5 @@ function validate({ schema, path, onError }) {
 
   return middleware;
 }
-
 
 module.exports = { validate };

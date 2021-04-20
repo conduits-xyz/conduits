@@ -4,9 +4,9 @@ const validator = require('validator');
 
 const SERVICE_TARGETS_ENUM = conf.targets.settings.map((i) => i.type);
 const HTTP_METHODS_ENUM = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
-const ALLOW_LIST_PROPS = ['ip', 'comment', 'status'];
+// const ALLOW_LIST_PROPS = ['ip', 'comment', 'status'];
 const STATUS_ENUM = ['active', 'inactive'];
-const HFF_PROPS = ['fieldName', 'include', 'policy', 'value'];
+// const HFF_PROPS = ['fieldName', 'include', 'policy', 'value'];
 const HFF_POLICY = ['drop-if-filled', 'pass-if-match'];
 const BOOLEAN_ENUM = [true, false];
 
@@ -14,25 +14,65 @@ const BOOLEAN_ENUM = [true, false];
 const serviceTargets = conf.targets.settings.map((i) => i.type);
 
 // allow list json blob
-const allowlist = yup.array(yup.object({
-  ip: yup.string()
-    .required('ip address is required')
-    .test('valid-ip', 'invalid ip address', val => val && validator.isIP(val)),
-  status: yup.string()
-    .required('status is required').oneOf(STATUS_ENUM),
-  comment: yup.string().default("")
-}).noUnknown()).default([]);
-
+// NOTE:
+// - we use nullable as a means to return our custom error message
+//   instead of yup's internal error message
+// - example:
+//   allowlist[0].ip must be a `string` type, but the final value was:
+//   `null`. If "null" is intended as an empty value be sure to mark
+//    the schema as `.nullable()`
+const allowlist = yup
+  .array(
+    yup
+      .object({
+        ip: yup
+          .string()
+          .required('ip address is required')
+          .nullable()
+          .test(
+            'valid-ip',
+            'invalid ip address',
+            (val) => val && validator.isIP(val)
+          ),
+        status: yup
+          .string()
+          .required('status is required')
+          .nullable()
+          .oneOf(STATUS_ENUM),
+        comment: yup.string().nullable().default(''),
+      })
+      .noUnknown()
+  )
+  .default([]);
 
 // hidden form field json blob
-const hiddenFormField = yup.array(yup.object({
-  fieldName: yup.string()
-    .required('fieldName is required'),
-    /*.test('is-valid-field-name', 'invalid fieldName value', val => !val || val.trim() === ''),*/
-  include: yup.boolean().required('invalid include value').oneOf(BOOLEAN_ENUM), 
-  policy: yup.string().required('invalid policy value').oneOf(HFF_POLICY), 
-  value: yup.string().default("")
-}).noUnknown());
+// NOTE:
+// - in the model layer validation we were using `.some` for fieldName since
+//   any item in the array with an invalid field name was an error...
+// - with the test moved to the item level (instead of array level) we have
+//   only worry of the validity of the field name at the level since the test
+//   is performed on the item's property... so the logic gets flipped.
+// - remove this and the above note after it's understood.
+const hiddenFormField = yup.array(
+  yup
+    .object({
+      fieldName: yup
+        .string()
+        .required('fieldName is required')
+        .test(
+          'is-valid-field-name',
+          'invalid fieldName value',
+          (val) => val && val.trim() !== ''
+        ),
+      include: yup
+        .boolean()
+        .required('invalid include value')
+        .oneOf(BOOLEAN_ENUM),
+      policy: yup.string().required('invalid policy value').oneOf(HFF_POLICY),
+      value: yup.string().default(''),
+    })
+    .noUnknown()
+);
 
 // Post conduit
 const conduitSchemaForPost = yup.object({

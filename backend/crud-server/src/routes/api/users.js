@@ -26,7 +26,7 @@ const postValidation = validate({
 // Registration
 router.post('/users', postValidation, async (req, res, next) => {
   try {
-    const user = User.build(res.locals.validatedBody['user']);
+    const user = User.build(res.locals.validatedBody.user);
     const result = await user.save();
     return res.json({ user: result.toAuthJSON() });
   } catch ({ name, errors, fields }) {

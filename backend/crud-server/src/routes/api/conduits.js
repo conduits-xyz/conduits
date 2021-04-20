@@ -28,7 +28,7 @@ router.post(
     let conduit;
 
     try {
-      conduit = Conduit.build(res.locals.validatedBody['conduit']);
+      conduit = Conduit.build(res.locals.validatedBody.conduit);
       // console.log('1.2~~~~~~~~~~~~', res.locals.validatedBody['conduit']);
       conduit.userId = req.payload.id;
       conduit.curi = await helpers.makeCuri(conf.conduit.settings.prefix);
@@ -187,7 +187,7 @@ router.put('/:id', auth.required, putValidation, async (req, res, next) => {
     delete conduit.description;
     Object.assign(conduit, objCdt);
 
-    await conduit.update(res.locals.validatedBody['conduit']);
+    await conduit.update(res.locals.validatedBody.conduit);
     res.status(200).json({ conduit: conduit.toJSON() });
   } catch (error) {
     return next(new RestApiError(500, error));
