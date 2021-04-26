@@ -69,3 +69,18 @@ JSON blob: containing an array of objects with the following properties:
 | policy    | `drop-if-filled` or `pass-if-match`                              |
 | include   | boolean indicating if the field should be sent to target         |
 | value     | Value to be matched against the field in case of `pass-if-match` |
+
+##### References
+*Yup Howto:*
+
+- https://stackoverflow.com/questions/63534689/how-to-validate-individual-element-of-an-array-of-json-objects-using-yup
+
+- https://stackoverflow.com/questions/53384140/how-to-condense-yup-when-validations
+
+- https://codesandbox.io/s/xk4r7nq9z?file=/validation-shapes.js
+
+- https://medium.com/weekly-webtips/validate-a-form-yup-i-can-do-that-ad08620689c9
+
+- [Yup array validation for each field in an array](https://github.com/jquense/yup/issues/952)
+
+- https://stackoverflow.com/questions/63649830/yup-create-and-modify-a-validation-schema-at-runtime

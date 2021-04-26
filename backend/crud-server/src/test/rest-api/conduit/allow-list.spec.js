@@ -26,7 +26,6 @@ describe('Conduit endpoint - allow list', () => {
     expect(res.status).to.equal(422);
     expect(res.body).to.have.property('errors');
 
-    // console.log('~~~~~~~~~~', res.body.errors);
     expect(res.body.errors.length).to.equal(3);
 
     for (const error of res.body.errors) {
@@ -54,7 +53,6 @@ describe('Conduit endpoint - allow list', () => {
     expect(res.status).to.equal(422);
     expect(res.body).to.have.property('errors');
 
-    // console.log('!!!!', res.body.errors);
     expect(res.body.errors.length).to.equal(1);
 
     for (const error of res.body.errors) {
@@ -81,15 +79,7 @@ describe('Conduit endpoint - allow list', () => {
     expect(res.status).to.equal(422);
     expect(res.body).to.have.property('errors');
 
-    // console.log('~~~~', res.body.errors);
     expect(res.body.errors.length).to.equal(3);
-    // expect the following errors:
-    // [
-    //   { 'allowlist[0].ip': 'ip address is required' },
-    //   { 'allowlist[0].ip': 'invalid ip address' },
-    //   { 'allowlist[0].status': 'status is required' }
-    // ]
-
     for (const error of res.body.errors) {
       const [key, value] = Object.entries(error)[0];
       expect(key).to.match(/allowlist/);
@@ -119,7 +109,6 @@ describe('Conduit endpoint - allow list', () => {
       expect(res.status).to.equal(422);
       expect(res.body).to.have.property('errors');
 
-      // console.log('~~~~', res.body.errors);
       expect(res.body.errors.length).to.equal(1);
 
       for (const error of res.body.errors) {
@@ -145,7 +134,6 @@ describe('Conduit endpoint - allow list', () => {
     expect(res.status).to.equal(422);
     expect(res.body).to.have.property('errors');
 
-    // console.log('!!!!', res.body.errors);
     expect(res.body.errors.length).to.equal(1);
 
     for (const error of res.body.errors) {
