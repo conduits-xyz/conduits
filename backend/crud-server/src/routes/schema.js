@@ -59,6 +59,7 @@ const hiddenFormField = yup.array(
       fieldName: yup
         .string()
         .required('fieldName is required')
+        .nullable()
         .test(
           'is-valid-field-name',
           'invalid fieldName value',
