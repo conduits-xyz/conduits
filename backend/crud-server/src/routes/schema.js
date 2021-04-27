@@ -52,12 +52,18 @@ const hiddenFormField = yup.array(
       include: yup
         .boolean()
         .required('invalid include value')
+        .nullable()
         .oneOf(BOOLEAN_ENUM),
-      policy: yup.string().required('invalid policy value').oneOf(HFF_POLICY),
-      value: yup.string().default(''),
+      policy: yup
+        .string()
+        .required('invalid policy value')
+        .nullable()
+        .oneOf(HFF_POLICY),
+      value: yup.string().nullable().default(''),
     })
     .noUnknown()
-);
+)
+.default([]);
 
 // Post conduit
 const conduitSchemaForPost = yup.object({
