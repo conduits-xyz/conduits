@@ -140,6 +140,28 @@ describe('Conduit endpoint - basic', () => {
       expect(res.body.conduit.status).to.eql('inactive');
     });
 
+    // TODO: should throttle be a percentage?
+    it('should allow changing throttle', async function () {
+      // deliberately set status of ctId2 to 'active' and ctId3 to 'inactive'
+      let res = await Api()
+        .patch(`/conduits/${ctId2}`)
+        .set('Authorization', `Token ${jakeUser.token}`)
+        .send({ conduit: { throttle: false } });
+      expect(res.status).to.equal(200);
+      expect(res.body).to.have.property('conduit');
+
+      expect(res.body.conduit.throttle).to.eql(false);
+
+      res = await Api()
+        .patch(`/conduits/${ctId3}`)
+        .set('Authorization', `Token ${jakeUser.token}`)
+        .send({ conduit: { throttle: true } });
+      expect(res.status).to.equal(200);
+      expect(res.body).to.have.property('conduit');
+
+      expect(res.body.conduit.throttle).to.eql(true);
+    });
+
     it('should DELETE inactive conduit', async function () {
       const deleteInactive = await Api()
         .delete(`/conduits/${ctId3}`)
@@ -222,6 +244,8 @@ describe('Conduit endpoint - basic', () => {
       delete putData.suriApiKey;
       delete putData.suriType;
       delete putData.suriObjectKey;
+      putData.throttle = 'bad throttle - catch me!';
+      putData.status = 'bad status - catch me!';
 
       const res = await Api()
         .put('/conduits/' + ctId1)
@@ -232,8 +256,8 @@ describe('Conduit endpoint - basic', () => {
       expect(res.body).to.have.property('errors');
       for (const error of res.body.errors) {
         const [key, value] = Object.entries(error)[0];
-        expect(key).to.match(/.*Type|ObjectKey|ApiKey/);
-        expect(value).to.match(/.* required/, value);
+        expect(key).to.match(/.*Type|ObjectKey|ApiKey|status|throttle/);
+        expect(value).to.match(/.*required|one of|must be/, value);
       }
     });
   });

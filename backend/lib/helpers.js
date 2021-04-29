@@ -95,29 +95,6 @@ const fakeConduit = (overrides = {}) => {
   return conduit;
 };
 
-const processInput = (inp, req, opt, out, err) => {
-  if (!inp) {
-    err.conduit = 'is required';
-    return;
-  }
-  for (let i = 0; i < req.length; i++) {
-    if (
-      typeof inp[req[i]] === 'undefined' ||
-      inp[req[i]] === null ||
-      ('' + inp[req[i]]).trim() === ''
-    ) {
-      err[req[i]] = 'cannot be blank';
-    } else {
-      out[req[i]] = inp[req[i]];
-    }
-  }
-  for (let i = 0; i < opt.length; i++) {
-    if (typeof inp[opt[i]] !== 'undefined') {
-      out[opt[i]] = inp[opt[i]];
-    }
-  }
-};
-
 // Returns gateway server user object (with credentials filled in from .env
 // file). Aborts on error by design. NOTE: do not fix to recover!
 function getGatewayServerCredentials() {
@@ -149,7 +126,6 @@ function getGatewayServerCredentials() {
 module.exports = {
   fakeUserProfile,
   fakeConduit,
-  processInput,
   makeCuri,
   getGatewayServerCredentials,
   testAllowedIpList,

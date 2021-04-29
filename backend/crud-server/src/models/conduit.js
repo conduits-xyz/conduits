@@ -1,13 +1,3 @@
-const validator = require('validator');
-
-// cache frequently used objects and enumerations
-const HFF_PROPS = ['fieldName', 'include', 'policy', 'value'];
-const HFF_PROPS_SIG = ['fieldName', 'include', 'policy', 'value'].join('');
-const HFF_POLICY = ['drop-if-filled', 'pass-if-match'];
-const STATUS_ENUM = ['active', 'inactive'];
-const BOOLEAN_ENUM = [true, false];
-const ALLOW_LIST_PROPS = ['ip', 'comment', 'status'];
-
 module.exports = (db, DataTypes) => {
   const Conduit = db.define('conduit', {
     suriApiKey: {
@@ -41,12 +31,6 @@ module.exports = (db, DataTypes) => {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: true,
-      validate: {
-        isIn: {
-          args: [BOOLEAN_ENUM],
-          msg: 'invalid value',
-        },
-      },
     },
     status: {
       type: DataTypes.STRING,

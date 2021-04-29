@@ -12,29 +12,27 @@ const BOOLEAN_ENUM = [true, false];
 const serviceTargets = conf.targets.settings.map((i) => i.type);
 
 // allow list json blob
-const allowlist = yup
-  .array(
-    yup
-      .object({
-        ip: yup
-          .string()
-          .required('ip address is required')
-          .nullable()
-          .test(
-            'valid-ip',
-            'invalid ip address',
-            (val) => val && validator.isIP(val)
-          ),
-        status: yup
-          .string()
-          .required('status is required')
-          .nullable()
-          .oneOf(STATUS_ENUM),
-        comment: yup.string().nullable().default(''),
-      })
-      .noUnknown()
-  )
-  .default([]);
+const allowlist = yup.array(
+  yup
+    .object({
+      ip: yup
+        .string()
+        .required('ip address is required')
+        .nullable()
+        .test(
+          'valid-ip',
+          'invalid ip address',
+          (val) => val && validator.isIP(val)
+        ),
+      status: yup
+        .string()
+        .required('status is required')
+        .nullable()
+        .oneOf(STATUS_ENUM),
+      comment: yup.string().nullable().default(''),
+    })
+    .noUnknown()
+);
 
 // hidden form field json blob
 const hiddenFormField = yup.array(
@@ -62,8 +60,7 @@ const hiddenFormField = yup.array(
       value: yup.string().nullable().default(''),
     })
     .noUnknown()
-)
-.default([]);
+);
 
 // Post conduit
 const conduitSchemaForPost = yup.object({
@@ -76,7 +73,7 @@ const conduitSchemaForPost = yup.object({
   racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
   allowlist,
   status: yup.string().required('status is required').oneOf(STATUS_ENUM),
-  throttle: yup.boolean(),
+  throttle: yup.boolean().oneOf(BOOLEAN_ENUM).default(true),
   description: yup.string().ensure(),
   hiddenFormField,
 });
@@ -92,7 +89,7 @@ const conduitSchemaForPut = yup.object({
   racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
   allowlist,
   status: yup.string().oneOf(STATUS_ENUM),
-  throttle: yup.boolean(),
+  throttle: yup.boolean().oneOf(BOOLEAN_ENUM).default(true),
   description: yup.string().ensure(),
   hiddenFormField,
 });
@@ -105,17 +102,25 @@ const conduitSchemaForPatch = yup.object({
   racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
   allowlist,
   status: yup.string().oneOf(STATUS_ENUM),
-  throttle: yup.boolean(),
+  throttle: yup.boolean().oneOf(BOOLEAN_ENUM).default(true),
   description: yup.string().ensure(),
   hiddenFormField,
 });
 
-// Post User
+// Post user
 const userSchemaForPost = yup.object({
   firstName: yup.string().required('first name is required'),
   lastName: yup.string(),
   email: yup.string().email().required('email is required'),
   password: yup.string().required('password is required'),
+});
+
+// Put user
+const userSchemaForPut = yup.object({
+  firstName: yup.string().optional('first name is required'),
+  lastName: yup.string().optional,
+  email: yup.string().email().optional('email is required'),
+  password: yup.string().optional('password is required'),
 });
 
 function schemaFor(path, method) {
@@ -127,7 +132,7 @@ function schemaFor(path, method) {
     },
     user: {
       POST: userSchemaForPost,
-      PUT: {},
+      PUT: userSchemaForPut,
       PATCH: {},
     },
   };

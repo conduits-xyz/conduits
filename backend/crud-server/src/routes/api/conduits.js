@@ -175,17 +175,9 @@ router.put('/:id', auth.required, putValidation, async (req, res, next) => {
       return next(new RestApiError(404, { conduit: 'not found' }));
     }
 
-    if (req.body.conduit.curi) {
+    if (res.locals.validatedBody.conduit.curi) {
       return next(new RestApiError(403, { conduit: 'is immutable' }));
     }
-
-    const newCdt = new Conduit();
-    const objCdt = newCdt.toJSON();
-    delete objCdt.id;
-    delete objCdt.curi;
-    delete objCdt.userId;
-    delete conduit.description;
-    Object.assign(conduit, objCdt);
 
     await conduit.update(res.locals.validatedBody.conduit);
     res.status(200).json({ conduit: conduit.toJSON() });

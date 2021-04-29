@@ -1,7 +1,6 @@
 const router = require('express').Router();
 const User = require('../../models').User;
 const auth = require('../auth');
-const helpers = require('../../../../lib/helpers');
 const passport = require('passport');
 const { RestApiError } = require('../../../../lib/error');
 const { validate } = require('../validate');
@@ -43,25 +42,36 @@ router.post('/users', postValidation, async (req, res, next) => {
   }
 });
 
+const putValidation = validate({
+  schema: schemaFor('user', 'PUT'),
+  path: 'user',
+  onError: 422,
+});
+
 // Update User
-router.put('/user', auth.required, function (req, res, next) {
-  User.findByPk(req.payload.id)
-    .then(function (user) {
+router.put(
+  '/user',
+  auth.required,
+  putValidation,
+  async function (req, res, next) {
+    try {
+      const user = await User.findByPk(req.payload.id);
       if (!user) {
         return next(new RestApiError(404, { user: 'not found' }));
       }
 
-      const userOptFields = ['firstName', 'lastName', 'password'];
-      helpers.processInput(req.body.user, [], userOptFields, user, {});
+      // Make sure we don't allow email change until properly implemented
+      if (res.locals.validatedBody.user.email) {
+        return next(new RestApiError(403, { email: 'is immutable' }));
+      }
 
-      return user.save().then(function () {
-        return res.json({ user: user.toAuthJSON() });
-      });
-    })
-    .catch((reason) => {
-      next(new RestApiError(500, reason));
-    });
-});
+      await user.update(res.locals.validatedBody.user);
+      res.status(200).json({ user: user.toJSON() });
+    } catch (error) {
+      return next(new RestApiError(500, error));
+    }
+  }
+);
 
 // Authentication
 router.post('/users/login', function (req, res, next) {

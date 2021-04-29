@@ -5,5 +5,5 @@
 //   we employ some tricks to force sequentiality where required by splitting
 //   test suites across logical functional boundaries, and use the `after`
 //   hook.
-require('./test/models/user.spec.js');
-require('./test/models/conduit.spec.js');
+require('./models/user.spec.js');
+require('./models/conduit.spec');
