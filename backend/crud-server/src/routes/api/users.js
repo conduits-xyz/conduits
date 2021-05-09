@@ -3,8 +3,8 @@ const User = require('../../models').User;
 const auth = require('../auth');
 const passport = require('passport');
 const { RestApiError } = require('../../../../lib/error');
-const { validate } = require('../validate');
-const { schemaFor } = require('../schema');
+const { validate } = require('../../controllers/validate');
+const { schemaFor } = require('../../schema');
 
 router.get('/user', auth.required, async (req, res, next) => {
   try {

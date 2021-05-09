@@ -104,8 +104,10 @@ function RestApiErrorHandler(err, req, res, next) {
   delete err.stack; // <- this works because RestApiError is ours?
 
   // on mac/linux run with:
-  // DUMP_ERROR_RESPONSE=1 npm run `task`
-  if (process.env.DUMP_ERROR_RESPONSE) {
+  // DUMP_ERROR_RESPONSE=1 npm run `task` to dump all error responses
+  // DUMP_ERROR_RESPONSE=500 npm run `task` to dumpp 500 error responses
+  const dump = Number.parseInt(process.env.DUMP_ERROR_RESPONSE);
+  if (Number.isSafeInteger(dump) && (dump === 1 || dump === err.status)) {
     err.body = req.body;
     console.error(inspect(err, { depth: 6 }));
   }

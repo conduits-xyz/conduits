@@ -1,34 +1,21 @@
-// TODO
-
 const Conduit = require('../models').Conduit;
-const auth = require('../auth');
-const helpers = require('../../../../lib/helpers');
-const passport = require('passport');
+const helpers = require('../../../lib/helpers');
 const { RestApiError } = require('../../../lib/error');
-const { validate } = require('../validate');
-const { schemaFor } = require('../schema');
+const { validate } = require('./validate');
+const { schemaFor, serviceTargets } = require('../schema');
 const { Op } = require('sequelize');
-const conf = require('../../../../config');
+const conf = require('../../../config');
 
-const sortable = [
-  'createdAt',
-  'updatedAt',
-  'description',
-  'status',
-  'id',
-  'curi',
-];
-
-const createValidation = async (req, res, next) => {
-  validate({
-    schema: schemaFor('conduit', 'POST'),
+const validateConduitBody = (forMethod) => {
+  return validate({
+    schema: schemaFor('conduit', forMethod),
     path: 'conduit',
     onError: 422,
   });
-  next();
 };
 
 const authorize = async (req, res, next) => {
+  // TODO!!!
   next();
 };
 
@@ -66,6 +53,41 @@ const create = async function (req, res, next) {
     }
   }
 };
+
+// get conduit details by id
+const getById = async (req, res, next) => {
+  try {
+    const conduit = await Conduit.findOne({
+      where: {
+        id: req.params.id,
+        userId: req.payload.id,
+      },
+    });
+
+    if (!conduit) {
+      return next(new RestApiError(404, { conduit: 'not found' }));
+    }
+
+    return res.json({ conduit: conduit.toJSON() });
+  } catch (error) {
+    next(new RestApiError(500, error));
+  }
+};
+
+// get all conduits + batch (start & count)
+// TODO:
+// - add ACL/scope check when integrated with OAuth2; for now we are hacking
+//   to support gateway-server functionality without adding complexity
+// - revisit to make sure we catch all nuances of proper pagination
+// - should we add a limit when there is no start or count?
+const sortable = [
+  'createdAt',
+  'updatedAt',
+  'description',
+  'status',
+  'id',
+  'curi',
+];
 
 const getAll = async (req, res, next) => {
   const query = req.query;
@@ -132,36 +154,7 @@ const getAll = async (req, res, next) => {
   }
 };
 
-const getById = async (req, res, next) => {
-  try {
-    const conduit = await Conduit.findOne({
-      where: {
-        id: req.params.id,
-        userId: req.payload.id,
-      },
-    });
-
-    if (!conduit) {
-      return next(new RestApiError(404, { conduit: 'not found' }));
-    }
-
-    return res.json({ conduit: conduit.toJSON() });
-  } catch (error) {
-    next(new RestApiError(500, error));
-  }
-};
-
-const updateValidation = async (req, res, next) => {
-  validate({
-    schema: schemaFor('conduit', 'PUT'),
-    path: 'conduit',
-    onError: 422,
-  });
-  next();
-};
-
-// router.put('/:id', auth.required,
-const update = async (req, res, next) => {
+const replace = async (req, res, next) => {
   try {
     const conduit = await Conduit.findByPk(req.params.id);
     if (!conduit) {
@@ -179,51 +172,41 @@ const update = async (req, res, next) => {
   }
 };
 
-// const updateValidation = async (req, res, next) => {
-//   validate({
-//     schema: schemaFor('conduit', 'PATCH'),
-//     path: 'conduit',
-//     onError: 422,
-//   });
-//   next();
-// };
+const modify = async (req, res, next) => {
+  try {
+    const conduit = await Conduit.findByPk(req.params.id);
+    if (!conduit) {
+      return next(
+        new RestApiError(404, { conduit: `'${req.params.id}' not found` })
+      );
+    }
 
-// // router.patch('/:id', auth.required,
-// const patchConduit = async (req, res, next) => {
-//     try {
-//       const conduit = await Conduit.findByPk(req.params.id);
-//       if (!conduit) {
-//         return next(
-//           new RestApiError(404, { conduit: `'${req.params.id}' not found` })
-//         );
-//       }
+    if (req.body.conduit.curi) {
+      return next(new RestApiError(403, { conduit: 'is immutable' }));
+    }
 
-//       if (req.body.conduit.curi) {
-//         return next(new RestApiError(403, { conduit: 'is immutable' }));
-//       }
+    // FIXME!
+    // Since the mode of access to supported service types is vastly
+    // different, we should not allow service type for an existing
+    // conduit to be changed. Tests, UI and this logic needs to
+    // fixed
+    if (
+      req.body.conduit.suriType &&
+      serviceTargets.includes(req.body.conduit.suriType) === false
+    ) {
+      return next(
+        new RestApiError(422, {
+          suriType: `'${req.body.conduit.suriType}' unsupported`,
+        })
+      );
+    }
 
-//       // FIXME!
-//       // Since the mode of access to supported service types is vastly
-//       // different, we should not allow service type for an existing
-//       // conduit to be changed. Tests, UI and this logic needs to
-//       // fixed
-//       if (
-//         req.body.conduit.suriType &&
-//         serviceTargets.includes(req.body.conduit.suriType) === false
-//       ) {
-//         return next(
-//           new RestApiError(422, {
-//             suriType: `'${req.body.conduit.suriType}' unsupported`,
-//           })
-//         );
-//       }
-
-//       await conduit.update(await req.body.conduit);
-//       return res.status(200).json({ conduit: conduit.toJSON() });
-//     } catch (error) {
-//       return next(new RestApiError(500, error));
-//     }
-//   };
+    await conduit.update(await req.body.conduit);
+    return res.status(200).json({ conduit: conduit.toJSON() });
+  } catch (error) {
+    return next(new RestApiError(500, error));
+  }
+};
 
 const deleteConduit = async (req, res, next) => {
   try {
@@ -255,12 +238,12 @@ const deleteConduit = async (req, res, next) => {
 };
 
 module.exports = {
-  createValidation,
+  validate: validateConduitBody,
   authorize,
-  getAll,
-  getById,
   create,
-  updateValidation,
-  update,
+  getById,
+  getAll,
+  replace,
+  modify,
   delete: deleteConduit,
 };

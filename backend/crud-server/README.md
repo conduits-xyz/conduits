@@ -1,7 +1,7 @@
-# PraaS Resource Server
-REST server to manage *users* and *conduits*. 
+# Conduits Resource Server
+REST API server to manage *users* and *conduits* resources. 
 
-# Data Model
+## Data Model
 Consists of the three entities: System, User, Conduit. These entities are
 currently not normalized and subject to breaking design changes.
 
@@ -40,7 +40,7 @@ Conduit stores data related to a non-traditional-storage service endpoint.
 | hiddenFormField |To avoid bot spamming or manage campaigns          |null                            |
 
 #### suriType
-Enum: plan is to support AirTable, Google Sheets, Smartsheet.
+Enum: plan is to support AirTable, Google Sheets, MS Excel.
 
 #### allowlist
 JSON: containing an array of objects with the following properties:
@@ -70,8 +70,11 @@ JSON blob: containing an array of objects with the following properties:
 | include   | boolean indicating if the field should be sent to target         |
 | value     | Value to be matched against the field in case of `pass-if-match` |
 
-##### References
-*Yup Howto:*
+# References
+## PUT vs PATCH
+- https://rapidapi.com/blog/put-vs-patch/
+
+## *Yup Howto:*
 
 - https://stackoverflow.com/questions/63534689/how-to-validate-individual-element-of-an-array-of-json-objects-using-yup
 
@@ -84,3 +87,11 @@ JSON blob: containing an array of objects with the following properties:
 - [Yup array validation for each field in an array](https://github.com/jquense/yup/issues/952)
 
 - https://stackoverflow.com/questions/63649830/yup-create-and-modify-a-validation-schema-at-runtime
+
+- https://dev.to/joaohencke/validating-schema-with-yup-2iii
+
+### NOTES
+- we use yup only for body validation
+- for query parameters, we use inline code to validate for now
+- this is mostly because we don't yet know what we should default
+  to and when to return an error

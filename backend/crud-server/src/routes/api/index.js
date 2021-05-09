@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const auth = require('../auth');
 
 /*
 REST API:
@@ -40,6 +41,8 @@ router.use('/', require('./users'));
 // to 'pipes'... mounting the functionality here
 // implies I could make a single change in the next
 // line and everything else should work as before.
-router.use('/conduits', require('./conduits'));
+
+// protected routes require authentication (auth.required)
+router.use('/conduits', auth.required, require('./conduits'));
 
 module.exports = router;

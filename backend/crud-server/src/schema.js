@@ -1,4 +1,4 @@
-const conf = require('../../../config');
+const conf = require('../../config');
 const yup = require('yup');
 const validator = require('validator');
 

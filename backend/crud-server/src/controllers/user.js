@@ -1,6 +1,4 @@
 const User = require('../models').User;
-const auth = require('../auth');
-const helpers = require('../../../../lib/helpers');
 const passport = require('passport');
 const { RestApiError } = require('../../../lib/error');
 const { validate } = require('../validate');
