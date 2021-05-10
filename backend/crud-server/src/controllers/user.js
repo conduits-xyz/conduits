@@ -4,6 +4,19 @@ const { RestApiError } = require('../../../lib/error');
 const { validate } = require('../validate');
 const { schemaFor } = require('../schema');
 
+const validateUserBody = (forMethod) => {
+  validate({
+    schema: schemaFor('user', forMethod),
+    path: 'user',
+    onError: 422,
+  });
+};
+
+const authorize = async (req, res, next) => {
+  // TODO!!!
+  next();
+};
+
 const getById = async (req, res, next) => {
   try {
     const user = await User.findOne({ where: { id: req.payload.id } });
@@ -12,15 +25,6 @@ const getById = async (req, res, next) => {
   } catch (error) {
     next(new RestApiError(500, error));
   }
-};
-
-const createValidation = async (req, res, next) => {
-  validate({
-    schema: schemaFor('user', 'POST'),
-    path: 'user',
-    onError: 422,
-  });
-  next();
 };
 
 const create = async (req, res, next) => {
@@ -42,20 +46,7 @@ const create = async (req, res, next) => {
   }
 };
 
-const updateValidation = async (req, res, next) => {
-  validate({
-    schema: schemaFor('user', 'PUT'),
-    path: 'user',
-    onError: 422,
-  });
-  next();
-};
-
-const authorize = async (req, res, next) => {
-  next();
-};
-
-const update = async function (req, res, next) {
+const replace = async function (req, res, next) {
   try {
     const user = await User.findByPk(req.payload.id);
     if (!user) {
@@ -97,11 +88,10 @@ const loginAuth = async (req, res, next) => {
 };
 
 module.exports = {
-  createValidation,
+  validate: validateUserBody,
   authorize,
   getById,
   create,
+  replace,
   loginAuth,
-  updateValidation,
-  update,
 };
