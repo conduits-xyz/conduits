@@ -5,7 +5,7 @@ const { validate } = require('./validate');
 const { schemaFor } = require('../schema');
 
 const validateUserBody = (forMethod) => {
-  validate({
+  return validate({
     schema: schemaFor('user', forMethod),
     path: 'user',
     onError: 422,
