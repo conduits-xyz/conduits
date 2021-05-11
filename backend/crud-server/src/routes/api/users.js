@@ -1,21 +1,29 @@
 const router = require('express').Router();
+const auth = require('../auth');
 
 const UserController = require('../../controllers/user');
 
-router.get('/user', UserController.authorize, UserController.getById);
+// get user by id
+router.get(
+  '/user',
+  auth.required,
+  UserController.authorize,
+  UserController.getById
+);
 
-// Registration
+// registration
 router.post('/users', UserController.validate('POST'), UserController.create);
 
-// Update User
+// update User
 router.put(
   '/user',
+  auth.required,
   UserController.validate('PUT'),
   UserController.authorize,
   UserController.replace
 );
 
-// Authentication
+// authentication
 router.post('/users/login', UserController.loginAuth);
 
 module.exports = router;

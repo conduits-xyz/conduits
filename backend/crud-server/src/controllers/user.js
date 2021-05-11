@@ -1,7 +1,7 @@
 const User = require('../models').User;
 const passport = require('passport');
 const { RestApiError } = require('../../../lib/error');
-const { validate } = require('../validate');
+const { validate } = require('./validate');
 const { schemaFor } = require('../schema');
 
 const validateUserBody = (forMethod) => {

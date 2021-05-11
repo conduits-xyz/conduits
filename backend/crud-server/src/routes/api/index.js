@@ -32,7 +32,7 @@ Example:
 // and /users endpoints. TODO: check what is the
 // best practice here. If it were not for the variation
 // we might as well fix it here.
-router.use('/', auth.required, require('./users'));
+router.use('/', require('./users'));
 
 // v.a:
 // the implementation should not care about where the
