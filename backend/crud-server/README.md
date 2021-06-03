@@ -90,6 +90,10 @@ JSON blob: containing an array of objects with the following properties:
 
 - https://dev.to/joaohencke/validating-schema-with-yup-2iii
 
+- [validating two fields that depend on each other](https://dev.to/gabrielterriaga/how-to-validate-two-fields-that-depend-on-each-other-with-yup-1ccg)
+- [validation with yup](https://www.techzaion.com/validation-with-yup)
+- [get value of another field for validation](https://stackoverflow.com/questions/63058945/get-the-value-of-another-field-for-validation-in-yup-schema)
+
 ### NOTES
 - we use yup only for body validation
 - for query parameters, we use inline code to validate for now

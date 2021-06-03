@@ -62,13 +62,31 @@ const hiddenFormField = yup.array(
     .noUnknown()
 );
 
+const suriObjectKey = yup.string().when('suriType', (suriType, schema) => {
+  // return suriType && schema;
+  // console.log('~~~~~', suriType, this);
+  if (suriType === 'airtable') {
+    return schema
+      .required('invalid airtable url')
+      .matches(/https:\/\/api.airtable.com\/v0\/.*/);
+  } else if (suriType === 'googleSheets') {
+    return schema
+      .required('invalid googlesheets url')
+      .matches(/https:\/\/docs.google.com\/spreadsheets\/d\/.*/);
+  } else if (suriType === 'email') {
+    return schema.required().email('invalid email address');
+  } else {
+    return schema.required('is required');
+  }
+});
+
 // Post conduit
 const conduitSchemaForPost = yup.object({
   suriType: yup
     .string()
     .required('resource type is required')
     .oneOf(SERVICE_TARGETS_ENUM),
-  suriObjectKey: yup.string().required('object key is required'),
+  suriObjectKey,
   suriApiKey: yup.string().required('api key is required'),
   racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
   allowlist,

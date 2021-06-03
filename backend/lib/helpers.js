@@ -53,6 +53,21 @@ const hiddenFieldPolicy = ['drop-if-filled', 'pass-if-match'];
 const racmCombo = util.powerset(['GET', 'POST', 'DELETE', 'PUT', 'PATCH']);
 const supportedServiceTargets = conf.targets.settings.map((i) => i.type);
 
+// create and return service type and object key pairs
+const stok = () => {
+  const suriBases = {
+    airtable: 'https://api.airtable.com/v0/',
+    googleSheets: 'https://docs.google.com/spreadsheets/d/',
+  };
+
+  const suriType = util.pickRandomlyFrom(supportedServiceTargets);
+  let suriObjectKey = suriBases[suriType] + faker.lorem.word();
+  if (suriType === 'email') {
+    suriObjectKey = faker.internet.email();
+  }
+  return { suriType, suriObjectKey };
+};
+
 const {
   allowed: testAllowedIpList,
   inactive: testInactiveIpList,
@@ -68,8 +83,7 @@ const fakeConduit = (overrides = {}) => {
 
   const conduit = {
     suriApiKey: faker.random.uuid(),
-    suriType: util.pickRandomlyFrom(supportedServiceTargets),
-    suriObjectKey: faker.lorem.word(),
+    ...stok(),
     allowlist: [
       {
         ip,
