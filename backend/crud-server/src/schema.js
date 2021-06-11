@@ -63,20 +63,29 @@ const hiddenFormField = yup.array(
 );
 
 const suriObjectKey = yup.string().when('suriType', (suriType, schema) => {
-  // return suriType && schema;
-  // console.log('~~~~~', suriType, this);
   if (suriType === 'airtable') {
     return schema
-      .required('invalid airtable url')
-      .matches(/https:\/\/api.airtable.com\/v0\/.*/);
+      .required()
+      .matches(
+        /https:\/\/api.airtable.com\/v0\/.*/,
+        'invalid airtable object'
+      );
   } else if (suriType === 'googleSheets') {
     return schema
-      .required('invalid googlesheets url')
-      .matches(/https:\/\/docs.google.com\/spreadsheets\/d\/.*/);
-  } else if (suriType === 'email') {
-    return schema.required().email('invalid email address');
+      .required()
+      .matches(
+        /https:\/\/docs.google.com\/spreadsheets\/d\/.*/,
+        'invalid google sheet object'
+      );
   } else {
-    return schema.required('is required');
+    // assume email otherwise... by doing so we prevent a cascade of errors.
+    // For instance if suriType validation had a bug (e.g airtable got modifed
+    // to footable) then any non-null value for suriObjectKey would be accepted...
+    //
+    // NOTE: the error message may not make sense because the user may have
+    // selected 'footable' instead of 'email' but the message would indicate
+    // the email address being invalid. This is an acceptable trade off.
+    return schema.required().email('invalid email address');
   }
 });
 

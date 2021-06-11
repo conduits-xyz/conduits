@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const server = require('../../server');
 const util = require('../../../../lib/util');
 const helpers = require('../../../../lib/helpers');
+const { dbSync } = require('../../createdb');
 
 const expect = chai.expect;
 chai.use(chaiHttp);
@@ -15,6 +16,7 @@ const ERROR_PATTERN = /^invalid.*$|^missing.*$|not found|unsupported|cannot be b
 
 before(async () => {
   console.log(`Resource API server is listening on port ${server.port}`);
+  await dbSync();
 });
 
 after(async () => {

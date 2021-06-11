@@ -54,17 +54,24 @@ const racmCombo = util.powerset(['GET', 'POST', 'DELETE', 'PUT', 'PATCH']);
 const supportedServiceTargets = conf.targets.settings.map((i) => i.type);
 
 // create and return service type and object key pairs
-const stok = () => {
+const stok = (suriType, suriObjectKey) => {
   const suriBases = {
     airtable: 'https://api.airtable.com/v0/',
     googleSheets: 'https://docs.google.com/spreadsheets/d/',
   };
 
-  const suriType = util.pickRandomlyFrom(supportedServiceTargets);
-  let suriObjectKey = suriBases[suriType] + faker.lorem.word();
-  if (suriType === 'email') {
-    suriObjectKey = faker.internet.email();
+  if (!suriType) {
+    suriType = util.pickRandomlyFrom(supportedServiceTargets);
   }
+
+  if (!suriObjectKey) {
+    if (suriType === 'email') {
+      suriObjectKey = faker.internet.email();
+    } else {
+      suriObjectKey = suriBases[suriType] + faker.lorem.word();
+    }
+  }
+
   return { suriType, suriObjectKey };
 };
 
@@ -81,9 +88,10 @@ const fakeConduit = (overrides = {}) => {
       ? util.pickRandomlyFrom(testInactiveIpList)
       : util.pickRandomlyFrom(testAllowedIpList);
 
+  const { suriType, suriObjectKey, ...rest } = overrides;
   const conduit = {
     suriApiKey: faker.random.uuid(),
-    ...stok(),
+    ...stok(suriType, suriObjectKey),
     allowlist: [
       {
         ip,
@@ -103,7 +111,7 @@ const fakeConduit = (overrides = {}) => {
         value: faker.lorem.word(),
       },
     ],
-    ...overrides,
+    ...rest,
   };
 
   return conduit;
