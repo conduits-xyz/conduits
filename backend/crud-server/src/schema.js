@@ -103,15 +103,17 @@ const conduitSchemaForPost = yup.object({
   throttle: yup.boolean().oneOf(BOOLEAN_ENUM).default(true),
   description: yup.string().ensure(),
   hiddenFormField,
-});
+}).noUnknown();
 
 // Put conduit
+// Use PUT when replacing the entire resource. PUT is idempotent
+// and generally should not induce side effects.
 const conduitSchemaForPut = yup.object({
   suriType: yup
     .string()
     .required('resource type is required')
     .oneOf(SERVICE_TARGETS_ENUM),
-  suriObjectKey: yup.string().required('object key is required'),
+  suriObjectKey,
   suriApiKey: yup.string().required('api key is required'),
   racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
   allowlist,
@@ -119,12 +121,14 @@ const conduitSchemaForPut = yup.object({
   throttle: yup.boolean().oneOf(BOOLEAN_ENUM).default(true),
   description: yup.string().ensure(),
   hiddenFormField,
-});
+}).noUnknown();
 
 // Patch conduit
+// Use PATCH when modifying some attributes of an existing resource
+// PATCH can have side effects. So, technically, PATCH is the right
+// method to use to activate/deactivate a conduit. TODO: Check the UI.
 const conduitSchemaForPatch = yup.object({
-  suriType: yup.string().oneOf(SERVICE_TARGETS_ENUM),
-  suriObjectKey: yup.string(),
+  curi: yup.string(), // respond with 403 instead of 422 when present
   suriApiKey: yup.string(),
   racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
   allowlist,
@@ -132,7 +136,7 @@ const conduitSchemaForPatch = yup.object({
   throttle: yup.boolean().oneOf(BOOLEAN_ENUM).default(true),
   description: yup.string().ensure(),
   hiddenFormField,
-});
+}).noUnknown(true, (what) => what.unknown);
 
 // Post user
 const userSchemaForPost = yup.object({
@@ -140,7 +144,7 @@ const userSchemaForPost = yup.object({
   lastName: yup.string(),
   email: yup.string().email().required('email is required'),
   password: yup.string().required('password is required'),
-});
+}).noUnknown();
 
 // Put user
 const userSchemaForPut = yup.object({
@@ -148,7 +152,7 @@ const userSchemaForPut = yup.object({
   lastName: yup.string().optional,
   email: yup.string().email().optional('email is required'),
   password: yup.string().optional('password is required'),
-});
+}).noUnknown();
 
 function schemaFor(path, method) {
   const schemas = {

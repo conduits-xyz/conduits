@@ -154,6 +154,8 @@ const getAll = async (req, res, next) => {
   }
 };
 
+// TODO: 
+// remove this since there's no reasonable use case that simplifies the UX
 const replace = async (req, res, next) => {
   try {
     const conduit = await Conduit.findByPk(req.params.id);
@@ -183,22 +185,6 @@ const modify = async (req, res, next) => {
 
     if (req.body.conduit.curi) {
       return next(new RestApiError(403, { conduit: 'is immutable' }));
-    }
-
-    // FIXME!
-    // Since the mode of access to supported service types is vastly
-    // different, we should not allow service type for an existing
-    // conduit to be changed. Tests, UI and this logic needs to
-    // fixed
-    if (
-      req.body.conduit.suriType &&
-      serviceTargets.includes(req.body.conduit.suriType) === false
-    ) {
-      return next(
-        new RestApiError(422, {
-          suriType: `'${req.body.conduit.suriType}' unsupported`,
-        })
-      );
     }
 
     await conduit.update(await req.body.conduit);

@@ -19,7 +19,8 @@ function validate({ schema, path, onError }) {
     } catch (errors) {
       const validationErrors = [];
       for (const error of errors.inner) {
-        validationErrors.push({ [error.path]: error.errors[0] });
+        const path = error.path == ''? 'unexpected': error.path;
+        validationErrors.push({ [path] : error.errors[0] });
       }
       if (onError) {
         return next(new RestApiError(onError, validationErrors));

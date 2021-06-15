@@ -14,6 +14,11 @@ describe('Conduit endpoint - racm', () => {
   it('should allow valid racm methods', async function () {
     const conduit = fakeConduit();
     conduit.racm = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+
+    // patch doesn't allow modification of the service URI and object key
+    delete conduit.suriType;
+    delete conduit.suriObjectKey;
+
     const res = await Api()
       .patch(`/conduits/${ctId1}`)
       .set('Authorization', `Token ${token}`)

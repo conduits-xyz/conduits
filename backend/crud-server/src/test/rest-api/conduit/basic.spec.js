@@ -1,4 +1,4 @@
-const { Api, expect, jwt, fakeConduit } = require('../fixture');
+const { Api, expect, jwt, fakeConduit, pickRandomlyFrom } = require('../fixture');
 const { jake, conf } = require('../context');
 
 describe('Conduit endpoint - basic', () => {
@@ -73,12 +73,15 @@ describe('Conduit endpoint - basic', () => {
       // Add N conduits for testing: update, delete and pagination. Since
       // a REST layer test should be isolated from the DATA layer, we don't
       // directly access the model to insert these records.
+      const suriTypes = ['airtable', 'googleSheets', 'email'];
+  
       const conduits = [];
       for (let i = 0, imax = conf.conduitsCount; i < imax; i++) {
+        const conduit = fakeConduit({suriType: pickRandomlyFrom(suriTypes)});
         const res = await Api()
           .post('/conduits')
           .set('Authorization', `Token ${jakeUser.token}`)
-          .send({ conduit: fakeConduit() });
+          .send({ conduit });
         // console.log('>>>>', res.body.errors);
         expect(res.status).to.equal(201);
         expect(res.body).to.have.property('conduit');
@@ -162,6 +165,28 @@ describe('Conduit endpoint - basic', () => {
       expect(res.body.conduit.throttle).to.eql(true);
     });
 
+    it('should allow changing throttle', async function () {
+      // deliberately set status of ctId2 to 'active' and ctId3 to 'inactive'
+      let res = await Api()
+        .patch(`/conduits/${ctId2}`)
+        .set('Authorization', `Token ${jakeUser.token}`)
+        .send({ conduit: { throttle: false } });
+      expect(res.status).to.equal(200);
+      expect(res.body).to.have.property('conduit');
+
+      expect(res.body.conduit.throttle).to.eql(false);
+
+      res = await Api()
+        .patch(`/conduits/${ctId3}`)
+        .set('Authorization', `Token ${jakeUser.token}`)
+        .send({ conduit: { throttle: true } });
+      expect(res.status).to.equal(200);
+      expect(res.body).to.have.property('conduit');
+
+      expect(res.body.conduit.throttle).to.eql(true);
+    });
+
+
     it('should DELETE inactive conduit', async function () {
       const deleteInactive = await Api()
         .delete(`/conduits/${ctId3}`)
@@ -199,34 +224,83 @@ describe('Conduit endpoint - basic', () => {
       expect(res.body.errors.conduit).to.equal('is immutable');
     });
 
-    it('should allow updates to mutable conduit properties', async function () {
+    it('should allow replacing suri and suri object key', async function () {
       const conduit = await Api()
         .get('/conduits/' + ctId1)
         .set('Authorization', `Token ${jakeUser.token}`);
       expect(conduit.body).to.haveOwnProperty('conduit');
-      const { curi /*, suriType */ } = conduit.body.conduit;
-
-      const putData = await fakeConduit();
+      const { curi, suriType, suriObjectKey } = conduit.body.conduit;
+      const suriTypes = ['airtable', 'googleSheets', 'email'].filter(v => v != suriType);
+      const putData = await fakeConduit({suriType: pickRandomlyFrom(suriTypes)});
 
       const res = await Api()
         .put('/conduits/' + ctId1)
         .set('Authorization', `Token ${jakeUser.token}`)
         .send({ conduit: putData });
+
       expect(res.status).to.equal(200);
       expect(res.body.conduit).to.not.eql(conduit.body.conduit);
 
       // immutable properties should not change
       expect(res.body.conduit.curi).to.eql(curi); // immutable
-      // TODO: I think we made a decision to not allow change to suriType
-      expect(res.body.conduit.suriType).to.eql(putData.suriType); // <- FIXME!
+
+      // The user is responsible for changing the object key if the suri
+      // type changes. Or more formally, changing suriType and suriObjectKey
+      // is allowed only using PUT method.
+      expect(res.body.conduit.suriType).to.not.eql(suriType);
+      expect(res.body.conduit.suriObjectKey).to.not.eql(suriObjectKey);
 
       // mutable properties
       expect(res.body.conduit.suriApiKey).to.eql(putData.suriApiKey);
+      expect(res.body.conduit.suriType).to.eql(putData.suriType);
       expect(res.body.conduit.suriObjectKey).to.eql(putData.suriObjectKey);
+
       expect(res.body.conduit.allowlist).to.eql(putData.allowlist);
       expect(res.body.conduit.racm).to.eql(putData.racm);
       expect(res.body.conduit.hiddenFormField).to.eql(
         putData.hiddenFormField
+      );
+    });
+
+    it('should allow editing mutable conduit properties', async function () {
+      const conduit = await Api()
+        .get('/conduits/' + ctId1)
+        .set('Authorization', `Token ${jakeUser.token}`);
+      expect(conduit.body).to.haveOwnProperty('conduit');
+      const { curi, suriType, suriObjectKey } = conduit.body.conduit;
+      const suriTypes = ['airtable', 'googleSheets', 'email'].filter(v => v != suriType);
+      const patchData = await fakeConduit();
+
+      // patch doesn't allow changing key properties
+      delete patchData.suriType;
+      delete patchData.suriObjectKey;
+
+      const res = await Api()
+        .patch('/conduits/' + ctId1)
+        .set('Authorization', `Token ${jakeUser.token}`)
+        .send({ conduit: patchData });
+
+      expect(res.status).to.equal(200);
+      expect(res.body.conduit).to.not.eql(conduit.body.conduit);
+
+      expect(res.body.conduit).to.have.property('curi');
+      expect(res.body.conduit).to.have.property('suriType');
+      expect(res.body.conduit).to.have.property('suriObjectKey');
+
+      // immutable properties should not change
+      expect(res.body.conduit.curi).to.eql(curi); // immutable
+
+      // Changing suriType and suriObjectKeyvis not allowed using PATCH
+      expect(res.body.conduit.suriType).to.eql(suriType);
+      expect(res.body.conduit.suriObjectKey).to.eql(suriObjectKey);
+
+      // mutable properties
+      expect(res.body.conduit.suriApiKey).to.eql(patchData.suriApiKey);
+
+      expect(res.body.conduit.allowlist).to.eql(patchData.allowlist);
+      expect(res.body.conduit.racm).to.eql(patchData.racm);
+      expect(res.body.conduit.hiddenFormField).to.eql(
+        patchData.hiddenFormField
       );
     });
 

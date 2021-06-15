@@ -73,6 +73,23 @@ JSON blob: containing an array of objects with the following properties:
 # References
 ## PUT vs PATCH
 - https://rapidapi.com/blog/put-vs-patch/
+- https://stackoverflow.com/questions/24241893/should-i-use-patch-or-put-in-my-rest-api
+
+```
+The PATCH method is the correct choice here as you're updating an existing
+resource - the group ID. PUT should only be used if you're replacing a 
+resource in its entirety.
+
+Further information on partial resource modification is available in RFC 5789.
+Specifically, the PUT method is described as follows:
+
+Several applications extending the Hypertext Transfer Protocol (HTTP) require
+a feature to do partial resource modification. The existing HTTP PUT method
+only allows a complete replacement of a document. This proposal adds a new
+HTTP method, PATCH, to modify an existing HTTP resource.
+
+--Luke Peterson
+```
 
 ## *Yup Howto:*
 
