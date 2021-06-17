@@ -4,6 +4,7 @@ const cors = require('cors');
 
 const { RestApiError } = require('../../lib/error');
 const tokenService = require('./token-service');
+const helpers = require('../../lib/helpers');
 const { Airtable } = require('./integrations/airtable');
 const { GSheets } = require('./integrations/gsheets');
 const inspect = require('util').inspect;
@@ -349,6 +350,8 @@ function tail({ debug = false }) {
     googleSheets: GSheets({ debug }),
   };
 
+  const integrations = helpers.getGatewayServerIntegrations();
+
   let act = 0; // asynchronous completion token; debugging aid.
 
   // need this to obtain a closure over act
@@ -390,7 +393,8 @@ function tail({ debug = false }) {
     const nts = ntsHandlers[conduit.suriType];
     const token = await tokenService.getAccessToken(
       conduit.suriType,
-      conduit.suriApiKey
+      // conduit.suriApiKey
+      integrations[conduit.suriType]
     );
 
     // scoped container...

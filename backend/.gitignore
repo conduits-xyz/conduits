@@ -16,6 +16,7 @@ __snapshots__
 # dotenv environment variables file
 .env
 .env.conduit-user
+.env.conduit-integrations
 
 # test-data
 .test-data-curi.json

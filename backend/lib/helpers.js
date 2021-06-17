@@ -142,14 +142,44 @@ function getGatewayServerCredentials() {
       email: credentials.parsed.GATEWAY_SERVER_EMAIL,
       password: credentials.parsed.GATEWAY_SERVER_PASSWORD,
     },
+    integrations: {
+      'airtable': credentials.parsed.CONDUIT_SERVICE_API_KEY,
+      'googleSheets': 'whatever',  // TODO
+      'email': 'gateway@conduits.xyz:password', // TODO
+    },
   };
 }
+
+// Returns gateway server user object (with credentials filled in from .env
+// file). Aborts on error by design. NOTE: do not fix to recover!
+function getGatewayServerIntegrations() {
+  let integrations = undefined;
+  try {
+    // TODO: pick these from hashicorp vault!
+    integrations = dotenv.config({
+      allowEmptyValues: false,
+      example: path.resolve('.env.conduit-integrations.example'),
+      path: path.resolve('.env.conduit-integrations'),
+    });
+    // console.log(integrations);
+  } catch (e) {
+    console.log('unexpected... ', e);
+    process.exit(100);
+  }
+
+  return {
+      [integrations.parsed.CONDUIT_SERVICE_TYPE] : integrations.parsed.CONDUIT_SERVICE_API_KEY,
+  };
+}
+
+
 
 module.exports = {
   fakeUserProfile,
   fakeConduit,
   makeCuri,
   getGatewayServerCredentials,
+  getGatewayServerIntegrations,
   testAllowedIpList,
   testInactiveIpList,
   testDeniedIpList,

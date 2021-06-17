@@ -23,7 +23,7 @@ console.log(
   } mode...`
 );
 
-const { user: credentials } = helpers.getGatewayServerCredentials();
+const { user: credentials, integrations } = helpers.getGatewayServerCredentials();
 
 async function loginToResourceServer() {
   const data = await tokenService.getAccessToken('conduits', credentials);
