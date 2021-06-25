@@ -84,7 +84,6 @@ paths:
           required: 
             - suriType
             - suriObjectKey
-            - suriApiKey
           schema:
             $ref: '#/components/schemas/conduit'
       responses:
@@ -167,7 +166,6 @@ paths:
           required: 
             - suriType
             - suriObjectKey
-            - suriApiKey
           schema:
             $ref: '#/components/schemas/conduit'
       responses:
@@ -313,16 +311,11 @@ components:
       required:
         - suriType
         - suriObjectKey
-        - suriApiKey
       properties:
         id:
           description: Conduit Id
           allOf:
             - $ref: '#/components/schemas/id'
-        suriApiKey:
-          type: string
-          description: Service URI API Key
-          nullable: false
         suriType:
           type: string
           description: The type of conduit

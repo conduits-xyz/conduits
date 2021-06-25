@@ -30,7 +30,6 @@ const generateTestData = async (userId) => {
   const gatewayBaseConduit = {
     userId,
     suriType: dotEnvValues.parsed.CONDUIT_SERVICE_TYPE,
-    suriApiKey: dotEnvValues.parsed.CONDUIT_SERVICE_API_KEY,
     suriObjectKey: dotEnvValues.parsed.CONDUIT_SERVICE_OBJECT_KEY,
     throttle: false,
     status: 'active',

@@ -393,7 +393,7 @@ function tail({ debug = false }) {
     const nts = ntsHandlers[conduit.suriType];
     const token = await tokenService.getAccessToken(
       conduit.suriType,
-      // conduit.suriApiKey
+      // conduit.suriApiKey // FIXME
       integrations[conduit.suriType]
     );
 

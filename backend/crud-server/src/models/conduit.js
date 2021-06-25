@@ -1,9 +1,5 @@
 module.exports = (db, DataTypes) => {
   const Conduit = db.define('conduit', {
-    suriApiKey: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
     suriType: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -52,7 +48,6 @@ module.exports = (db, DataTypes) => {
   Conduit.prototype.toJSON = function () {
     return {
       id: this.id,
-      suriApiKey: this.suriApiKey,
       suriType: this.suriType,
       suriObjectKey: this.suriObjectKey,
       curi: this.curi,

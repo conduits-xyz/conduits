@@ -90,7 +90,6 @@ const fakeConduit = (overrides = {}) => {
 
   const { suriType, suriObjectKey, ...rest } = overrides;
   const conduit = {
-    suriApiKey: faker.random.uuid(),
     ...stok(suriType, suriObjectKey),
     allowlist: [
       {
@@ -142,11 +141,6 @@ function getGatewayServerCredentials() {
       email: credentials.parsed.GATEWAY_SERVER_EMAIL,
       password: credentials.parsed.GATEWAY_SERVER_PASSWORD,
     },
-    integrations: {
-      'airtable': credentials.parsed.CONDUIT_SERVICE_API_KEY,
-      'googleSheets': 'whatever',  // TODO
-      'email': 'gateway@conduits.xyz:password', // TODO
-    },
   };
 }
 
@@ -154,6 +148,14 @@ function getGatewayServerCredentials() {
 // file). Aborts on error by design. NOTE: do not fix to recover!
 function getGatewayServerIntegrations() {
   let integrations = undefined;
+  /*
+  TODO:
+      integrations: {
+      'airtable': credentials.parsed.CONDUIT_SERVICE_API_KEY,
+      'googleSheets': 'whatever',  // TODO
+      'email': 'gateway@conduits.xyz:password', // TODO
+    },
+  */
   try {
     // TODO: pick these from hashicorp vault!
     integrations = dotenv.config({

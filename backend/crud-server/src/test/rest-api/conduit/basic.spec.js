@@ -103,7 +103,6 @@ describe('Conduit endpoint - basic', () => {
       expect(res.status).to.equal(200);
       expect(res.body).to.have.property('conduit');
 
-      expect(res.body.conduit).to.have.property('suriApiKey');
       expect(res.body.conduit).to.have.property('suriType');
       expect(res.body.conduit).to.have.property('suriObjectKey');
       expect(res.body.conduit).to.have.property('curi');
@@ -251,7 +250,6 @@ describe('Conduit endpoint - basic', () => {
       expect(res.body.conduit.suriObjectKey).to.not.eql(suriObjectKey);
 
       // mutable properties
-      expect(res.body.conduit.suriApiKey).to.eql(putData.suriApiKey);
       expect(res.body.conduit.suriType).to.eql(putData.suriType);
       expect(res.body.conduit.suriObjectKey).to.eql(putData.suriObjectKey);
 
@@ -295,8 +293,6 @@ describe('Conduit endpoint - basic', () => {
       expect(res.body.conduit.suriObjectKey).to.eql(suriObjectKey);
 
       // mutable properties
-      expect(res.body.conduit.suriApiKey).to.eql(patchData.suriApiKey);
-
       expect(res.body.conduit.allowlist).to.eql(patchData.allowlist);
       expect(res.body.conduit.racm).to.eql(patchData.racm);
       expect(res.body.conduit.hiddenFormField).to.eql(
@@ -305,7 +301,7 @@ describe('Conduit endpoint - basic', () => {
     });
 
     it('should reject invalid updates to mutable conduit properties', async function () {
-      // all updates require suriType, suriObjectKey and suriApiKey
+      // all updates require suriType and suriObjectKey
       const conduit = await Api()
         .get('/conduits/' + ctId1)
         .set('Authorization', `Token ${jakeUser.token}`);
@@ -315,7 +311,6 @@ describe('Conduit endpoint - basic', () => {
 
       const putData = await fakeConduit();
       // delete required properties to trigger error validation
-      delete putData.suriApiKey;
       delete putData.suriType;
       delete putData.suriObjectKey;
       putData.throttle = 'bad throttle - catch me!';
@@ -330,7 +325,7 @@ describe('Conduit endpoint - basic', () => {
       expect(res.body).to.have.property('errors');
       for (const error of res.body.errors) {
         const [key, value] = Object.entries(error)[0];
-        expect(key).to.match(/.*Type|ObjectKey|ApiKey|status|throttle/);
+        expect(key).to.match(/.*Type|ObjectKey|status|throttle/);
         expect(value).to.match(/.*required|one of|must be/, value);
       }
     });

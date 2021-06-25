@@ -3,8 +3,8 @@ we also actively change the resource server API and implement the necessary
 changes to the UI.
 
 To test gsheets support, download you service account .json secrets file
-and move it to this location. And then in the UI, for suriApiKey type in
-the name of the file - do not include the path!
+and move it to this location. And then in `.env.conduit-integrations` set
+`CONDUIT_SERVICE_API_KEY` to the name of this file; do not include the path!
 
 REMEMBER to not commit the json file itself!!! The .gitignore file has been
 setup to ignore *.json files in this folder. 

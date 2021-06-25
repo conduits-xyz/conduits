@@ -26,18 +26,17 @@ User stores details of registered users. Users can have zero or more conduits.
 Conduit stores data related to a non-traditional-storage service endpoint.
 
 ### Fields
-|  name           | description                                       | constraints                    |
-|:----------------|:--------------------------------------------------|:-------------------------------|
-| suriApiKey      |Service URI API Key                                |not null                        |
-| suriType        |The type of conduit                                |not null                        |
-| suriObjectKey   |Key to locate an object at the NTS provider        |not null                        |
-| curi            |System generated conduit URI                       |not null, unique                |
-| allowlist       |Allowed ip list                                    |not null                        |
-| racm            |Request Access Control Map |not null               |not null                        |
-| throttle        |Limit requests to 5/sec to avoid DOS attack        |not null, defaults to 'true'    |
-| status          |active/inactive                                    |not null, defaults to 'inactive'|
-| description     |Notes about the conduit                            |null                            |
-| hiddenFormField |To avoid bot spamming or manage campaigns          |null                            |
+|  name           | description                                   | constraints                    |
+|:----------------|:----------------------------------------------|:-------------------------------|
+| suriType        |The type of conduit                            |not null                        |
+| suriObjectKey   |Key to locate an object at the NTS provider    |not null                        |
+| curi            |System generated conduit URI                   |not null, unique                |
+| allowlist       |Allowed ip list                                |not null                        |
+| racm            |Request Access Control Map |not null           |not null                        |
+| throttle        |Limit requests to 5/sec to avoid DOS attack    |not null, defaults to 'true'    |
+| status          |active/inactive                                |not null, defaults to 'inactive'|
+| description     |Notes about the conduit                        |null                            |
+| hiddenFormField |To avoid bot spamming or manage campaigns      |null                            |
 
 #### suriType
 Enum: plan is to support AirTable, Google Sheets, MS Excel.

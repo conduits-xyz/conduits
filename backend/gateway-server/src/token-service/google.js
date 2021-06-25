@@ -9,9 +9,9 @@ const GTOKEN_HOST = 'https://www.googleapis.com';
 const GTOKEN_PATH = '/oauth2/v4/token';
 
 // NOTES:
-// - `suriApiKey` points to a file name in a known .secrets folder for now
-// - TODO: modify UI and backend to store keyFile contents as a json blob?
-// - only .json key file type is supported
+// - `ServiceAccessApiKey` points to a file name in a known .secrets folder
+//    for now
+// - TODO: modify backend to store keyFile contents in a secure location
 // - currently the scope is hard coded to access gsheets only!
 // - by design this is a stripped down version focussed only on obtaining an
 //   *access token* for Google Sheets API.

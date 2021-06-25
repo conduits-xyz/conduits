@@ -67,7 +67,6 @@ async function test(
     expect(json).to.be.an('object');
     expect(json).to.have.property('id');
     expect(json).to.have.property('curi');
-    expect(json).to.have.property('suriApiKey');
     expect(json).to.have.property('suriType');
     expect(json.curi.length).to.equal(config.conduit.settings.curiLen);
   } else {
@@ -150,15 +149,6 @@ context('Conduit model', () => {
     const msg = 'Conduit was saved with empty suriType';
     const fields = ['suriType']; // delete this field
     const set = { suriType: null }; // and set it to 'null'
-    const nc = await newConduit(user.id, { rm: fields, set });
-    await test(nc, msg, expected, fields);
-  });
-
-  it('should reject null suriApiKey', async () => {
-    const expected = 'SequelizeValidationError';
-    const msg = 'Conduit saved with null suriApiKey';
-    const fields = ['suriApiKey']; // delete this field
-    const set = { suriApiKey: null }; // and set it to null
     const nc = await newConduit(user.id, { rm: fields, set });
     await test(nc, msg, expected, fields);
   });

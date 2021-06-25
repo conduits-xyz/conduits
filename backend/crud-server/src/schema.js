@@ -96,7 +96,6 @@ const conduitSchemaForPost = yup.object({
     .required('resource type is required')
     .oneOf(SERVICE_TARGETS_ENUM),
   suriObjectKey,
-  suriApiKey: yup.string().required('api key is required'),
   racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
   allowlist,
   status: yup.string().required('status is required').oneOf(STATUS_ENUM),
@@ -114,7 +113,6 @@ const conduitSchemaForPut = yup.object({
     .required('resource type is required')
     .oneOf(SERVICE_TARGETS_ENUM),
   suriObjectKey,
-  suriApiKey: yup.string().required('api key is required'),
   racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
   allowlist,
   status: yup.string().oneOf(STATUS_ENUM),
@@ -129,7 +127,6 @@ const conduitSchemaForPut = yup.object({
 // method to use to activate/deactivate a conduit. TODO: Check the UI.
 const conduitSchemaForPatch = yup.object({
   curi: yup.string(), // respond with 403 instead of 422 when present
-  suriApiKey: yup.string(),
   racm: yup.array().ensure().of(yup.string().oneOf(HTTP_METHODS_ENUM)),
   allowlist,
   status: yup.string().oneOf(STATUS_ENUM),
