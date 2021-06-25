@@ -37,7 +37,6 @@ const getInitialValues = (conduit) => {
   if (!conduit) {
     return {
       conduit: {
-        suriApiKey: '',
         suriType: 'airtable',
         suriObjectKey: '',
         racm: ['GET'],
@@ -103,9 +102,6 @@ function ConduitForm(
       FallbackComponent={ErrorFallback} onReset={handleClearErrors}>
       <h2>{heading}</h2>
       <Form onSubmit={onSubmit} methods={methods} errors={remoteErrors}>
-        <Text
-          name="conduit.suriApiKey"
-          placeholder="Service endpoint API Key" />
         <Select
           name="conduit.suriType" placeholder="Select conduit type"
           options={conduitSupportedEndpoints} />

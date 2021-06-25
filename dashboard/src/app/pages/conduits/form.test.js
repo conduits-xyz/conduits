@@ -34,10 +34,6 @@ describe('Create Conduit Form', () => {
   xit('should have text fields', async () => {
     const { container } = renderForm();
 
-    // API Key for external service
-    const suriApiKey = container.querySelector('form>input[name="suriApiKey"]');
-    expect(suriApiKey).toBeInTheDocument();
-
     // Object Key for external service
     const suriObjectKey = container.querySelector('form>input[name="suriObjectKey"]');
     expect(suriObjectKey).toBeInTheDocument();

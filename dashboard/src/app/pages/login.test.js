@@ -66,7 +66,7 @@ describe('Login Page', () => {
     userEvent.type(email, 'Hello, World!');
     await waitFor(() => {
       // FIXME! rtl is eating space; dig more into normalizer options
-      expect(email.value).toBe('Hello,World!');
+      expect(email).toHaveValue('Hello,World!');
 
       const emailCheck = screen.getByText(/invalid email address/i);
       expect(emailCheck).toBeInTheDocument();
@@ -77,12 +77,13 @@ describe('Login Page', () => {
     // type short password
     userEvent.type(password, 'pas');
     await waitFor(() => {
-      expect(password.value).toBe('pas');
+      expect(password).toHaveValue('pas');
       const passwordCheck = screen.getByText(/password too short/i);
       expect(passwordCheck).toBeInTheDocument();
       expect(passwordCheck).toHaveClass('error');
+      screen.debug(submit);
       expect(submit).toBeDisabled();
-    });
+    }, { timeout: 5000 });
 
     // fill in correct details, submit button should be enabled
     userEvent.clear(email);
@@ -92,8 +93,9 @@ describe('Login Page', () => {
     userEvent.type(password, 'password');
 
     await waitFor(() => {
-      expect(email.value).toBe('tester@testing.paradise');
-      expect(password.value).toBe('password');
+      expect(email).toHaveValue('tester@testing.paradise');
+      expect(password).toHaveValue('password');
+      screen.debug(submit);
       expect(submit).toBeEnabled();
     });
   });
@@ -107,8 +109,8 @@ describe('Login Page', () => {
     userEvent.type(password, 'password');
 
     await waitFor(() => {
-      expect(email.value).toBe('tester@testing.paradise');
-      expect(password.value).toBe('password');
+      expect(email).toHaveValue('tester@testing.paradise');
+      expect(password).toHaveValue('password');
       expect(submit).toBeEnabled();
     });
 
@@ -131,8 +133,8 @@ describe('Login Page', () => {
     userEvent.type(email, 'user@example.org');
     userEvent.type(password, '709$3cR31');
     await waitFor(() => {
-      expect(email.value).toBe('user@example.org');
-      expect(password.value).toBe('709$3cR31');
+      expect(email).toHaveValue('user@example.org');
+      expect(password).toHaveValue('709$3cR31');
       expect(submit).toBeEnabled();
     });
 

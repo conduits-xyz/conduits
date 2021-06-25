@@ -88,7 +88,7 @@ describe('Signup Page', () => {
 
     // type short first name
     userEvent.type(firstName, 'f');
-    expect(firstName.value).toBe('f');
+    expect(firstName).toHaveValue('f');
     await waitFor(() => {
       const firstnameCheck = screen.getByText(/must be longer than 2\.*/i);
       expect(firstnameCheck).toBeInTheDocument();
@@ -100,7 +100,7 @@ describe('Signup Page', () => {
     userEvent.clear(firstName);
     // type long first name
     userEvent.type(firstName, 'firstnamefirstnamefirstname');
-    expect(firstName.value).toBe('firstnamefirstnamefirstname');
+    expect(firstName).toHaveValue('firstnamefirstnamefirstname');
     await waitFor(() => {
       const firstnameCheck = screen.getByText(/nice try, nobody has a\.*/i);
       expect(firstnameCheck).toBeInTheDocument();
@@ -111,7 +111,7 @@ describe('Signup Page', () => {
     // type invalid email and tab out to trigger error(s)
     userEvent.type(email, 'Hello, World!');
     // FIXME! rtl is eating space; dig more into normalizer options
-    expect(email.value).toBe('Hello,World!');
+    expect(email).toHaveValue('Hello,World!');
     await waitFor(() => {
       const emailCheck = screen.getByText(/invalid email address/i);
       expect(emailCheck).toBeInTheDocument();
@@ -121,7 +121,7 @@ describe('Signup Page', () => {
 
     // type short password
     userEvent.type(password, 'pas');
-    expect(password.value).toBe('pas');
+    expect(password).toHaveValue('pas');
     await waitFor(() => {
       const passwordCheck = screen.getByText(/must be longer than 8\.*/i);
       expect(passwordCheck).toBeInTheDocument();
@@ -139,9 +139,9 @@ describe('Signup Page', () => {
     userEvent.type(password, 'password');
 
     await waitFor(() => {
-      expect(firstName.value).toBe('tester');
-      expect(email.value).toBe('tester@testing.paradise');
-      expect(password.value).toBe('password');
+      expect(firstName).toHaveValue('tester');
+      expect(email).toHaveValue('tester@testing.paradise');
+      expect(password).toHaveValue('password');
       expect(submit).toBeEnabled();
     });
   });
@@ -155,9 +155,9 @@ describe('Signup Page', () => {
     userEvent.type(password, 'password');
 
     await waitFor(() => {
-      expect(firstName.value).toBe('tester');
-      expect(email.value).toBe('tester@testing.paradise');
-      expect(password.value).toBe('password');
+      expect(firstName).toHaveValue('tester');
+      expect(email).toHaveValue('tester@testing.paradise');
+      expect(password).toHaveValue('password');
       expect(submit).toBeEnabled();
     });
 
@@ -182,9 +182,9 @@ describe('Signup Page', () => {
     userEvent.type(password, '709$3cR31');
 
     await waitFor(() => {
-      expect(firstName.value).toBe('User');
-      expect(email.value).toBe('user2@example.org');
-      expect(password.value).toBe('709$3cR31');
+      expect(firstName).toHaveValue('User');
+      expect(email).toHaveValue('user2@example.org');
+      expect(password).toHaveValue('709$3cR31');
       expect(submit).toBeEnabled();
     });
 

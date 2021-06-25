@@ -5,7 +5,6 @@ import * as Yup from 'yup';
 
 const conduit = Yup.object({
   conduit: Yup.object({
-    suriApiKey: Yup.string().required('Service endpoint API key is required'),
     suriType: Yup.string().required('Service endpoint type is required'),
     suriObjectKey: Yup.string().required('Service endpoint object path is required'),
     racm: Yup.array()
