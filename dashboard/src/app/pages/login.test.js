@@ -81,9 +81,16 @@ describe('Login Page', () => {
       const passwordCheck = screen.getByText(/password too short/i);
       expect(passwordCheck).toBeInTheDocument();
       expect(passwordCheck).toHaveClass('error');
-      screen.debug(submit);
       expect(submit).toBeDisabled();
-    }, { timeout: 5000 });
+    });
+  });
+
+  it('can submit on zero validation errors', async () => {
+    renderPage();
+    const { email, password, submit } = subjectsUnderTest();
+
+    // initial condition: submit should be disabled
+    expect(submit).toBeDisabled();
 
     // fill in correct details, submit button should be enabled
     userEvent.clear(email);
@@ -95,7 +102,6 @@ describe('Login Page', () => {
     await waitFor(() => {
       expect(email).toHaveValue('tester@testing.paradise');
       expect(password).toHaveValue('password');
-      screen.debug(submit);
       expect(submit).toBeEnabled();
     });
   });

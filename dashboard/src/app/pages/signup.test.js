@@ -128,6 +128,14 @@ describe('Signup Page', () => {
       expect(passwordCheck).toHaveClass('error');
       expect(submit).toBeDisabled();
     });
+  });
+
+  it('can submit on zero validation errors', async() => {
+    renderPage();
+    const { firstName, email, password, submit } = subjectsUnderTest();
+
+    // initial condition: submit should be disabled
+    expect(submit).toBeDisabled();
 
     // fill in correct details, submit button should be enabled
     userEvent.clear(firstName);
