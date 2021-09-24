@@ -10,12 +10,12 @@ module.exports = (wpc) => {
     devServer: {
       host: wpc.host,
       port: wpc.port,
-      contentBase: wpc.build,
-      inline: true,
-      stats: 'errors-only',
+      // contentBase: wpc.build,
+      // inline: true,
+      // stats: 'errors-only',
       hot: true,
       historyApiFallback: true,
-      disableHostCheck: true,
+      // disableHostCheck: true,
       proxy: [{
         context: ['/user', '/users', '/conduits'],
         target: 'http://localhost:4000',

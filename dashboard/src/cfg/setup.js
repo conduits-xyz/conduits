@@ -11,7 +11,6 @@ const HTML = require('html-webpack-plugin');
 const SuppressChunk = require('./plugins/suppress-chunk-plugin');
 const InlineCriticalCss = require('html-inline-css-webpack-plugin').default;
 
-
 const AnalyzerOptions = {
   analyzerMode: 'static',
   openAnalyzer: false,
@@ -153,24 +152,18 @@ module.exports = (wpc) => {
 
     optimization: {
       splitChunks: {
+        chunks: 'all',
+        name: 'vendors',
         cacheGroups: {
-          react: { // react stuff
-            test: /[\\/]node_modules[\\/]((react).*)[\\/]/,
-            name: 'react',
-            chunks: 'initial',
-            enforce: true,
+          vendors: {
+            test: /[\\/]node_modules[\\/]/,
+            priority: -10,
           },
-          ndeps: { // the rest of the stuff from node_modules
-            test: /[\\/]node_modules[\\/]((?!react).*)[\\/]/,
-            name: 'ndeps',
-            chunks: 'all',
-            enforce: true,
+          default: {
+            minChunks: 20,
+            priority: -20,
+            reuseExistingChunk: true,
           },
-          // default: {
-          //   minChunks: 20,
-          //   priority: -20,
-          //   reuseExistingChunk: true,
-          // },
         },
       },
     },
