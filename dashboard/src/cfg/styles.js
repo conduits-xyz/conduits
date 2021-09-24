@@ -26,14 +26,12 @@ const sassLoader = (includePaths) => {
   };
 };
 
-const cssExtractor = (isProd) => {
+const cssExtractor = (_hmr) => {
   return {
     loader: MiniCssExtractPlugin.loader,
     options: {
-      // only enable hot in development
-      hmr: !isProd,
       // if hmr doesn't work, uncomment next line to use force
-      // reloadAll: true
+      // reloadAll: _hmr ? true : false
     }
   };
 };
@@ -44,6 +42,7 @@ module.exports = (wpc) => {
   const plugins = [];
   const localCss = [];
   const globalCss = [];
+  const hmr = !wpc.isProd; // when true, we do not want to hash css file names
 
   // NOTE:
   // - chunks are from imported css files in java script
@@ -63,16 +62,14 @@ module.exports = (wpc) => {
   //   solution without understanding the requirements in detail.
   plugins.push(
     new MiniCssExtractPlugin({
-      filename: '[name].css',
-      chunkFilename: '[name].css'
-      // filename: '[name].[hash].css',
-      // chunkFilename: '[name].[hash].css'
+      filename: hmr ? '[name].css' : '[name].[contenthash].css',
+      chunkFilename: hmr ? '[id].css' : '[id].[contenthash].css',
     })
   );
 
   // last step in the pipeline is minification
-  localCss.push(cssExtractor(wpc.isProd));
-  globalCss.push(cssExtractor(wpc.isProd));
+  localCss.push(cssExtractor(hmr));
+  globalCss.push(cssExtractor(hmr));
 
   localCss.push(cssLoader(true, '[local]-[hash:base64:5]'));
   globalCss.push(cssLoader('global'));

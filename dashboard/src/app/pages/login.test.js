@@ -25,6 +25,7 @@ describe('Login Page', () => {
   };
 
   const renderPage = () => {
+    // eslint-disable-next-line testing-library/render-result-naming-convention
     const result = renderComponentUnderTest(
       <Login data="pony-foo" />,
       { initialEntries: ['/login'] }

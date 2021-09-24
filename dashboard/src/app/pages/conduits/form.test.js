@@ -15,6 +15,8 @@ import { CreateConduitForm } from './form';
 describe('Create Conduit Form', () => {
   const renderForm = () => {
     const changeView = jest.fn();
+
+    // eslint-disable-next-line testing-library/render-result-naming-convention
     const result = renderComponentUnderTest(
       <CreateConduitForm changeView={changeView} />
     );
@@ -27,6 +29,7 @@ describe('Create Conduit Form', () => {
   xit('should have a heading', async () => {
     const { container } = renderForm();
 
+    // eslint-disable-next-line testing-library/no-container
     const heading = container.querySelector('form>h2');
     expect(heading).toHaveTextContent(/create conduit/i);
   });
@@ -35,10 +38,12 @@ describe('Create Conduit Form', () => {
     const { container } = renderForm();
 
     // Object Key for external service
+    // eslint-disable-next-line testing-library/no-container
     const suriObjectKey = container.querySelector('form>input[name="suriObjectKey"]');
     expect(suriObjectKey).toBeInTheDocument();
 
     // Description for conduit
+    // eslint-disable-next-line testing-library/no-container
     const description = container.querySelector('form>input[name="description"]');
     expect(description).toBeInTheDocument();
     // TODO : test aria-describedby when implementing ARIA compliance
@@ -48,6 +53,7 @@ describe('Create Conduit Form', () => {
   xit('should have drop-down for service type', async () => {
     const { container } = renderForm();
 
+    // eslint-disable-next-line testing-library/no-container
     const serviceType = container.querySelector('form>select[name="suriType"]');
     expect(serviceType).toBeInTheDocument();
   });
@@ -56,6 +62,7 @@ describe('Create Conduit Form', () => {
     const { container } = renderForm();
 
     // GET method
+    // eslint-disable-next-line testing-library/no-container
     const get = container.querySelector(
       'form>div>div>div>label>input[value="GET"]'
     );
@@ -64,18 +71,21 @@ describe('Create Conduit Form', () => {
     expect(get).toBeChecked();
 
     // POST method
+    // eslint-disable-next-line testing-library/no-container
     const post = container.querySelector(
       'form>div>div>div>label>input[value="POST"]'
     );
     expect(post).toBeInTheDocument();
 
     // PATCH method
+    // eslint-disable-next-line testing-library/no-container
     const patch = container.querySelector(
       'form>div>div>div>label>input[value="PATCH"]'
     );
     expect(patch).toBeInTheDocument();
 
     // DELETE method
+    // eslint-disable-next-line testing-library/no-container
     const del = container.querySelector(
       'form>div>div>div>label>input[value="DELETE"]'
     );
@@ -86,12 +96,14 @@ describe('Create Conduit Form', () => {
     const { container } = renderForm();
 
     // active
+    // eslint-disable-next-line testing-library/no-container
     const active = container.querySelector(
       'form>div>div>span>label>input[value="active"]'
     );
     expect(active).toBeInTheDocument();
 
     // inactive
+    // eslint-disable-next-line testing-library/no-container
     const inactive = container.querySelector(
       'form>div>div>span>label>input[value="inactive"]'
     );
@@ -102,6 +114,7 @@ describe('Create Conduit Form', () => {
     const { container } = renderForm();
 
     // submit
+    // eslint-disable-next-line testing-library/no-container
     const submit = container.querySelector(
       'form>button[type="submit"]'
     );
@@ -109,6 +122,7 @@ describe('Create Conduit Form', () => {
     expect(submit).toHaveTextContent(/create conduit/i);
 
     // cancel
+    // eslint-disable-next-line testing-library/no-container
     const cancel = container.querySelector(
       'form>button[type="button"]'
     );

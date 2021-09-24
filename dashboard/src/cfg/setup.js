@@ -8,8 +8,9 @@ const Analyze = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 const { CleanWebpackPlugin: Clean } = require('clean-webpack-plugin');
 const Copy = require('copy-webpack-plugin');
 const HTML = require('html-webpack-plugin');
-const SuppressKisJs = require('suppress-chunks-webpack-plugin').default;
+const SuppressChunk = require('./plugins/suppress-chunk-plugin');
 const InlineCriticalCss = require('html-inline-css-webpack-plugin').default;
+
 
 const AnalyzerOptions = {
   analyzerMode: 'static',
@@ -128,6 +129,14 @@ module.exports = (wpc) => {
       app: `${wpc.app}/main.js`,
     },
 
+    performance: {
+      // NOTE:
+      // Webpack's default 250KiB limit is pretty arbitrary for the combined
+      // asset size... increasing it to 500KiB
+      maxEntrypointSize: 512000,
+      maxAssetSize: 512000
+    },
+
     output: {
       // See notes in styles.js for tradeoffs on output naming
       // conventions
@@ -144,25 +153,31 @@ module.exports = (wpc) => {
 
     optimization: {
       splitChunks: {
-        chunks: 'all',
-        name: 'vendors',
         cacheGroups: {
-          vendors: {
-            test: /[\\/]node_modules[\\/]/,
-            priority: -10,
+          react: { // react stuff
+            test: /[\\/]node_modules[\\/]((react).*)[\\/]/,
+            name: 'react',
+            chunks: 'initial',
+            enforce: true,
           },
-          default: {
-            minChunks: 20,
-            priority: -20,
-            reuseExistingChunk: true,
+          ndeps: { // the rest of the stuff from node_modules
+            test: /[\\/]node_modules[\\/]((?!react).*)[\\/]/,
+            name: 'ndeps',
+            chunks: 'all',
+            enforce: true,
           },
+          // default: {
+          //   minChunks: 20,
+          //   priority: -20,
+          //   reuseExistingChunk: true,
+          // },
         },
       },
     },
     plugins: [
       new webpack.ProvidePlugin({ React: 'react' }),
       new Clean({ root: wpc.root, verbose: true }),
-      new SuppressKisJs([{ name: 'kis', match: /\.js$/ }]),
+      new SuppressChunk([{ name: 'kis', match: /\.js$/ }]),
       new HTML({ template: `${wpc.web}/index.html`, ...HtmlOptions }),
       new InlineCriticalCss({
         position: 'after',

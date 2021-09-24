@@ -1,6 +1,9 @@
 const { merge } = require('webpack-merge');
 const path = require('path');
 
+// uncomment next line to find the source of a deprecation
+// process.traceDeprecation = true;
+
 module.exports = (env, argv) => {
   const isProd = env && env.production;
   const mode = isProd ? 'production' : 'development';
@@ -23,6 +26,8 @@ module.exports = (env, argv) => {
   const wpc = { isProd, argv, mode, root, app, cfg, web, lib, build, options };
 
   // bring in the parts of the build pipeline
+  const Esm = require('./esm')(wpc);
+
   const Base = require('./setup')(wpc);
   const Lint = require('./eslint')(wpc);
   const Babel = require('./babel')(wpc);
@@ -30,7 +35,9 @@ module.exports = (env, argv) => {
   const Styles = require('./styles')(wpc);
 
   // NOTE: webpack configuration is code as well, so include Lint early on.
-  let merged = merge(Base, Lint, Babel, Assets, Styles, {
+  // Also for now we want source map for both production and development!
+  // TODO: remove source-map when going live
+  let merged = merge(Esm, Base, Lint, Babel, Assets, Styles, {
     devtool: 'source-map',
   });
 

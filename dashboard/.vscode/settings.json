@@ -5,7 +5,7 @@
   "files.exclude": {
     "**/.git": true,
     "**/node_modules": true,
-    "**/build": true,
+    "**/build": false,
     "**/coverage": true,
     "package-lock.json": true,
     "yarn.lock": true,

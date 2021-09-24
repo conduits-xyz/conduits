@@ -20,6 +20,7 @@ describe('Header Component', () => {
       user: { login }
     };
 
+    // eslint-disable-next-line testing-library/render-result-naming-convention
     const result = renderComponentUnderTest(
       <Header />,
       { initialEntries: [path], initialState }
@@ -49,6 +50,7 @@ describe('Header Component', () => {
       false
     );
 
+    // eslint-disable-next-line testing-library/no-container
     const busyIndicator = container.querySelector(
       '[role="progressbar"][aria-live="polite"][aria-busy="true"]'
     );

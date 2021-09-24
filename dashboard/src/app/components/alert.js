@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 
 // Started with the intention of becoming a `Toast`. But for
 // now this component just displays a message or hides itself.
-const Alert = ({ _klass, message }) => {
+const Alert = ({ message }) => {
   let items;
 
   if (message) {
@@ -35,7 +35,6 @@ const Alert = ({ _klass, message }) => {
 };
 
 Alert.propTypes = {
-  klass: PropTypes.string,
   message: PropTypes.object,
 };
 

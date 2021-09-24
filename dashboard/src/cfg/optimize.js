@@ -1,5 +1,5 @@
 const TerserJs = require('terser-webpack-plugin');
-const OptimizeCSSAssets = require('optimize-css-assets-webpack-plugin');
+const OptimizeCSSAssets = require('css-minimizer-webpack-plugin');
 
 const terserOptions = {
   warnings: false,
@@ -15,15 +15,14 @@ const terserOptions = {
     if_return: true,
     join_vars: true,
     evaluate: true,
+    drop_console: true,
+    passes: 2,
   },
-  screw_ie8: true,
   ie8: false,
   ecma: 8,
   mangle: true,
   module: true,
   toplevel: true,
-  drop_console: true,
-  passes: 2,
 };
 
 module.exports = (wpc) => {
