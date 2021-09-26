@@ -9,7 +9,6 @@ module.exports = (wpc) => {
       loader: 'url-loader',
       options: {
         name: 'assets/fonts/[name].[ext]',
-        // outputPath: 'assets/fonts',
         limit: wpc.options.inlineBelow
       }
     },
@@ -18,7 +17,9 @@ module.exports = (wpc) => {
   const module = {
     rules: [
       {
-        test, exclude, use: loaders
+        test, exclude,
+        dependency: { not: ['url'] },
+        use: loaders, type: 'javascript/auto'
       },
     ]
   };
