@@ -152,17 +152,18 @@ module.exports = (wpc) => {
 
     optimization: {
       splitChunks: {
-        chunks: 'all',
-        name: 'vendors',
         cacheGroups: {
-          vendors: {
-            test: /[\\/]node_modules[\\/]/,
-            priority: -10,
+          react: { // react stuff
+            test: /[\\/]node_modules[\\/]((react).*)[\\/]/,
+            name: 'react',
+            chunks: 'all',
+            enforce: true,
           },
-          default: {
-            minChunks: 20,
-            priority: -20,
-            reuseExistingChunk: true,
+          ndeps: { // the rest of the stuff from node_modules
+            test: /[\\/]node_modules[\\/]((?!react).*)[\\/]/,
+            name: 'ndeps',
+            chunks: 'all',
+            enforce: true,
           },
         },
       },
