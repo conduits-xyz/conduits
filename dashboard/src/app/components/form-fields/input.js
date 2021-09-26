@@ -48,7 +48,7 @@ export function Input(
         {Boolean(label) && <span>{label}</span>}
         <input
           type={type} name={name} placeholder={placeholder}
-          ref={register} {...rest} />
+          {...register(name)} {...rest} />
       </label>
       <ErrorMessage name={name} errors={errors} />
     </div>

@@ -1,13 +1,13 @@
 {
+  "parser": "babel-eslint",
   "parserOptions": {
     "ecmaVersion": 2020,
-    "ecmaFeatures": {
-      "modules": true,
-      "jsx": true
-    },
     "target": "ES6",
     "module": "commonjs",
-    "sourceType": "module"
+    "sourceType": "module",
+    "ecmaFeatures": {
+      "jsx": true
+    }
   },
   "plugins": [
     "react",

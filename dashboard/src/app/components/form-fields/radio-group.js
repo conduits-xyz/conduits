@@ -23,7 +23,7 @@ export function Radio({ name, register, value, label, ...rest }) {
     <label>
       <input
         type="radio" name={name} defaultValue={value}
-        ref={register} {...rest} />
+        {...register(name)} {...rest} />
       {Boolean(label) && <span className="checkable">{label}</span>}
     </label>
   );

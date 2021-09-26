@@ -64,7 +64,7 @@ export function Select({
       <select
         name={name} placeholder={placeholder}
         multiple={multiple}
-        ref={register} {...rest}>
+        {...register(name)} {...rest}>
         {options.map(option => (
           <option key={option.value} value={option.value}>
             {option.label}

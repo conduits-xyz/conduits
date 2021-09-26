@@ -171,7 +171,10 @@ module.exports = (wpc) => {
     plugins: [
       new webpack.ProvidePlugin({ React: 'react' }),
       new Clean({ root: wpc.root, verbose: true }),
-      new SuppressChunk([{ name: 'kis', match: /\.js$/ }]),
+      new SuppressChunk([
+        { name: 'kis', match: /\.js$/ },
+        { name: 'main', match: /\.js$/ },
+      ]),
       new HTML({ template: `${wpc.web}/index.html`, ...HtmlOptions }),
       new InlineCriticalCss({
         position: 'after',
