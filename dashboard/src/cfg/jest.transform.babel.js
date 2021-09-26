@@ -9,6 +9,6 @@
 const babel = require('./babel.config')({ isTest: true });
 
 const transformer = require('babel-jest')
-  .createTransformer(babel);
+  .default.createTransformer(babel);
 
 module.exports = transformer;
