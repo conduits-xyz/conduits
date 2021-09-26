@@ -20,7 +20,7 @@ module.exports = (env, argv) => {
 
   // webpack based project configuration
   const options = {
-    inlineBelow: 8192, // inline assets whose size is below this many bytes
+    inlineBelow: 8 * 1024, // inline assets whose size is below this many bytes
   };
 
   const wpc = { isProd, argv, mode, root, app, cfg, web, lib, build, options };

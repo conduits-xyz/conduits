@@ -61,12 +61,6 @@ const assets = (wpc) => {
         globOptions,
         noErrorOnMissing: ifDev
       },
-      {
-        context: wpc.web,
-        from: 'assets/fonts/*.*',
-        globOptions,
-        noErrorOnMissing: ifDev
-      },
     ],
   };
 };

@@ -1,25 +1,29 @@
 module.exports = (wpc) => {
+  // TODO:
+  // - create rules for various asset types and enforce inline policy
+  // - place the assets in their respective folders (branding, images, fonts,
+  //   and icons)
+  // - ensure inlined assets are not included in the 'preload' set....
+
   const test = /\.(woff|woff2|ttf|eot|svg)(\?[\s\S]+)?$/;
-  const exclude = /(node_modules|bower_components)/;
 
-  // url-loader builds on top of file-loader to optionally convert
-  // assets into data url based on limit... TODO: needs more play time
-  const loaders = [
-    {
-      loader: 'url-loader',
-      options: {
-        name: 'assets/fonts/[name].[ext]',
-        limit: wpc.options.inlineBelow
-      }
-    },
-  ];
-
+  // 'asset' will auto select resource or inline module type based on
+  // file size (default 8kb)
   const module = {
     rules: [
       {
-        test, exclude,
-        dependency: { not: ['url'] },
-        use: loaders, type: 'javascript/auto'
+        test,
+        type: 'asset',
+        parser: {
+          dataUrlCondition: {
+            maxSize: wpc.options.inlineBelow
+          }
+        },
+        generator: {
+          // use [hash] instead of [name] for cache busting
+          // frequently changing resources...
+          filename: 'assets/fonts/[name][ext][query]'
+        }
       },
     ]
   };
