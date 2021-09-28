@@ -1,7 +1,7 @@
 // For a detailed explanation regarding each configuration property, visit:
 // https://jestjs.io/docs/en/configuration.html
 
-module.exports = {
+export default {
   // Automatically clear mock calls and instances between every test
   clearMocks: true,
 
@@ -44,10 +44,10 @@ module.exports = {
   // The test environment that will be used for testing
   testURL: 'http://not-a-tea-pot',
 
-  testEnvironment: 'jsdom',
+  testEnvironment: 'jest-environment-jsdom',
 
   // fetch is not available in node, add it here
-  setupFiles: ['<rootDir>/src/mocks/test-setup.js'],
+  setupFiles: ['<rootDir>/jest/setup.js'],
 
   // A list of paths to modules that run some code to configure or set up
   // the testing framework before each test
@@ -61,9 +61,9 @@ module.exports = {
 
   // A map from regular expressions to paths to transformers
   transform: {
-    '^.+\\.jsx?$': '<rootDir>/src/cfg/jest.transform.babel.js',
-    '^.+\\.s?css$': '<rootDir>/src/cfg/jest.transform.css.js',
-    '^(?!.*\\.(js|jsx|ts|tsx|css|json)$)': '<rootDir>/src/cfg/jest.transform.file.js'
+    '^.+\\.jsx?$': '<rootDir>/jest/transforms/babel.js',
+    '^.+\\.s?css$': '<rootDir>/jest/transforms/css.js',
+    '^(?!.*\\.(js|jsx|ts|tsx|css|json)$)': '<rootDir>/jest/transforms/file.js'
   },
 
   // Indicates whether each individual test should be reported during the run

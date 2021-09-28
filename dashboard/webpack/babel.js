@@ -1,16 +1,15 @@
-const presets = (wpc) => [
+const presets = [
   ['@babel/preset-env', {
-    // loose: true,
-    modules: wpc.isTest ? 'commonjs' : false,   /* transpile ES6 for Jest */
-    bugfixes: true, /* see https://babeljs.io/docs/en/babel-preset-env#bugfixes */
+    modules: false,       /* do not transpile ESM */
+    bugfixes: true,       /* see https://babeljs.io/docs/en/babel-preset-env#bugfixes */
     useBuiltIns: 'usage', /* disable polyfills; target the latest and greatest! */
-    // debug: true,
+    debug: false,
     targets: {
-      esmodules: true,
+      // esmodules: true,
       node: 'current',
     },
     corejs: {
-      version: 3, proposals: true
+      version: '3.1', proposals: true
     },
   }],
   ['@babel/preset-react', {
@@ -25,6 +24,9 @@ const plugins = [
 ];
 
 module.exports = (wpc) => {
+  const test = /\.jsx?$/;
+  const exclude = /(node_modules|bower_components)/;
+
   if (wpc.isProd) {
     plugins.push([
       'transform-react-remove-prop-types',
@@ -36,10 +38,20 @@ module.exports = (wpc) => {
     ]);
   }
 
-  return {
-    presets: presets(wpc),
-    plugins,
-    babelrc: false,
-    configFile: false,
+  const loaders = [
+    {
+      loader: 'babel-loader',
+      options: { presets, plugins }
+    },
+  ];
+
+  const module = {
+    rules: [
+      {
+        test, exclude, use: loaders
+      },
+    ]
   };
+
+  return { module };
 };

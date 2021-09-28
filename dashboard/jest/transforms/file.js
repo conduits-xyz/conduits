@@ -3,9 +3,9 @@
 //
 // Copied from create-react-app
 
-const path = require('path');
+import path from 'path';
 
-module.exports = {
+export default {
   process(_src, filename) {
     const assetFilename = JSON.stringify(path.basename(filename));
     console.log('============>', assetFilename);

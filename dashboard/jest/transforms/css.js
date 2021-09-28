@@ -3,7 +3,7 @@
 //
 // Copied from create-react-app
 
-module.exports = {
+export default {
   process() {
     return 'module.exports = {};';
   },

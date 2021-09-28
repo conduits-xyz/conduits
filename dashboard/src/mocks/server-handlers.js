@@ -10,7 +10,6 @@ import { rest } from 'msw';
 //
 
 const login = (req, res, ctx) => {
-  // console.log('-->>', req.body);
   const errorResponse = {
     errors: {
       credentials: 'email or password is invalid'
@@ -39,6 +38,7 @@ const login = (req, res, ctx) => {
 };
 
 const signup = (req, res, ctx) => {
+  // console.log('-->>', req.body);
   const errorResponse = {
     errors: {
       email: 'email must be unique'

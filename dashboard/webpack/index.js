@@ -11,7 +11,7 @@ module.exports = (env, argv) => {
   // many dependencies make decisions based on NODE_ENV, so set it here.
   process.env.NODE_ENV = mode;
 
-  const root = path.join(__dirname, '../');
+  const root = path.join(__dirname, '../src');
   const app = path.join(root, 'app');
   const cfg = path.join(root, 'cfg');
   const web = path.join(root, 'web');
