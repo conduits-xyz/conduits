@@ -70,7 +70,7 @@ export function Form({ methods, children, onSubmit, errors = {}, ...rest }) {
               ...{
                 ...child.props,
                 register: methods.register,
-                errors: methods.errors,
+                errors: methods.formState.errors,
                 key: child.props.name
               }
             });
