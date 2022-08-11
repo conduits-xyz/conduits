@@ -10,12 +10,12 @@
 // - test suites have order dependencies; do *not* rearrange the __require__s
 require('./rest-api/cors.spec.js');
 require('./rest-api/user.spec.js');
-require('./rest-api/conduit/basic.spec.js');
-require('./rest-api/conduit/sort.spec.js');
-require('./rest-api/conduit/racm.spec.js');
-require('./rest-api/conduit/allow-list.spec.js');
-require('./rest-api/conduit/hff.spec.js');
-require('./rest-api/conduit/suri.spec.js');
+// require('./rest-api/conduit/basic.spec.js');
+// require('./rest-api/conduit/sort.spec.js');
+// require('./rest-api/conduit/racm.spec.js');
+// require('./rest-api/conduit/allow-list.spec.js');
+// require('./rest-api/conduit/hff.spec.js');
+// require('./rest-api/conduit/suri.spec.js');
 
 // Rest API - pending migration of Siraj's model refactor changes
 // - Auth

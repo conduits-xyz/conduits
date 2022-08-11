@@ -1,6 +1,6 @@
 const path = require('path');
 const dotenv = require('dotenv-safe');
-const faker = require('faker');
+const {faker} = require('@faker-js/faker');
 const util = require('./util');
 const conf = require('../config');
 
@@ -99,14 +99,14 @@ const fakeConduit = (overrides = {}) => {
       },
     ],
     racm: util.pickRandomlyFrom(racmCombo),
-    throttle: faker.random.boolean(),
+    throttle: faker.datatype.boolean(),
     status: util.pickRandomlyFrom(statuses),
     description: faker.lorem.sentence(),
     hiddenFormField: [
       {
         fieldName: util.pickRandomlyFrom(hiddenFields),
         policy: util.pickRandomlyFrom(hiddenFieldPolicy),
-        include: faker.random.boolean(),
+        include: faker.datatype.boolean(),
         value: faker.lorem.word(),
       },
     ],

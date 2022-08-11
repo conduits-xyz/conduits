@@ -26,6 +26,7 @@ describe('Conduit endpoint - allow list', () => {
     expect(res.status).to.equal(422);
     expect(res.body).to.have.property('errors');
 
+    console.log('~~~~ errors: ', res.body.errors);
     expect(res.body.errors.length).to.equal(3);
 
     for (const error of res.body.errors) {
