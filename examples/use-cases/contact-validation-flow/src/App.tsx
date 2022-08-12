@@ -9,7 +9,7 @@ import {
   Divider,
   Header,
 } from '@adobe/react-spectrum';
-import faker from 'faker';
+import {faker} from '@faker-js/faker';
 
 import SubmitForm from './components/SubmitForm';
 import DataTable from './components/DataTable';
