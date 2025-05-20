@@ -148,7 +148,7 @@ async function afetch(host, options) {
         // response regardless of the status will be in json format; if this
         // is not the case then the developer has the option to use a function.
         if (onNotOk === 'resolve') {
-          Promise.resolve({
+          return Promise.resolve({
             status: response.status,
             data: await response.json(),
           });
