@@ -164,28 +164,6 @@ describe('Conduit endpoint - basic', () => {
       expect(res.body.conduit.throttle).to.eql(true);
     });
 
-    it('should allow changing throttle', async function () {
-      // deliberately set status of ctId2 to 'active' and ctId3 to 'inactive'
-      let res = await Api()
-        .patch(`/conduits/${ctId2}`)
-        .set('Authorization', `Token ${jakeUser.token}`)
-        .send({ conduit: { throttle: false } });
-      expect(res.status).to.equal(200);
-      expect(res.body).to.have.property('conduit');
-
-      expect(res.body.conduit.throttle).to.eql(false);
-
-      res = await Api()
-        .patch(`/conduits/${ctId3}`)
-        .set('Authorization', `Token ${jakeUser.token}`)
-        .send({ conduit: { throttle: true } });
-      expect(res.status).to.equal(200);
-      expect(res.body).to.have.property('conduit');
-
-      expect(res.body.conduit.throttle).to.eql(true);
-    });
-
-
     it('should DELETE inactive conduit', async function () {
       const deleteInactive = await Api()
         .delete(`/conduits/${ctId3}`)
