@@ -7,7 +7,7 @@ const Alert = ({ message }) => {
   let items;
 
   if (message) {
-    if (message === 'string' || message === 'number') {
+    if (typeof message === 'string' || typeof message === 'number') {
       items = <li>{message}</li>;
     } else if (Array.isArray(message) && message.length > 0) {
       items = message.map(
