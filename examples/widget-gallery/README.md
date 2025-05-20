@@ -5,7 +5,7 @@
 - Classical HTML form
 - HTML form with ajax request
 
-## Prerequesites
+## Prerequisites
 
 - Setup an active conduit using `conduit-server`
 - Run the `proxy-server` under PORT `80`
