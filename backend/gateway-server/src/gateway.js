@@ -50,10 +50,9 @@ function middle({ cmap = [], debug = false }) {
       res.locals.conduit = conduit;
       next(); // all good, proceed to next in chain!
     } else {
-      // If conduit not found in Cache, send 404
-      // FIXME: per MDN, the statusCode should be 400
+      // If conduit not found in Cache, send 400
       return next(
-        new RestApiError(404, {
+        new RestApiError(400, {
           conduit: `${req.hostname} not found`,
         })
       );
