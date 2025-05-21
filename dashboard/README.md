@@ -14,16 +14,21 @@ TBD...
 
 ### Tasks
 
-| task       | command line       | notes                                          |
-| :--------- | :----------------- | :--------------------------------------------- |
-| install    | `npm install`      | installs dependencies                          |
-| lint       | `npm run lint`     | run eslint on `src` folder                     |
-| lint:fix   | `npm run lint:fix` | run eslint on `src` folder                     |
-| build      | `npm run build`    | compile to `build` folder                      |
-| start      | `npm run start`    | web serve `build` folder                       |
-| watch      | `npm run watch`    | watch/build changes to `app` and `web` folders |
-| test       | `npm run test `    | run tests and report coverage                  |
-| test:watch | `npm run test `    | run tests in watch mode without coverage       |
+| task       | command line       | notes |
+| :--------- | :----------------- | :---- |
+| install    | `npm install`      | installs dependencies |
+| lint       | `npm run lint`     | run eslint on `src` folder |
+| lint:fix   | `npm run lint:fix` | run eslint on `src` folder |
+| dev        | `npm run dev`      | run the development server |
+| build      | `npm run build`    | create production build |
+| start      | `npm run start`    | serve the built files |
+| test       | `npm run test`     | run tests and report coverage |
+| test:watch | `npm run test`     | run tests in watch mode without coverage |
+
+
+### Vite
+
+This project uses [Vite](https://vitejs.dev/) to run a development server with `npm run dev` and to build the app with `npm run build`.
 
 Note : Since the project uses [husky] to set up pre-commit hooks;
 sometimes it can get in the way of development when commiting assets
@@ -53,7 +58,6 @@ All 'code' (including configuration to build the code) is under 'src' folder...
 src
 ├── api            //<- remote service facade used by the app goes here
 ├── app            //<- application source (ES6, JSX, SCSS, ...)
-├── cfg            //<- webpack build pipeline parts and setup
 ├── hooks          //<- react hooks
 ├── mocks          //<- for testing without backend
 ├── lib            //<- external libraries in source form (see ATTRIBUTION.md)
@@ -67,23 +71,15 @@ src
 > may use different services. Also instructive is to read the differences
 > between [facade and service](https://stackoverflow.com/questions/15038324/are-the-roles-of-a-service-and-a-fa%c3%a7ade-similar#15079958)
 
-### Webpack
+### Build
 
-Webpack configuration files are under 'cfg' folder and organized as a collection
-of parts merged together by webpack.js which is the entry point to webpack.
+The dashboard now uses [Vite](https://vitejs.dev/) to provide a fast development
+server and production build. Run `npm run dev` while developing and
+`npm run build` to create the optimized output.
 
-```console
-cfg/
-├── babel.js       //<- for transpiling
-├── development.js //<- used in development mode
-├── eslint.js      //<- lint code
-├── optimize.js    //<- used in production mode (optimize, minify, ...)
-├── setup.js       //<- tell webpack how to bundle code and assets
-├── styles.js      //<- to process css and sass
-└── webpack.js     //<- kickstart webpack using this arrangement
-```
 
 ### Application
+
 
 Application code is under 'app' folder. The file main.js is the entry
 point and contains the 'shell' of a PWA.
@@ -125,7 +121,5 @@ and in what form.
 ```console
 lib
 ├── ATTRIBUTION.md //<- FOSS packages used by the app listed here
-├── kiscss         //<- keep it simple css
-:
 └── tiny           //<- tiny library that you create to prevent bloat goes here
 ```

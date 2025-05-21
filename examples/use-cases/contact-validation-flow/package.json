@@ -39,5 +39,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build"
+    "@types/react-dom": "^18.0.6"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
