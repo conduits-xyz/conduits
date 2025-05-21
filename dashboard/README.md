@@ -14,15 +14,17 @@ TBD...
 
 ### Tasks
 
-| task       | command line       | notes                                          |
-| :--------- | :----------------- | :--------------------------------------------- |
-| install    | `npm install`      | installs dependencies                          |
-| lint       | `npm run lint`     | run eslint on `src` folder                     |
-| lint:fix   | `npm run lint:fix` | run eslint on `src` folder                     |
-| dev        | `npm run dev`      | start development server |
-| build      | `npm run build`    | compile to `build` folder                      |
-| test       | `npm run test `    | run tests and report coverage                  |
-| test:watch | `npm run test `    | run tests in watch mode without coverage       |
+| task       | command line       | notes |
+| :--------- | :----------------- | :---- |
+| install    | `npm install`      | installs dependencies |
+| lint       | `npm run lint`     | run eslint on `src` folder |
+| lint:fix   | `npm run lint:fix` | run eslint on `src` folder |
+| dev        | `npm run dev`      | run the development server |
+| build      | `npm run build`    | create production build |
+| start      | `npm run start`    | serve the built files |
+| test       | `npm run test`     | run tests and report coverage |
+| test:watch | `npm run test`     | run tests in watch mode without coverage |
+
 
 ### Vite
 
@@ -68,6 +70,14 @@ src
 > to suggest that the app uses the 'service'. I prefer 'api' because an app
 > may use different services. Also instructive is to read the differences
 > between [facade and service](https://stackoverflow.com/questions/15038324/are-the-roles-of-a-service-and-a-fa%c3%a7ade-similar#15079958)
+
+### Build
+
+The dashboard now uses [Vite](https://vitejs.dev/) to provide a fast development
+server and production build. Run `npm run dev` while developing and
+`npm run build` to create the optimized output.
+
+
 ### Application
 
 
