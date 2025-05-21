@@ -25,6 +25,11 @@ TBD...
 | test       | `npm run test`     | run tests and report coverage |
 | test:watch | `npm run test`     | run tests in watch mode without coverage |
 
+
+### Vite
+
+This project uses [Vite](https://vitejs.dev/) to run a development server with `npm run dev` and to build the app with `npm run build`.
+
 Note : Since the project uses [husky] to set up pre-commit hooks;
 sometimes it can get in the way of development when commiting assets
 that are still work in progress. If the code commited do not break any
@@ -72,7 +77,9 @@ The dashboard now uses [Vite](https://vitejs.dev/) to provide a fast development
 server and production build. Run `npm run dev` while developing and
 `npm run build` to create the optimized output.
 
+
 ### Application
+
 
 Application code is under 'app' folder. The file main.js is the entry
 point and contains the 'shell' of a PWA.
