@@ -125,7 +125,5 @@ and in what form.
 ```console
 lib
 ├── ATTRIBUTION.md //<- FOSS packages used by the app listed here
-├── kiscss         //<- keep it simple css
-:
 └── tiny           //<- tiny library that you create to prevent bloat goes here
 ```
