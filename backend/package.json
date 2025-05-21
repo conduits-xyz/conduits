@@ -24,7 +24,8 @@
     "test-gateway-usecase": "mocha --timeout 10000 --exit gatewa-server/src/use-case.test.js",
     "start-resource-server": "node --unhandled-rejections=strict crud-server/src/server.js",
     "start-gateway-server": "node --unhandled-rejections=strict gateway-server/src/server.js",
-    "createdb": "node crud-server/src/createdb.js"
+    "createdb": "node crud-server/src/createdb.js",
+    "test": "npm run test-model && npm run test-rest && npm run test-gateway"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -66,7 +67,7 @@
     "watch": "^1.0.2"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "eslintIgnore": [
     "**/__snapshots__/*"

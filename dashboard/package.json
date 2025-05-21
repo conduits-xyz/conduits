@@ -6,7 +6,7 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=16"
+    "node": ">=20"
   },
   "repository": {
     "type": "git",
@@ -122,9 +122,9 @@
     "webpack-merge": "^5.8.0"
   },
   "browserslist": [
-      "last 2 chrome versions",
-      "last 2 firefox versions",
-      "last 2 safari versions",
-      "last 2 edge versions"
+    "last 2 chrome versions",
+    "last 2 firefox versions",
+    "last 2 safari versions",
+    "last 2 edge versions"
   ]
 }
