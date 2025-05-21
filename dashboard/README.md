@@ -21,7 +21,7 @@ TBD...
 | lint:fix   | `npm run lint:fix` | run eslint on `src` folder                     |
 | build      | `npm run build`    | compile to `build` folder                      |
 | start      | `npm run start`    | web serve `build` folder                       |
-| watch      | `npm run watch`    | watch/build changes to `app` and `web` folders |
+| dev        | `npm run dev`      | start development server |
 | test       | `npm run test `    | run tests and report coverage                  |
 | test:watch | `npm run test `    | run tests in watch mode without coverage       |
 
