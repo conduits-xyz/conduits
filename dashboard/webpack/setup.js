@@ -96,9 +96,6 @@ module.exports = (wpc) => {
 
     // library contains useful stuff
     lib: wpc.lib,
-
-    // we keep site wide css/scss frameworks here
-    kiscss: `${wpc.lib}/kiscss`,
   };
 
   const extensions = ['.jsx', '.js', '.json', '.scss', '.css', '.html'];
@@ -113,11 +110,8 @@ module.exports = (wpc) => {
     entry: {
       // NOTE:
       // - order here determines the inject order of insertions
-      // - the chunk file is named after the key, thus 'ki'
-      //   will be named 'kis' after the compilation process
       // - main.scss typically contains PRPL related css
       // - main.scss is inlined using html-inline-css-webpack-plugin
-      kis: `${wpc.lib}/kiscss/ki.scss`,
       main: `${wpc.app}/main.scss`,
       app: `${wpc.app}/main.js`,
     },
@@ -166,7 +160,6 @@ module.exports = (wpc) => {
       new webpack.ProvidePlugin({ React: 'react' }),
       new Clean({ root: wpc.root, verbose: true }),
       new SuppressChunk([
-        { name: 'kis', match: /\.js$/ },
         { name: 'main', match: /\.js$/ },
       ]),
       new HTML({ template: `${wpc.web}/index.html`, ...HtmlOptions }),
