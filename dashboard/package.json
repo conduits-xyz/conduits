@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "lint": "stylelint src/**/*.{css,scss} --cache && eslint src --cache",
-    "lint:fix": "stylelint src/**/*.{css,scss} --fix && eslint --fix webpack jest src",
+    "lint:fix": "stylelint src/**/*.{css,scss} --fix && eslint --fix jest src",
     "build": "webpack --color --progress --env production --config webpack",
     "watch": "webpack-dev-server --progress --config webpack",
     "test": "npm run -s lint && jest -c jest/config.js --verbose --no-cache --rootDir .",
