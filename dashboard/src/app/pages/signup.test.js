@@ -49,11 +49,11 @@ describe('Signup Page', () => {
     const { firstName, email, password, submit } = subjectsUnderTest();
 
     // click on first name, type anything, clear and tab out to trigger error(s)
-    userEvent.click(firstName);
+    await userEvent.click(firstName);
     expect(firstName).toHaveFocus();
-    userEvent.type(firstName, 'will be cleared{backspace}{backspace}');
-    userEvent.clear(firstName);
-    userEvent.tab();
+    await userEvent.type(firstName, 'will be cleared{backspace}{backspace}');
+    await userEvent.clear(firstName);
+    await userEvent.tab();
 
     await waitFor(() => {
       const firstnameCheck = screen.getByText(/don't be shy\.*/i);
@@ -62,11 +62,11 @@ describe('Signup Page', () => {
     });
 
     // click on email, type anything, clear and tab out to trigger error(s)
-    userEvent.click(email);
+    await userEvent.click(email);
     expect(email).toHaveFocus();
-    userEvent.type(email, 'will be cleared{backspace}{backspace}');
-    userEvent.clear(email);
-    userEvent.tab();
+    await userEvent.type(email, 'will be cleared{backspace}{backspace}');
+    await userEvent.clear(email);
+    await userEvent.tab();
 
     await waitFor(() => {
       const emailCheck = screen.getByText(/email is required/i);
@@ -75,11 +75,11 @@ describe('Signup Page', () => {
     });
 
     // click on password, type anything, clear and tab out to trigger error(s)
-    userEvent.click(password);
+    await userEvent.click(password);
     expect(password).toHaveFocus();
-    userEvent.type(password, 'will be cleared{backspace}{backspace}');
-    userEvent.clear(password);
-    userEvent.tab();
+    await userEvent.type(password, 'will be cleared{backspace}{backspace}');
+    await userEvent.clear(password);
+    await userEvent.tab();
 
     await waitFor(() => {
       const passwordCheck = screen.getByText(/passphrase is required/i);
@@ -88,7 +88,7 @@ describe('Signup Page', () => {
     });
 
     // type short first name
-    userEvent.type(firstName, 'f');
+    await userEvent.type(firstName, 'f');
     expect(firstName).toHaveValue('f');
     await waitFor(() => {
       const firstnameCheck = screen.getByText(/must be longer than 2\.*/i);
@@ -98,9 +98,9 @@ describe('Signup Page', () => {
     });
 
     // clear the previous set first name
-    userEvent.clear(firstName);
+    await userEvent.clear(firstName);
     // type long first name
-    userEvent.type(firstName, 'firstnamefirstnamefirstname');
+    await userEvent.type(firstName, 'firstnamefirstnamefirstname');
     expect(firstName).toHaveValue('firstnamefirstnamefirstname');
     await waitFor(() => {
       const firstnameCheck = screen.getByText(/nice try, nobody has a\.*/i);
@@ -110,7 +110,7 @@ describe('Signup Page', () => {
     });
 
     // type invalid email and tab out to trigger error(s)
-    userEvent.type(email, 'Hello, World!');
+    await userEvent.type(email, 'Hello, World!');
     // FIXME! rtl is eating space; dig more into normalizer options
     expect(email).toHaveValue('Hello,World!');
     await waitFor(() => {
@@ -121,7 +121,7 @@ describe('Signup Page', () => {
     });
 
     // type short password
-    userEvent.type(password, 'pas');
+    await userEvent.type(password, 'pas');
     expect(password).toHaveValue('pas');
     await waitFor(() => {
       const passwordCheck = screen.getByText(/must be longer than 8\.*/i);
@@ -139,13 +139,13 @@ describe('Signup Page', () => {
     expect(submit).toBeDisabled();
 
     // fill in correct details, submit button should be enabled
-    userEvent.clear(firstName);
-    userEvent.clear(email);
-    userEvent.clear(password);
+    await userEvent.clear(firstName);
+    await userEvent.clear(email);
+    await userEvent.clear(password);
 
-    userEvent.type(firstName, 'tester');
-    userEvent.type(email, 'tester@testing.paradise');
-    userEvent.type(password, 'password');
+    await userEvent.type(firstName, 'tester');
+    await userEvent.type(email, 'tester@testing.paradise');
+    await userEvent.type(password, 'password');
 
     await waitFor(() => {
       expect(firstName).toHaveValue('tester');
@@ -159,9 +159,9 @@ describe('Signup Page', () => {
     renderPage();
     const { firstName, email, password, submit } = subjectsUnderTest();
 
-    userEvent.type(firstName, 'tester');
-    userEvent.type(email, 'tester@testing.paradise');
-    userEvent.type(password, 'password');
+    await userEvent.type(firstName, 'tester');
+    await userEvent.type(email, 'tester@testing.paradise');
+    await userEvent.type(password, 'password');
 
     await waitFor(() => {
       expect(firstName).toHaveValue('tester');
@@ -170,7 +170,7 @@ describe('Signup Page', () => {
       expect(submit).toBeEnabled();
     });
 
-    userEvent.click(submit);
+    await userEvent.click(submit);
 
     await waitFor(() => {
       const serverError = screen.getByText(/email must be unique/i);
@@ -186,9 +186,9 @@ describe('Signup Page', () => {
     const login = screen.getByText(/login/i);
     expect(login).toBeInTheDocument();
 
-    userEvent.type(firstName, 'User');
-    userEvent.type(email, 'user2@example.org');
-    userEvent.type(password, '709$3cR31');
+    await userEvent.type(firstName, 'User');
+    await userEvent.type(email, 'user2@example.org');
+    await userEvent.type(password, '709$3cR31');
 
     await waitFor(() => {
       expect(firstName).toHaveValue('User');
@@ -198,7 +198,7 @@ describe('Signup Page', () => {
     });
 
     // login should be gone from dom, since signup navigates to it...
-    userEvent.click(submit);
+    await userEvent.click(submit);
 
     // this fails with RHF but works with Formik
     // await waitForElementToBeRemoved(login);

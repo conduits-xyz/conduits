@@ -51,11 +51,11 @@ describe('Login Page', () => {
     renderPage();
     const { email, password, submit } = subjectsUnderTest();
     // click on email, type anything, clear and tab out to trigger error(s)
-    userEvent.click(email);
+    await userEvent.click(email);
     expect(email).toHaveFocus();
-    userEvent.type(email, 'will be cleared{backspace}{backspace}');
-    userEvent.clear(email);
-    userEvent.tab();
+    await userEvent.type(email, 'will be cleared{backspace}{backspace}');
+    await userEvent.clear(email);
+    await userEvent.tab();
 
     await waitFor(() => {
       const emailCheck = screen.getByText(/email is required/i);
@@ -64,7 +64,7 @@ describe('Login Page', () => {
     });
 
     // type invalid email and tab out to trigger error(s)
-    userEvent.type(email, 'Hello, World!');
+    await userEvent.type(email, 'Hello, World!');
     await waitFor(() => {
       // FIXME! rtl is eating space; dig more into normalizer options
       expect(email).toHaveValue('Hello,World!');
@@ -76,7 +76,7 @@ describe('Login Page', () => {
     });
 
     // type short password
-    userEvent.type(password, 'pas');
+    await userEvent.type(password, 'pas');
     await waitFor(() => {
       expect(password).toHaveValue('pas');
       const passwordCheck = screen.getByText(/password too short/i);
@@ -94,11 +94,11 @@ describe('Login Page', () => {
     expect(submit).toBeDisabled();
 
     // fill in correct details, submit button should be enabled
-    userEvent.clear(email);
-    userEvent.clear(password);
+    await userEvent.clear(email);
+    await userEvent.clear(password);
 
-    userEvent.type(email, 'tester@testing.paradise');
-    userEvent.type(password, 'password');
+    await userEvent.type(email, 'tester@testing.paradise');
+    await userEvent.type(password, 'password');
 
     await waitFor(() => {
       expect(email).toHaveValue('tester@testing.paradise');
@@ -112,8 +112,8 @@ describe('Login Page', () => {
     const { email, password, submit } = subjectsUnderTest();
     // eslint-disable-next-line testing-library/no-debug
     // screen.debug(email);
-    userEvent.type(email, 'tester@testing.paradise');
-    userEvent.type(password, 'password');
+    await userEvent.type(email, 'tester@testing.paradise');
+    await userEvent.type(password, 'password');
 
     await waitFor(() => {
       expect(email).toHaveValue('tester@testing.paradise');
@@ -121,7 +121,7 @@ describe('Login Page', () => {
       expect(submit).toBeEnabled();
     });
 
-    userEvent.click(submit);
+    await userEvent.click(submit);
 
     await waitFor(() => {
       const serverError = screen.getByText(/email or password is invalid/i);
@@ -137,8 +137,8 @@ describe('Login Page', () => {
     const signup = screen.getByText(/signup/i);
     expect(signup).toBeInTheDocument();
 
-    userEvent.type(email, 'user@example.org');
-    userEvent.type(password, '709$3cR31');
+    await userEvent.type(email, 'user@example.org');
+    await userEvent.type(password, '709$3cR31');
     await waitFor(() => {
       expect(email).toHaveValue('user@example.org');
       expect(password).toHaveValue('709$3cR31');
@@ -146,7 +146,7 @@ describe('Login Page', () => {
     });
 
     // signup should be gone from dom, since login navigates to home...
-    userEvent.click(submit);
+    await userEvent.click(submit);
 
     // this fails with RHF but works with Formik
     // await waitForElementToBeRemoved(signup);

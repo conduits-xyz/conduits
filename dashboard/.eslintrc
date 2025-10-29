@@ -25,7 +25,7 @@
   ],
   "overrides": [
     {
-      "files": "*.test.js",
+      "files": ["*.test.js", "*.test.jsx"],
       "rules": {
         "no-unused-expressions": "off"
       }

@@ -42,9 +42,10 @@ export default {
   // set the URL for the jsdom environment. It is reflected in properties
   // such as location.href; allows us to use relative paths
   // The test environment that will be used for testing
-  testURL: 'http://not-a-tea-pot',
-
   testEnvironment: 'jest-environment-jsdom',
+  testEnvironmentOptions: {
+    url: 'http://not-a-tea-pot'
+  },
 
   // fetch is not available in node, add it here
   setupFiles: ['<rootDir>/jest/setup.js'],
@@ -61,9 +62,9 @@ export default {
 
   // A map from regular expressions to paths to transformers
   transform: {
-    '^.+\\.jsx?$': '<rootDir>/jest/transforms/babel.js',
-    '^.+\\.s?css$': '<rootDir>/jest/transforms/css.js',
-    '^(?!.*\\.(js|jsx|ts|tsx|css|json)$)': '<rootDir>/jest/transforms/file.js'
+    '^.+\\.jsx?$': '<rootDir>/jest/transforms/babel.cjs',
+    '^.+\\.s?css$': '<rootDir>/jest/transforms/css.cjs',
+    '^(?!.*\\.(js|jsx|ts|tsx|css|json)$)': '<rootDir>/jest/transforms/file.cjs'
   },
 
   // Indicates whether each individual test should be reported during the run

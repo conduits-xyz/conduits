@@ -1,14 +1,9 @@
-// This is a custom Jest transformer turning file imports into filenames.
-// http://facebook.github.io/jest/docs/en/webpack.html
-//
-// Copied from create-react-app
+const path = require('path');
 
-import path from 'path';
-
-export default {
+module.exports = {
   process(_src, filename) {
     const assetFilename = JSON.stringify(path.basename(filename));
-    console.log('============>', assetFilename);
+
     if (filename.match(/\.svg$/)) {
       return `module.exports = {
         __esModule: true,
@@ -18,5 +13,5 @@ export default {
     }
 
     return `module.exports = ${assetFilename};`;
-  },
+  }
 };

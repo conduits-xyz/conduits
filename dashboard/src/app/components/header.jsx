@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux';
+import { useSelector, useDispatch, shallowEqual } from 'react-redux';
 
 import { logoutUser } from 'store/user/login';
 
@@ -75,7 +75,7 @@ function Header() {
     || state.conduit.del.inflight
     );
     return { loggedIn, isBusy };
-  });
+  }, shallowEqual);
 
   // see https://www.digitala11y.com/aria-busy-state/
   const busy = isBusy && <span

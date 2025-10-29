@@ -19,11 +19,11 @@ TBD...
 | install    | `npm install`      | installs dependencies                          |
 | lint       | `npm run lint`     | run eslint on `src` folder                     |
 | lint:fix   | `npm run lint:fix` | run eslint on `src` folder                     |
-| build      | `npm run build`    | compile to `build` folder                      |
-| start      | `npm run start`    | web serve `build` folder                       |
-| watch      | `npm run watch`    | watch/build changes to `app` and `web` folders |
-| test       | `npm run test `    | run tests and report coverage                  |
-| test:watch | `npm run test `    | run tests in watch mode without coverage       |
+| build      | `npm run build`    | compile to `dist` folder |
+| start      | `npm run start`    | web serve `dist` folder |
+| dev        | `npm run dev`      | run development server with HMR |
+| test       | `npm run test`     | run tests and report coverage                  |
+| test:watch | `npm run test`     | run tests in watch mode without coverage       |
 
 Note : Since the project uses [husky] to set up pre-commit hooks;
 sometimes it can get in the way of development when commiting assets
@@ -40,7 +40,8 @@ To that end, we have the following structure at the top level.
 
 ```console
 dashboard
-├── build          //<- generated and bundled files ready for deployment
+├── dist           //<- generated and bundled files ready for deployment
+├── index.html     //<- Vite entry point
 ├── LICENSE        //<- pick one of ISC, MIT or BSD for open source projects
 ├── package.json   //<- metadata relevant to the project
 ├── README.md      //<- high level overview and getting started instructions
@@ -53,12 +54,11 @@ All 'code' (including configuration to build the code) is under 'src' folder...
 src
 ├── api            //<- remote service facade used by the app goes here
 ├── app            //<- application source (ES6, JSX, SCSS, ...)
-├── cfg            //<- webpack build pipeline parts and setup
 ├── hooks          //<- react hooks
 ├── mocks          //<- for testing without backend
 ├── lib            //<- external libraries in source form (see ATTRIBUTION.md)
 ├── store          //<- contains state of the application
-└── web            //<- web related assets bundled with code in app and lib folders
+└── web            //<- static assets consumed by index.html
 ```
 
 > **NOTE:**
@@ -67,31 +67,27 @@ src
 > may use different services. Also instructive is to read the differences
 > between [facade and service](https://stackoverflow.com/questions/15038324/are-the-roles-of-a-service-and-a-fa%c3%a7ade-similar#15079958)
 
-### Webpack
+### Vite
 
-Webpack configuration files are under 'cfg' folder and organized as a collection
-of parts merged together by webpack.js which is the entry point to webpack.
+Vite configuration lives in `vite.config.js` at the project root. The
+configuration treats the top-level `index.html` file as the entry point,
+mirrors the historic webpack alias map so imports such as `import
+configureStore from 'store'` continue to work without rewrites, and publishes
+any static assets found in `src/web/assets`. Running `npm run dev` serves the
+application with hot module replacement, while `npm run build` emits the
+production bundle into `dist/`.
 
-```console
-cfg/
-├── babel.js       //<- for transpiling
-├── development.js //<- used in development mode
-├── eslint.js      //<- lint code
-├── optimize.js    //<- used in production mode (optimize, minify, ...)
-├── setup.js       //<- tell webpack how to bundle code and assets
-├── styles.js      //<- to process css and sass
-└── webpack.js     //<- kickstart webpack using this arrangement
-```
 
 ### Application
 
-Application code is under 'app' folder. The file main.js is the entry
-point and contains the 'shell' of a PWA.
+Application code is under 'app' folder. The file main.jsx is the entry
+point and contains the 'shell' of a PWA. React components and pages use the
+`.jsx` extension.
 
 ```console
 app
 ├── components     //<- reusable widgets within the app
-├── main.js        //<- app shell
+├── main.jsx       //<- app shell
 ├── main.scss      //<- app wide look and feel *may* go here
 ├── pages          //<- are pages or containers in a flow
 ```
@@ -104,16 +100,14 @@ way of organizing the store when using Redux.
 
 ### Web Assets
 
-HTML, templates, images, icons and other visual and structural assets are in
-the 'web' folder. These are then copied to the 'build' folder during the build
-process.
+HTML, templates, images, icons and other visual and structural assets live in
+the 'web/assets' folder. These are copied to the 'dist' folder during the
+build process alongside the compiled bundle that starts from the root level
+`index.html` file.
 
 ```console
 web
-├── assets
-├── index.ejs
-:
-└── manifest.json
+└── assets
 ```
 
 ### Third party libraries

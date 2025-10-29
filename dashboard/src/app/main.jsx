@@ -1,12 +1,8 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { render } from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
-
-// NOTE:
-// - do not import main.scss in this module
-// - main.scss is an entry point and is inlined
-// - main.scss should typically contain critical PRPL related css
+import './main.scss';
 
 import {
   BrowserRouter as Router,
@@ -47,4 +43,5 @@ Root.propTypes = {
 };
 
 const store = configureStore(/* rehydration-data-goes-here */);
-render(<Root store={store} />, document.getElementById('root'));
+const root = createRoot(document.getElementById('root'));
+root.render(<Root store={store} />);
