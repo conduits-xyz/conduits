@@ -6,7 +6,7 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=16"
+    "node": ">=20"
   },
   "repository": {
     "type": "git",
@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "lint": "stylelint src/**/*.{css,scss} --cache && eslint src --cache",
-    "lint:fix": "stylelint src/**/*.{css,scss} --fix && eslint --fix webpack jest src",
+    "lint:fix": "stylelint src/**/*.{css,scss} --fix && eslint --fix jest src",
     "build": "webpack --color --progress --env production --config webpack",
     "watch": "webpack-dev-server --progress --config webpack",
     "test": "npm run -s lint && vitest run",
@@ -117,6 +117,10 @@
     "webpack-merge": "^5.8.0",
     "vitest": "^0.34.1",
     "@testing-library/jest-dom": "^5.14.1"
+    "tailwindcss": "^4",
+    "daisyui": "^5",
+    "postcss": "^8",
+    "autoprefixer": "^10"
   },
   "browserslist": [
     "last 2 chrome versions",
