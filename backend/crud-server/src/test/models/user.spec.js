@@ -9,7 +9,7 @@ const { models, config } = require('./context');
 
 context('User model', () => {
   const fup = fakeUserProfile();
-  before('running tests', async () => {
+  beforeAll(async () => {
     await models.db.sync({ force: true });
   });
 
