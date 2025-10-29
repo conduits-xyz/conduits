@@ -28,7 +28,7 @@ describe('Conduit endpoint - basic', () => {
       ctId2,
       ctId3;
 
-    before('login as Jake', async function () {
+    beforeAll(async function () {
       // login
       const res = await Api()
         .post('/users/login')

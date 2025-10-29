@@ -116,10 +116,9 @@ context('Conduit model', () => {
     user = userObj.toJSON();
   });
 
-  after('populate for integration test', async function () {
-    this.timeout(4000); // <- needed to prevent timeout exceeded mocha error
+  afterAll(async () => {
     await generateTestData(user.id);
-  });
+  }, 4000);
 
   it('should store conduit', async () => {
     const expected = 'success';

@@ -73,7 +73,7 @@ describe('User endpoint)', () => {
   context('When authenticated', () => {
     let jakeUser = undefined;
 
-    before('login as Jake', async function () {
+    beforeAll(async function () {
       // login
       const res = await Api()
         .post('/users/login')
@@ -95,7 +95,7 @@ describe('User endpoint)', () => {
       expect(jwtDecoded.id).to.equal(jakeUser.id);
     });
 
-    after('logout Jake', async () => {
+    afterAll(async () => {
       jakeUser.token = '';
     });
 
