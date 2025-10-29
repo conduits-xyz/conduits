@@ -14,7 +14,7 @@ import { CreateConduitForm } from './form';
 //    break, making them a liability than adding value.
 describe('Create Conduit Form', () => {
   const renderForm = () => {
-    const changeView = jest.fn();
+    const changeView = vi.fn();
 
     // eslint-disable-next-line testing-library/render-result-naming-convention
     const result = renderComponentUnderTest(
