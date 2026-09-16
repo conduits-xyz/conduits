@@ -63,9 +63,10 @@ npm run test:all                     # + any browser/e2e tests
 npm run typecheck                    # every workspace
 
 cd services/gateway
+cp .env.example .env
 cp conduits.example.yaml conduits.yaml
-# fill in conduits.yaml and the env vars it references — see
-# services/gateway/README.md
+# walk through services/gateway/README.md's three-part tutorial —
+# it builds this same conduits.yaml up one working conduit at a time
 npm run gateway
 ```
 

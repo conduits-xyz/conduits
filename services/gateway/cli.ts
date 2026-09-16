@@ -1,8 +1,7 @@
 import { GOOGLE_AUTHORIZATION_PARAMS, scopesForPurpose, type GooglePurpose } from '@conduits/config'
 
 import { authorizeGoogle } from './google-auth-flow.ts'
-import { credentialStorePath, saveGoogleGrant } from './google-credential-store.ts'
-import { getFreshGoogleAccessToken, type GoogleTokenResult } from './google-token.ts'
+import { credentialStorePath, saveGoogleGrant, getFreshGoogleAccessToken, type GoogleTokenResult } from '@conduits/credential-store'
 import { createGoogleSheet } from './sheets-create.ts'
 import { parseFlags, isGooglePurpose } from './cli-flags.ts'
 
@@ -15,7 +14,7 @@ import { parseFlags, isGooglePurpose } from './cli-flags.ts'
 // conduits.yaml.
 
 async function runAuthGoogle(args: string[]): Promise<void> {
-  const flags = parseFlags(args)
+  const flags = parseFlags(args, ['purpose', 'name'])
   if (!isGooglePurpose(flags.purpose)) {
     throw new Error('auth google requires --purpose sheets|gmail')
   }
@@ -69,7 +68,7 @@ function accessTokenOrThrow(result: GoogleTokenResult, name: string, purpose: Go
 }
 
 async function runSheetsCreate(args: string[]): Promise<void> {
-  const flags = parseFlags(args)
+  const flags = parseFlags(args, ['name', 'title'])
   const name = flags.name ?? 'default'
   const title = flags.title ?? `Conduits — ${name}`
 

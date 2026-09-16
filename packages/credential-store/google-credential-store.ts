@@ -1,15 +1,16 @@
-import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
 import type { OAuthTokens } from 'remix/auth'
 import type { GooglePurpose } from '@conduits/config'
 
+import { readJsonFileOrDefault, writeJsonFileAtomic } from './atomic-file.ts'
+
 // A grant is self-contained on purpose (see this file's own callers):
 // clientId/clientSecret travel with the grant instead of being read
-// from the environment every time the gateway starts, so a running
-// gateway service never depends on GOOGLE_CLIENT_ID/SECRET still
-// being set — only `conduits auth google` (which creates or replaces a
-// grant) needs them, once, at authorization time.
+// from the environment every time a gateway starts, so a running
+// gateway never depends on GOOGLE_CLIENT_ID/SECRET still being set —
+// only the one-time authorization step that creates or replaces a
+// grant needs them.
 export interface StoredGoogleGrant {
   name: string
   purpose: GooglePurpose
@@ -22,6 +23,20 @@ export interface StoredGoogleGrant {
   // one).
   clientSecret?: string
   tokens: OAuthTokens
+  // Optional lifecycle metadata beyond the grant itself. A plain,
+  // single-operator CLI-authorized install never sets these — both
+  // default to unset and nothing in this package reads them. They
+  // exist for a caller that provisions Google credentials on someone
+  // else's behalf and needs to tell "this exact authorization" apart
+  // from "a replacement of it" across restarts: `generation` is meant
+  // to change only when such a caller intentionally issues a new
+  // authorization, never on an ordinary token refresh, and `status`
+  // can be set to 'invalid' once a generation is confirmed dead by the
+  // provider — tombstoning it in place rather than deleting the grant,
+  // so that same generation, seen again later, is recognizable as
+  // already-dead rather than being silently reinstated.
+  generation?: number
+  status?: 'active' | 'invalid'
 }
 
 type StoreFile = Record<string, Partial<Record<GooglePurpose, StoredGoogleGrant>>>
@@ -48,14 +63,7 @@ function reviveGrant(grant: StoredGoogleGrant): StoredGoogleGrant {
 }
 
 function readStore(storePath: string): StoreFile {
-  let parsed: StoreFile
-  try {
-    parsed = JSON.parse(fs.readFileSync(storePath, 'utf8')) as StoreFile
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {}
-    throw err
-  }
-
+  const parsed = readJsonFileOrDefault<StoreFile>(storePath, {})
   const revived: StoreFile = {}
   for (const [name, byPurpose] of Object.entries(parsed)) {
     revived[name] = {}
@@ -66,34 +74,6 @@ function readStore(storePath: string): StoreFile {
   return revived
 }
 
-// Best-effort permission tightening — some filesystems (notably on
-// Windows) don't support POSIX mode bits the same way; a failure here
-// must never block the actual write, only the permission hardening.
-function chmodBestEffort(target: string, mode: number): void {
-  try {
-    fs.chmodSync(target, mode)
-  } catch {
-    // Not supported on this filesystem — see doc above.
-  }
-}
-
-// Atomic: write to a temp file in the same directory (so the rename
-// below is on the same filesystem, hence atomic), lock down its
-// permissions, then rename over the real path. A crash or concurrent
-// read mid-write can never observe a partially-written credentials.json
-// — either the old complete file or the new complete file, never
-// neither/a fragment.
-function writeStoreAtomic(storePath: string, store: StoreFile): void {
-  const dir = path.dirname(storePath)
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
-  chmodBestEffort(dir, 0o700)
-
-  const tmpPath = path.join(dir, `.credentials.${process.pid}.${Date.now()}.tmp`)
-  fs.writeFileSync(tmpPath, JSON.stringify(store, null, 2), { mode: 0o600 })
-  chmodBestEffort(tmpPath, 0o600)
-  fs.renameSync(tmpPath, storePath)
-}
-
 export function loadGoogleGrant(storePath: string, name: string, purpose: GooglePurpose): StoredGoogleGrant | null {
   return readStore(storePath)[name]?.[purpose] ?? null
 }
@@ -101,16 +81,34 @@ export function loadGoogleGrant(storePath: string, name: string, purpose: Google
 export function saveGoogleGrant(storePath: string, grant: StoredGoogleGrant): void {
   const store = readStore(storePath)
   store[grant.name] = { ...store[grant.name], [grant.purpose]: grant }
-  writeStoreAtomic(storePath, store)
+  writeJsonFileAtomic(storePath, store)
 }
 
-// Removes one confirmed-dead grant — the rest of the store (other
-// names, or this same name's other purpose) is untouched.
+// Removes one confirmed-dead grant outright — the rest of the store
+// (other names, or this same name's other purpose) is untouched. Only
+// ever the right call for a grant nothing else is tracking generations
+// for (a one-shot CLI-authorized credential, or an explicit user
+// disconnect) — see markGoogleGrantInvalid below for the alternative a
+// generation-tracking caller should use instead.
 export function deleteGoogleGrant(storePath: string, name: string, purpose: GooglePurpose): void {
   const store = readStore(storePath)
   const forName = store[name]
   if (!forName || !forName[purpose]) return
   delete forName[purpose]
   if (Object.keys(forName).length === 0) delete store[name]
-  writeStoreAtomic(storePath, store)
+  writeJsonFileAtomic(storePath, store)
+}
+
+// The generation-preserving alternative to deleteGoogleGrant: a
+// confirmed-dead grant is tombstoned in place (status: 'invalid'),
+// keeping its generation and the rest of its material — see
+// StoredGoogleGrant's own doc on why deleting it here would lose
+// information a generation-tracking caller still needs. A no-op if
+// nothing is stored under this name/purpose.
+export function markGoogleGrantInvalid(storePath: string, name: string, purpose: GooglePurpose): void {
+  const store = readStore(storePath)
+  const grant = store[name]?.[purpose]
+  if (!grant) return
+  store[name] = { ...store[name], [purpose]: { ...grant, status: 'invalid' } }
+  writeJsonFileAtomic(storePath, store)
 }

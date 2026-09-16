@@ -1,15 +1,14 @@
 import { resolveEnvRef, parseGoogleRef, type GooglePurpose } from '@conduits/config'
 import type { ConduitConfig, GatewayEvent, GatewayRuntime } from '@conduits/gateway'
 
-import { credentialStorePath, deleteGoogleGrant } from './google-credential-store.ts'
-import { getFreshGoogleAccessToken } from './google-token.ts'
+import { credentialStorePath, deleteGoogleGrant, getFreshGoogleAccessToken } from '@conduits/credential-store'
 
 // This repo's own `GatewayRuntime` implementation. Fastmail's own
 // static API token needs no refresh/revocation at all — an operator
 // rotates a dead one by editing their own environment and restarting
 // the process (see server.ts: restart-to-reload). Google is the
-// opposite: a real, live refresh/invalidation story, backed by the
-// local credential store (google-credential-store.ts) instead of a
+// opposite: a real, live refresh/invalidation story, backed by
+// @conduits/credential-store's local flat-file store instead of a
 // database.
 
 function purposeForSuriType(suriType: string): GooglePurpose {
@@ -26,9 +25,10 @@ async function getFastmailCredential(config: ConduitConfig): Promise<string | nu
   }
 }
 
-// Delegates the actual refresh/revocation path to google-token.ts
-// (shared with the `conduits sheets create` CLI step) — this function
-// only adds the ConduitConfig-shaped, per-conduit logging on top.
+// Delegates the actual refresh/revocation path to
+// @conduits/credential-store (shared with the `conduits sheets create`
+// CLI step) — this function only adds the ConduitConfig-shaped,
+// per-conduit logging on top.
 async function getGoogleCredential(config: ConduitConfig): Promise<string | null> {
   if (config.credentialRef == null) return null
 

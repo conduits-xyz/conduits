@@ -4,7 +4,7 @@ import * as os from 'node:os'
 import * as assert from 'remix/assert'
 import { describe, it } from 'remix/test'
 
-import { loadGoogleGrant, saveGoogleGrant, deleteGoogleGrant, credentialStorePath } from '../google-credential-store.ts'
+import { loadGoogleGrant, saveGoogleGrant, deleteGoogleGrant, markGoogleGrantInvalid, credentialStorePath } from '../google-credential-store.ts'
 import type { StoredGoogleGrant } from '../google-credential-store.ts'
 
 function tempStorePath(): string {
@@ -103,5 +103,36 @@ describe('google-credential-store', () => {
       if (original === undefined) delete process.env.CONDUITS_CREDENTIAL_STORE_PATH
       else process.env.CONDUITS_CREDENTIAL_STORE_PATH = original
     }
+  })
+
+  it('round-trips generation/status, defaulting to undefined for a grant that never set them', () => {
+    const storePath = tempStorePath()
+    saveGoogleGrant(storePath, grant())
+    const loaded = loadGoogleGrant(storePath, 'personal', 'sheets')
+    assert.equal(loaded?.generation, undefined)
+    assert.equal(loaded?.status, undefined)
+
+    saveGoogleGrant(storePath, grant({ generation: 5, status: 'active' }))
+    const withGeneration = loadGoogleGrant(storePath, 'personal', 'sheets')
+    assert.equal(withGeneration?.generation, 5)
+    assert.equal(withGeneration?.status, 'active')
+  })
+
+  it('markGoogleGrantInvalid tombstones a grant in place, preserving its generation and material', () => {
+    const storePath = tempStorePath()
+    saveGoogleGrant(storePath, grant({ generation: 5, status: 'active' }))
+
+    markGoogleGrantInvalid(storePath, 'personal', 'sheets')
+
+    const loaded = loadGoogleGrant(storePath, 'personal', 'sheets')
+    assert.equal(loaded?.status, 'invalid')
+    assert.equal(loaded?.generation, 5, 'tombstoning must not touch generation')
+    assert.equal(loaded?.clientId, 'client-id', 'tombstoning must not discard the rest of the grant')
+  })
+
+  it('markGoogleGrantInvalid on a name/purpose never saved is a harmless no-op', () => {
+    const storePath = tempStorePath()
+    markGoogleGrantInvalid(storePath, 'nobody', 'sheets')
+    assert.equal(loadGoogleGrant(storePath, 'nobody', 'sheets'), null)
   })
 })
