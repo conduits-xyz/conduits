@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>conduits.xyz widget — fetch-enhanced form</title>
+    <link href="./style.css" rel="stylesheet" />
+  </head>
+  <body>
+    <!--
+      Enhanced widget: submits via fetch() instead of a full page
+      navigation, and reports success/failure inline. A real embed sets
+      conduitUrl below to its own conduit's URL directly; the gallery demo
+      wires it up dynamically via postMessage instead.
+    -->
+    <form id="widget-form" class="xyz-form">
+      <!-- h3, not h1/h2, and deliberately so — see basic-form/index.html's
+           identical comment: a real embed drops this into an existing
+           page's own heading structure and shouldn't assume it owns the
+           top of it. -->
+      <h3>Contact us</h3>
+      <div class="field">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" required />
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required />
+      </div>
+      <button type="submit">Submit</button>
+      <p class="status" role="status" aria-live="polite"></p>
+    </form>
+    <script type="module">
+      const form = document.getElementById('widget-form')
+      const status = form.querySelector('.status')
+      const submitButton = form.querySelector('button[type="submit"]')
+      let conduitUrl = null
+
+      function setStatus(state, text) {
+        status.textContent = text
+        status.dataset.state = state
+      }
+
+      // A 4xx response's own message is shown as-is (e.g. a missing
+      // sheet column); a 5xx or network failure shows a generic message
+      // instead.
+      async function describeSubmitFailure(response) {
+        if (response.status >= 400 && response.status < 500) {
+          try {
+            const body = await response.json()
+            if (typeof body.error === 'string' && body.error) return body.error
+          } catch {
+            // Fall through to the generic message below.
+          }
+        }
+        return 'Something went wrong. Please try again.'
+      }
+
+      // A real embed sets conduitUrl directly, above, and skips this.
+      if (!conduitUrl) {
+        submitButton.disabled = true
+        setStatus('idle', 'Not connected to a conduit yet.')
+      }
+
+      window.addEventListener('message', (event) => {
+        conduitUrl = event.data || null
+        submitButton.disabled = !conduitUrl
+        setStatus(conduitUrl ? '' : 'idle', conduitUrl ? '' : 'Not connected to a conduit yet.')
+      })
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault()
+
+        if (!conduitUrl) {
+          setStatus('error', 'This form has not been connected to a conduit yet.')
+          return
+        }
+
+        submitButton.disabled = true
+        setStatus('pending', 'Sending…')
+
+        try {
+          const response = await fetch(conduitUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fields: Object.fromEntries(new FormData(form)) }),
+          })
+
+          if (response.ok) {
+            setStatus('success', 'Thanks — your message was sent.')
+            form.reset()
+          } else {
+            setStatus('error', await describeSubmitFailure(response))
+          }
+        } catch {
+          setStatus('error', 'Something went wrong. Please try again.')
+        } finally {
+          submitButton.disabled = false
+        }
+      })
+    </script>
+  </body>
+</html>

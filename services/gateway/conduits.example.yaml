@@ -1,0 +1,53 @@
+# Copy to conduits.yaml. See README.md for the full setup for each
+# conduit below — env vars for fastmail, `conduits auth google` for the
+# googleSheets/gmail ones.
+conduits:
+  contact-form:
+    # POST (submitting the form) stays public, for a widget to call
+    # with no credential of its own; GET (reading submissions back) is
+    # gated behind the bearer token below.
+    methods: [POST, GET]
+    # Optional — omit this whole block if no method needs a bearer
+    # token. requiredFor must be a subset of methods above.
+    bearerToken:
+      value: env:CONTACT_FORM_TOKEN
+      requiredFor: [GET]
+    # Optional anti-spam rules — omit if you don't need any.
+    hiddenFields:
+      - name: website # a real submitter never fills this in
+        policy: honeypot
+    source:
+      type: fastmail
+      # The Fastmail JMAP identity (the "send as" address) to send
+      # from — there's no discovery tool for this yet, so find it
+      # yourself via Fastmail's own JMAP Identity/get call. A future
+      # CLI is meant to look this up for you.
+      identityId: REPLACE_WITH_YOUR_FASTMAIL_IDENTITY_ID
+      credential: env:FASTMAIL_TOKEN
+      recipients: [owner@example.com]
+      subject: New contact form submission
+
+  newsletter-signup:
+    methods: [POST, GET]
+    source:
+      type: googleSheets
+      # Run `conduits auth google --purpose sheets --name personal`
+      # once, then use whatever --name you chose here.
+      credential: google:personal
+      # From `conduits sheets create --name personal --title "..."`,
+      # run after the auth step above — NOT the id of a sheet you
+      # already have; see README.md's "Authorizing Google" for why.
+      spreadsheetId: REPLACE_WITH_THE_ID_CONDUITS_SHEETS_CREATE_PRINTS
+      # Optional — default is the sheet's own first tab.
+      sheet: Signups
+
+  event-rsvp:
+    methods: [POST]
+    source:
+      type: gmail
+      # Run `conduits auth google --purpose gmail --name personal`
+      # once — a separate grant from the sheets one above, even for the
+      # same Google account.
+      credential: google:personal
+      recipients: [owner@example.com]
+      subject: New RSVP

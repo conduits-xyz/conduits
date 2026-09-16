@@ -1,0 +1,59 @@
+/*
+ * Shared styling for the "Conduit URL" control (see conduit-url-input.js
+ * for the behavior) used by this directory's own demo pages —
+ * currently just examples/widget-gallery/index.html. A second,
+ * identical copy lives in packages/widgets/ for that directory's own demo
+ * pages — see conduit-url-input.js's own comment for why.
+ */
+.conduit-url-control {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.conduit-url-control:focus-within {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+.conduit-url-prefix {
+  display: flex;
+  align-items: center;
+  padding-left: 0.625rem;
+  background: #f5f5f5;
+  color: #666;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  border-right: 1px solid #e0e0e0;
+}
+
+.conduit-url-control input {
+  flex: 1;
+  min-width: 0;
+  height: 2.5rem;
+  padding: 0 0.625rem;
+  font-size: 1rem;
+  font-family: inherit;
+  border: none;
+  outline: none;
+}
+
+.conduit-url-status {
+  font-size: 0.85rem;
+  margin-top: 0.375rem;
+  min-height: 1.2em;
+}
+
+.conduit-url-status[data-state='ok'] {
+  color: #1a7a3a;
+}
+
+.conduit-url-status[data-state='error'] {
+  color: crimson;
+}
+
+.conduit-url-status[data-state='pending'] {
+  color: #666;
+}

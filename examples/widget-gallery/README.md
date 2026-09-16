@@ -1,17 +1,39 @@
-# Widgets Gallery
+# Widget gallery
 
-## Examples
+Every widget in [`../packages/widgets/`](../../packages/widgets/README.md), plus this
+directory's own reference forms, in one place — each wired to its own
+conduit URL you paste in, for trying all of them quickly without
+editing any files: [`basic-form`](../basic-form/README.md) and
+[`basic-ajax-form`](../basic-ajax-form/README.md) side by side in
+iframes, plus real
+[`<xyz-waitlist>`](../../packages/widgets/xyz-waitlist/README.md) and
+[`<xyz-reactions>`](../../packages/widgets/xyz-reactions/README.md) custom
+elements rendered directly on the page.
 
-- Classical HTML form
-- HTML form with ajax request
+A conduit URL is bound to one sheet tab, permanently — so one URL
+can't drive widgets that write different-shaped rows. This page has
+three tabs, one per widget group, each with its own "Conduit URL"
+field:
 
-## Prerequesites
+1. **Contact form** — shared by the plain and fetch-enhanced forms,
+   which both write the same `name`/`email` shape.
+2. **Waitlist widget** — writes `firstName`/`email`.
+3. **Reactions widget** — writes `subject`/`reaction`/`votedAt`.
 
-- Setup an active conduit using `conduit-server`
-- Run the `proxy-server` under PORT `80`
-- Update the example forms with the `curi`
-- Add `curi` to `/etc/host` to map the loop back address.
+Set up a conduit for each (with those columns already in its sheet —
+add them directly to the sheet if they're missing) and paste each
+one's own ID into its tab.
 
-### Issues faced
+## Running it
 
-- In `dev` mode `proxy-server` runs in port `5000` by default but curi is missing the port. Hence when submitting the `proxy-server` is unable to identify the `curi` since the `Host` would be `http://curi:<PORT>`
+Open `index.html` directly in a browser. Paste each conduit's own ID
+(its curi — see `conduit-url-input.js` in
+the parent directory) into its tab's field; the contact-form tab's two
+iframes pick theirs up via `postMessage`, and the waitlist/reactions
+custom elements are recreated with the resolved URL set as their own
+`conduit-url` attribute.
+
+That wiring is a demo convenience only — a real embed skips it and just
+hardcodes the widget's own conduit URL directly (the form's `action`
+for the plain widget, the fetch target for the enhanced one, the
+`conduit-url` attribute for the two custom elements).
