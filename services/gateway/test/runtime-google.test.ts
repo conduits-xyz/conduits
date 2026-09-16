@@ -6,8 +6,8 @@ import { describe, it, afterEach } from 'remix/test'
 
 import type { ConduitConfig } from '@conduits/gateway'
 import { gatewayServiceRuntime } from '../runtime.ts'
-import { loadGoogleGrant, saveGoogleGrant } from '../google-credential-store.ts'
-import type { StoredGoogleGrant } from '../google-credential-store.ts'
+import { loadGoogleGrant, saveGoogleGrant } from '@conduits/credential-store'
+import type { StoredGoogleGrant } from '@conduits/credential-store'
 
 // Mock the token endpoint, drive the real refresh path — proving this
 // runtime's getCredential()/invalidateCredential() go through the

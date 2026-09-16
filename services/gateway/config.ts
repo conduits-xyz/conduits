@@ -14,7 +14,15 @@ const SUPPORTED_SOURCE_TYPES = ['fastmail', 'googleSheets', 'gmail'] as const
 // doc on why a bad config fails the whole process rather than serving
 // with a partial or stale set of conduits.
 export function loadConduitConfigs(path: string): Map<string, ConduitConfig> {
-  const yamlText = fs.readFileSync(path, 'utf8')
+  let yamlText: string
+  try {
+    yamlText = fs.readFileSync(path, 'utf8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(`conduits.yaml not found at '${path}' — copy conduits.example.yaml to conduits.yaml (or set CONDUITS_CONFIG_PATH), then fill it in. See README.md.`)
+    }
+    throw err
+  }
   const configs = compileConduits(yamlText, { supportedSourceTypes: SUPPORTED_SOURCE_TYPES })
 
   const byCuri = new Map<string, ConduitConfig>()

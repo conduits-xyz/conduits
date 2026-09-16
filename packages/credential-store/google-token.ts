@@ -16,13 +16,30 @@ export type GoogleTokenResult =
   | { status: 'revoked' }
   | { status: 'refresh-failed'; error: unknown }
 
+export interface GoogleTokenOptions {
+  // Called instead of the default deleteGoogleGrant when Google
+  // confirms a grant dead. The default (when omitted) deletes the
+  // grant outright — appropriate for a CLI-authorized, single-operator
+  // credential nothing else is tracking generations for. A caller that
+  // does track credential generations (see StoredGoogleGrant's own
+  // doc) should pass this instead, to tombstone the grant in place —
+  // preserving its generation so that same generation, seen again
+  // later, is recognizable as already-dead rather than reinstalled.
+  onRevoked?: (storePath: string, name: string, purpose: GooglePurpose) => void
+}
+
 // Resolves a stored Google grant (see google-credential-store.ts) to a
 // fresh, usable access token, refreshing it first if it's within 60s
-// of expiring. Shared by the running gateway (runtime.ts, once per
-// request) and the one-time `conduits sheets create` CLI step
-// (cli.ts) so both take the exact same refresh/revocation path rather
-// than two copies that could drift.
-export async function getFreshGoogleAccessToken(name: string, purpose: GooglePurpose): Promise<GoogleTokenResult> {
+// of expiring. Shared by every runtime that operates a Google-backed
+// conduit — a self-hosted gateway process, a managed one, or the
+// one-time `conduits sheets create` CLI step — so all three take the
+// exact same refresh/revocation path rather than copies that could
+// drift.
+export async function getFreshGoogleAccessToken(
+  name: string,
+  purpose: GooglePurpose,
+  options: GoogleTokenOptions = {},
+): Promise<GoogleTokenResult> {
   const storePath = credentialStorePath()
   const grant = loadGoogleGrant(storePath, name, purpose)
   if (!grant) return { status: 'missing' }
@@ -34,9 +51,9 @@ export async function getFreshGoogleAccessToken(name: string, purpose: GooglePur
   if (!tokens.refreshToken) return { status: 'no-refresh-token' }
 
   // redirectUri is only consequential for the authorization/callback
-  // steps (see google-auth-flow.ts) — refreshExternalAuth's own token-
-  // refresh call never uses it, so a fixed placeholder here is
-  // harmless. clientSecret may be genuinely absent for a Desktop-type
+  // steps (see google-auth-flow.ts in services/gateway) — refreshExternalAuth's
+  // own token-refresh call never uses it, so a fixed placeholder here
+  // is harmless. clientSecret may be genuinely absent for a Desktop-type
   // OAuth client (see StoredGoogleGrant's own doc); passed through as
   // an empty string since createGoogleAuthProvider's own options
   // require a string — if Google's refresh endpoint turns out to
@@ -51,11 +68,15 @@ export async function getFreshGoogleAccessToken(name: string, purpose: GooglePur
 
   try {
     const refreshed = await refreshExternalAuth(provider, tokens)
+    // Spreads `...grant` first — an ordinary refresh only ever touches
+    // `tokens`, never `generation`/`status`, both of which (when
+    // present) carry forward unchanged.
     saveGoogleGrant(storePath, { ...grant, tokens: refreshed.tokens })
     return { status: 'ok', accessToken: refreshed.tokens.accessToken }
   } catch (err) {
     if (err instanceof Error && err.message === GOOGLE_REVOKED_GRANT_MESSAGE) {
-      deleteGoogleGrant(storePath, name, purpose)
+      if (options.onRevoked) options.onRevoked(storePath, name, purpose)
+      else deleteGoogleGrant(storePath, name, purpose)
       return { status: 'revoked' }
     }
     return { status: 'refresh-failed', error: err }
