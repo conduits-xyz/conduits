@@ -1,2 +1,44 @@
 # Stupid Apple!
 .DS_Store
+Thumbs.db
+
+node_modules/
+
+# Transient generated files (screenshots, scratch output, etc.) — not
+# meant to be committed.
+/tmp/
+
+# Local secrets/config for services/gateway — copy from a .env.example
+# in the same directory.
+.env
+.env.*
+!.env.example
+
+# Editor/IDE state — personal to each machine, not project config.
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Local Claude Code project state (settings, session/task locks) —
+# machine-local, never meant to be shared or versioned.
+.claude/
+
+*.log
+npm-debug.log*
+
+# Private keys/certs — should never be committed regardless of where
+# they show up.
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+
+# A self-hoster's own real config and local Google credential store —
+# see services/gateway/README.md. conduits.example.yaml is the
+# template that IS meant to be committed; a real conduits.yaml and the
+# credential store are never meant to leave the machine that made them.
+services/gateway/conduits.yaml
+credentials.json

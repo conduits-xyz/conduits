@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>conduits.xyz — try it live</title>
+    <link href="./style.css" rel="stylesheet" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <p class="eyebrow">Live demo — no backend code</p>
+        <h1>Watch a spreadsheet become a secured REST API</h1>
+        <p class="hero-lede">
+          Four short steps: connect three conduits, write real data,
+          watch access control do its job, then see the payoff. Every
+          request below hits a real conduit — nothing here is
+          simulated.
+        </p>
+      </header>
+
+      <div class="progress-row">
+        <ol class="progress" aria-label="Progress">
+          <li class="progress-step" data-step="1" tabindex="-1">
+            <span class="progress-dot">1</span>
+            <span class="progress-label">Connect</span>
+          </li>
+          <li class="progress-step" data-step="2" tabindex="-1">
+            <span class="progress-dot">2</span>
+            <span class="progress-label">Write</span>
+          </li>
+          <li class="progress-step" data-step="3" tabindex="-1">
+            <span class="progress-dot">3</span>
+            <span class="progress-label">Control access</span>
+          </li>
+          <li class="progress-step" data-step="4" tabindex="-1">
+            <span class="progress-dot">4</span>
+            <span class="progress-label">Payoff</span>
+          </li>
+        </ol>
+        <button type="button" id="reset-flow" class="reset-link">Reset and start over</button>
+      </div>
+
+      <main>
+        <header class="step-header">
+          <h2 id="step-title">Step 1 of 4 — Connect your conduits</h2>
+        </header>
+
+        <section id="step-1" class="step card">
+          <p>
+            You're about to create three conduits pointing at the
+            <strong>same Google Sheet</strong>, each with a different
+            access level — the exact permission model every conduit
+            you build from here on uses.
+          </p>
+          <ol class="racm-list">
+            <li>
+              <span class="racm-badge racm-badge--post">POST</span>
+              <span class="racm-copy"><strong>Write-only.</strong> Accepts new entries; nothing can be read back through it.</span>
+            </li>
+            <li>
+              <span class="racm-badge racm-badge--get">GET</span><span class="racm-badge racm-badge--patch">PATCH</span>
+              <span class="racm-copy"><strong>Read + update.</strong> Lists entries and edits them.</span>
+            </li>
+            <li>
+              <span class="racm-badge racm-badge--get">GET</span>
+              <span class="racm-copy"><strong>Read-only.</strong> Lists entries; any write is rejected outright, not just hidden.</span>
+            </li>
+          </ol>
+          <p class="callout">
+            Don't have three conduits yet? <a href="/auth/signup">Sign up free</a>
+            and create three against the same sheet, matching the
+            access levels above — then come back and paste their
+            URLs below.
+          </p>
+          <form id="conduit-form" class="field-group">
+            <div class="field">
+              <label for="conduit-1">Conduit 1 (POST)</label>
+              <div class="field-with-action">
+                <input id="conduit-1" name="conduit-1" type="url" required placeholder="https://conduits.xyz/api/…" />
+                <button type="button" class="button-secondary check-button" data-check="conduit-1">Check</button>
+              </div>
+              <p class="field-error" data-for="conduit-1"></p>
+            </div>
+            <div class="field">
+              <label for="conduit-2">Conduit 2 (GET, PATCH)</label>
+              <div class="field-with-action">
+                <input id="conduit-2" name="conduit-2" type="url" required placeholder="https://conduits.xyz/api/…" />
+                <button type="button" class="button-secondary check-button" data-check="conduit-2">Check</button>
+              </div>
+              <p class="field-error" data-for="conduit-2"></p>
+            </div>
+            <div class="field">
+              <label for="conduit-3">Conduit 3 (GET)</label>
+              <div class="field-with-action">
+                <input id="conduit-3" name="conduit-3" type="url" required placeholder="https://conduits.xyz/api/…" />
+                <button type="button" class="button-secondary check-button" data-check="conduit-3">Check</button>
+              </div>
+              <p class="field-error" data-for="conduit-3"></p>
+            </div>
+            <p class="hint">Check all three before proceeding — an unreachable or Inactive conduit is easy to miss otherwise, buried in real request errors later instead of caught here.</p>
+            <button type="submit" class="button-primary" disabled>Proceed to step 2</button>
+          </form>
+        </section>
+
+        <section id="step-2" class="step card" hidden>
+          <p class="active-conduit">Writing through <strong>Conduit 1 (write-only)</strong>: <code id="conduit-1-label"></code></p>
+          <div class="schema-error" id="schema-error-step2" hidden></div>
+          <p>
+            Submit an entry — it lands in the real spreadsheet
+            immediately. No server code, no database to provision; the
+            sheet <em>is</em> the database.
+          </p>
+          <form id="submit-form" class="field-group">
+            <div class="field">
+              <label for="name">Name</label>
+              <input id="name" name="name" type="text" required placeholder="Ada Lovelace" />
+            </div>
+            <div class="field">
+              <label for="email">Email</label>
+              <input id="email" name="email" type="email" required placeholder="ada@example.com" />
+            </div>
+            <button type="submit" class="button-primary">Submit</button>
+          </form>
+          <div class="fake-data-controls">
+            <!-- h2, not h3 — this step has no other heading between it
+                 and the page's own h1, and the other steps' own h2s
+                 ("You just built…", "Live requests") are siblings at
+                 the same level; h3 here would skip a level with
+                 nothing above it to skip from. -->
+            <h2>Or simulate real traffic</h2>
+            <p class="hint">Generate a batch of fake entries at once, the way real form submissions would arrive.</p>
+            <div class="button-row">
+              <button type="button" class="button-secondary" data-fake-count="5">Fake 5</button>
+              <button type="button" class="button-secondary" data-fake-count="10">Fake 10</button>
+              <button type="button" class="button-secondary" data-fake-count="15">Fake 15</button>
+              <button type="button" class="button-secondary" data-fake-count="20">Fake 20</button>
+            </div>
+          </div>
+          <p>Submitted so far: <strong id="total-count">0</strong></p>
+          <button type="button" id="to-step-3" class="button-primary" disabled>Proceed to step 3</button>
+
+          <details class="request-log">
+            <summary>Show request log</summary>
+            <div id="log-step2" class="console-log" aria-live="polite"></div>
+          </details>
+        </section>
+
+        <section id="step-3" class="step card" hidden>
+          <p class="active-conduit">Reading and updating through <strong>Conduit 2 (read + update)</strong>: <code id="conduit-2-label"></code></p>
+          <div class="schema-error" id="schema-error-step3" hidden></div>
+          <p>
+            The write-only conduit above can't do this — open its URL
+            directly in another tab and watch the gateway refuse it.
+            Each unvalidated row below gets randomly marked valid or
+            invalid, then the table refreshes.
+          </p>
+          <table id="data-table">
+            <thead>
+              <tr><th>Name</th><th>Email</th><th>Validity</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <p id="no-data-message" hidden>No data to display yet.</p>
+          <div class="button-row">
+            <button type="button" id="update-and-refetch" class="button-secondary">Fetch and update data validity</button>
+            <button type="button" id="to-step-4" class="button-primary" disabled>Proceed to step 4</button>
+          </div>
+
+          <details class="request-log">
+            <summary>Show request log</summary>
+            <div id="log-step3" class="console-log" aria-live="polite"></div>
+          </details>
+        </section>
+
+        <section id="step-4" class="step card" hidden>
+          <p class="active-conduit">Reading through <strong>Conduit 3 (read-only)</strong>: <code id="conduit-3-label"></code></p>
+          <h2>You just built a secured API from a spreadsheet</h2>
+          <p>
+            Three access levels, real writes, real reads — zero
+            backend code. Here's the validity split your read-only
+            conduit reports back:
+          </p>
+          <div class="chart">
+            <div class="chart-row">
+              <span class="chart-label">Valid</span>
+              <div class="chart-bar-track">
+                <div class="chart-bar chart-bar--valid" id="valid-bar"></div>
+              </div>
+              <span id="valid-percent" class="chart-value">0%</span>
+            </div>
+            <div class="chart-row">
+              <span class="chart-label">Invalid</span>
+              <div class="chart-bar-track">
+                <div class="chart-bar chart-bar--invalid" id="invalid-bar"></div>
+              </div>
+              <span id="invalid-percent" class="chart-value">0%</span>
+            </div>
+          </div>
+          <div class="payoff">
+            <p>
+              This is what every conduit gives you by default:
+              method-level access control, an IP allowlist, spam
+              filtering on writes, and now — a real result you can
+              see for yourself.
+            </p>
+            <a class="button-primary button-large" href="/auth/signup">Sign up free and build your own →</a>
+          </div>
+
+          <details class="request-log">
+            <summary>Show request log</summary>
+            <div id="log-step4" class="console-log" aria-live="polite"></div>
+          </details>
+        </section>
+      </main>
+    </div>
+
+    <!--
+      Not type="module": Chromium blocks a module script on a file://
+      page, and this example is meant to be opened directly with
+      nothing to install or build. app.js has no import/export of its
+      own, so a classic script works identically.
+    -->
+    <script src="./app.js"></script>
+  </body>
+</html>

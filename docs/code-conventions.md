@@ -38,36 +38,12 @@
     "public/assets/images/small", "public/assets/images/medium" and 
     "public/assets/images/large".
 
-# React is special
-  - Put things where they belong
+# Imports and dependencies
   - Organize `import` statements from least likely to change to most likely
     to change. Further organize import statements into two groups:
     - external dependencies come first
     - internal dependencies next
     - separate the two groups with a single blank line
-  - avoid class components
-  - use hooks but also don't go crazy in converting everything into a hook
   - write tests based on use cases and test for functionality instead of
     visual appearances
-  - `components`, `hooks` and `lib` folders are special. Stuff gets in here
-    iff code **will** be used by **`many`**. If you decide to move code into
-    any of these three folders then consider the following:
-    - these folders are specific to this project. So do not waste time
-      in trying to `design` them for a wider audience.
-    - we use redux for this project which maintains global state of the
-      application
-    - avoid prop drill downs but also don't agonize on how to avoid props
-    - since we use redux and want to avoid prop drill downs, feel free to
-      include redux as a dependency in your `component`; remember that this
-      component is application specific. Time spent on making it `generic`
-      could be used on more important and urgent tasks.
-    - containers and components:
-      - some components have multiple facets (parts of a whole); when it is
-        obvious then it is best to create a folder named after the component
-        to be the `container` and have a named file for each part inside
-        this folder.
-      - if a component has only one facet then it is best to implement the
-        component in a single file and place it under `components` itself.
-      - if in the future the component grows it can get its own container.
-    - consistency is important but dumb consistency is considered harmful
-  - please have a discussion before bringing adding external dependencies
+  - please have a discussion before adding external dependencies

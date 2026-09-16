@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>conduits.xyz widget — feedback</title>
+    <link href="../conduit-url-input.css" rel="stylesheet" />
+    <!-- In <head>, not down by the widget's own <script> — see
+         xyz-waitlist/index.html's identical comment for why. -->
+    <link href="./style.css" rel="stylesheet" />
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 28rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+        margin-bottom: 1.5rem;
+      }
+      .demo-card {
+        padding: 1.25rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+      }
+      .demo-card h2 {
+        margin-top: 0;
+        font-size: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Feedback widget</h1>
+    <p>Paste a conduit's own ID (the part your dashboard card shows) below
+      to try it — a real embed hardcodes a full conduit URL in its own
+      copy of the tag instead.</p>
+    <div class="field">
+      <label for="curi-input">Conduit URL</label>
+      <div class="conduit-url-control">
+        <span id="curi-prefix" class="conduit-url-prefix"></span>
+        <input id="curi-input" type="text" autocomplete="off" spellcheck="false" placeholder="L3-5bDHXD9EJ" />
+      </div>
+      <div id="curi-status" class="conduit-url-status" role="status" aria-live="polite"></div>
+    </div>
+
+    <!-- These h2s label the two demo variants on this page (which
+         scale you're looking at) — a different thing from the
+         widget's own `caption`, which is about what you're rating.
+         Both are shown here at once to demonstrate they're separate,
+         composable pieces of context. -->
+    <div class="demo-card">
+      <h2>5-star (default)</h2>
+      <xyz-feedback id="feedback-stars" subject="xyz-feedback-demo-stars" caption="How did we do?"></xyz-feedback>
+    </div>
+
+    <div class="demo-card">
+      <h2>10-point NPS</h2>
+      <xyz-feedback id="feedback-nps" scale="10" subject="xyz-feedback-demo-nps" caption="How did we do?"></xyz-feedback>
+    </div>
+
+    <script src="./xyz-feedback.js"></script>
+    <script src="../conduit-url-input.js"></script>
+    <script type="module">
+      // conduit-url is only read once, in connectedCallback, so
+      // re-configuring means recreating each element.
+      function reconfigure(id, extraAttrs) {
+        const fresh = document.createElement('xyz-feedback')
+        fresh.id = id
+        for (const [name, value] of Object.entries(extraAttrs)) {
+          fresh.setAttribute(name, value)
+        }
+        document.getElementById(id).replaceWith(fresh)
+      }
+
+      setupConduitUrlInput({
+        inputId: 'curi-input',
+        prefixId: 'curi-prefix',
+        statusId: 'curi-status',
+        storageKey: 'feedback',
+        onChange(url) {
+          const attrs = url
+            ? { subject: 'xyz-feedback-demo-stars', caption: 'How did we do?', 'conduit-url': url }
+            : { subject: 'xyz-feedback-demo-stars', caption: 'How did we do?' }
+          reconfigure('feedback-stars', attrs)
+          const npsAttrs = url
+            ? { subject: 'xyz-feedback-demo-nps', scale: '10', caption: 'How did we do?', 'conduit-url': url }
+            : { subject: 'xyz-feedback-demo-nps', scale: '10', caption: 'How did we do?' }
+          reconfigure('feedback-nps', npsAttrs)
+        },
+      })
+    </script>
+  </body>
+</html>

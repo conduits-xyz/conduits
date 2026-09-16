@@ -1,0 +1,215 @@
+/*
+ * Theming hook: every visual property a host page might want to override
+ * is a --xyz-* custom property, with a sane default — the same --xyz-*
+ * vocabulary every widget/form in this repo shares (examples/basic-form,
+ * examples/basic-ajax-form, packages/widgets/xyz-waitlist, packages/widgets/xyz-reactions,
+ * packages/widgets/xyz-contact-form). Set these once, on :root or any ancestor
+ * common to everything you embed, and every one of them picks up your
+ * brand at once, not just this widget.
+ *
+ * Deliberately NOT declared with a default value on `xyz-feedback` itself
+ * — see xyz-waitlist/style.css's own comment for the full reasoning: a
+ * custom property declared anywhere on this tag, at any specificity,
+ * always wins over one merely inherited from an ancestor, which would
+ * make a :root override silently do nothing. Every default instead lives
+ * as the fallback argument to var() at each actual use site below.
+ */
+xyz-feedback {
+  display: block;
+  font-family: var(--xyz-font, system-ui, sans-serif);
+  color: var(--xyz-fg, #1a1a1a);
+  box-sizing: border-box;
+}
+
+/* Self-containment: every element this widget draws has its own
+   padding/border math scoped to *this* box-sizing, never a host page's
+   ambient convention (or lack of one — content-box is the CSS default,
+   and a host that hasn't reset it must render this widget identically
+   to one that has). Scoped under the widget's own tag, so this can
+   never leak out and change how the host page's *other* content boxes
+   its own elements. */
+xyz-feedback *,
+xyz-feedback *::before,
+xyz-feedback *::after {
+  box-sizing: inherit;
+}
+
+/* A sensible, neutral default for the optional `caption` attribute —
+   a host page can still restyle it (e.g. an uppercase "eyebrow" look)
+   by reaching into this class the same way it already can for
+   .xyz-feedback-btn; this is just what it looks like with zero host
+   CSS at all. */
+.xyz-feedback-caption {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.xyz-feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--xyz-gap, 10px);
+}
+
+.xyz-feedback-scale {
+  display: flex;
+  gap: 0.375rem;
+  /* A real <fieldset> now (was a <div role="radiogroup">) — resets its
+     UA-default border/padding/margin/min-width so it behaves exactly
+     like the plain flex row it was before; fieldset's own default
+     min-width: min-content is the classic gotcha that would otherwise
+     let it overflow its flex/grid parent. */
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+/* The <legend> carries the same accessible name role="radiogroup" +
+   aria-label used to, but visually hidden — this scale is already
+   captioned by the page around it (the widget's own README/demo
+   label, or a host page's own copy), so a second, visible label here
+   would be redundant. Same visually-hidden technique as the radio
+   inputs themselves, just below. */
+.xyz-feedback-scale-legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.xyz-feedback-choice {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.xyz-feedback-choice input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.xyz-feedback-choice-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Stars: rendered largest-first in source order but visually reversed
+   with row-reverse, the standard pure-CSS star-rating trick — a
+   checked star and every star *before* it in the reversed row (i.e.
+   visually to its left, meaning a lower-or-equal value) picks up the
+   filled color via the general sibling combinator. */
+.xyz-feedback-scale--stars {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+}
+
+.xyz-feedback-scale--stars .xyz-feedback-choice-label {
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--xyz-border, #e0e0e0);
+}
+
+/* row-reverse means DOM order (5,4,3,2,1) runs opposite the visual
+   order — so "every choice at or after this one in the DOM" (the `~`
+   general sibling combinator) is exactly "this star and every star
+   visually to its left," the set a rating of this value should fill. */
+.xyz-feedback-scale--stars .xyz-feedback-choice:has(input:checked) .xyz-feedback-choice-label,
+.xyz-feedback-scale--stars .xyz-feedback-choice:has(input:checked) ~ .xyz-feedback-choice .xyz-feedback-choice-label,
+.xyz-feedback-scale--stars .xyz-feedback-choice:hover .xyz-feedback-choice-label,
+.xyz-feedback-scale--stars .xyz-feedback-choice:hover ~ .xyz-feedback-choice .xyz-feedback-choice-label {
+  color: var(--xyz-accent, #a30020);
+}
+
+.xyz-feedback-scale--nps .xyz-feedback-choice-label {
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: 1px solid var(--xyz-border, #e0e0e0);
+  border-radius: var(--xyz-radius, 6px);
+  background: var(--xyz-bg, #ffffff);
+}
+
+.xyz-feedback-scale--nps input:checked + .xyz-feedback-choice-label {
+  color: var(--xyz-accent-fg, #ffffff);
+  background: var(--xyz-accent, #a30020);
+  border-color: var(--xyz-accent, #a30020);
+}
+
+.xyz-feedback-choice input:focus-visible + .xyz-feedback-choice-label {
+  outline: 2px solid var(--xyz-accent, #a30020);
+  outline-offset: 1px;
+}
+
+.xyz-feedback-scale-endpoints {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -0.375rem;
+  font-size: 0.8rem;
+  color: var(--xyz-border, #e0e0e0);
+}
+
+.xyz-feedback-comment {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: inherit;
+  background: var(--xyz-bg, #ffffff);
+  border: 1px solid var(--xyz-border, #e0e0e0);
+  border-radius: var(--xyz-radius, 6px);
+  resize: vertical;
+}
+
+.xyz-feedback-comment:focus-visible {
+  outline: 2px solid var(--xyz-accent, #a30020);
+  outline-offset: 1px;
+}
+
+.xyz-feedback-btn {
+  align-self: flex-start;
+  height: 2.5rem;
+  padding: 0 1.25rem;
+  min-width: 8rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--xyz-accent-fg, #ffffff);
+  background: var(--xyz-accent, #a30020);
+  border: none;
+  border-radius: var(--xyz-radius, 6px);
+  cursor: pointer;
+}
+
+.xyz-feedback-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.xyz-feedback-status {
+  margin: 0;
+  font-size: 0.9rem;
+  min-height: 1.2em;
+}
+
+.xyz-feedback-status[data-state='error'] {
+  color: var(--xyz-error, crimson);
+}
+
+.xyz-feedback-status[data-state='success'] {
+  color: var(--xyz-success, #1a7a3a);
+}
+
+.xyz-feedback-status[data-state='idle'] {
+  opacity: 0.6;
+}
