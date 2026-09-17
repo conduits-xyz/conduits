@@ -217,6 +217,35 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
         (error: unknown) => error instanceof ConduitSourceError && error.status === 503,
       )
     })
+
+    it('includes Google\'s own error.message when the response body carries one, instead of just the bare status', async () => {
+      const mock = mockFetch(() => jsonResponse({ error: { code: 400, message: 'Unable to parse range: A1:ZZ10000' } }, 400))
+      restore = mock.restore
+
+      const client = createHttpSheetsClient()
+      const source = await client.connect('sheet-1', 'good-token')
+      await assert.rejects(
+        () => source.open().listRecords(),
+        (error: unknown) =>
+          error instanceof ConduitSourceError &&
+          error.status === 400 &&
+          error.message.includes('Unable to parse range: A1:ZZ10000'),
+      )
+    })
+
+    it('still surfaces a plain ConduitAuthError/ConduitSourceError, not a JSON-parsing error, for an empty or non-JSON error body', async () => {
+      const emptyBody = mockFetch(() => new Response('', { status: 401 }))
+      const client = createHttpSheetsClient()
+      await assert.rejects(() => client.connect('sheet-1', 'bad-token').then((s) => s.open().listRecords()), ConduitAuthError)
+      emptyBody.restore()
+
+      const htmlBody = mockFetch(() => new Response('<html>not json</html>', { status: 503, headers: { 'content-type': 'text/html' } }))
+      restore = htmlBody.restore
+      await assert.rejects(
+        () => client.connect('sheet-1', 'good-token').then((s) => s.open().listRecords()),
+        (error: unknown) => error instanceof ConduitSourceError && error.status === 503,
+      )
+    })
   })
 
   describe('metadata cache — TTL and credential partitioning', () => {
