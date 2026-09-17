@@ -1,6 +1,6 @@
 import * as http from 'node:http'
 import { createRequestListener } from 'remix/node-fetch-server'
-import { createGatewayRouter } from '@conduits/gateway'
+import { createGatewayRouter, createStaticRouteResolver } from '@conduits/gateway'
 
 import { loadConduitConfigs } from './config.ts'
 import { gatewayServiceRuntime } from './runtime.ts'
@@ -10,11 +10,12 @@ const port = process.env.PORT ? Number.parseInt(process.env.PORT, 10) : 8787
 
 // Whole-file, fail-fast: a bad conduits.yaml must not start the process
 // at all — see @conduits/config's own compileConduits doc.
-const configs = loadConduitConfigs(configPath)
+const { configs, bindings } = loadConduitConfigs(configPath)
 console.log(`[gateway-service] loaded ${configs.size} conduit(s) from ${configPath}`)
 
 const gatewayRouter = createGatewayRouter({
   resolveConfig: async (curi) => configs.get(curi) ?? null,
+  resolveRoute: createStaticRouteResolver(bindings),
   runtime: gatewayServiceRuntime,
 })
 

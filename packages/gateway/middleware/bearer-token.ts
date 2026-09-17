@@ -28,9 +28,10 @@ export function enforceBearerToken(): Middleware {
   }
 }
 
-// Unconditional, unlike enforceBearerToken() above — GET /api/:curi/schema
-// always requires a bearer token, regardless of tokenRequiredMethods. Used
-// by createSchemaGatewayMiddleware (pipeline.ts).
+// Unconditional, unlike enforceBearerToken() above — a conduit's
+// `<base>/.conduits/schema` action always requires a bearer token,
+// regardless of tokenRequiredMethods. Used by
+// createSchemaGatewayMiddleware (pipeline.ts).
 export function requireBearerToken(): Middleware {
   return async (context, next) => {
     const config = context.get(conduitConfigContext)

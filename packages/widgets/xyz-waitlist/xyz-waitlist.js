@@ -9,7 +9,7 @@
 //
 //   <script src="./xyz-waitlist.js"></script>
 //   <xyz-waitlist
-//     conduit-url="https://conduits.xyz/api/XXXXXXXX"
+//     conduit-url="https://conduits.xyz/XXXXXXXX"
 //     caption="Join our premium waitlist"
 //   ></xyz-waitlist>
 //

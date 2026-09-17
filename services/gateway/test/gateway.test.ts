@@ -1,7 +1,7 @@
 import * as assert from 'remix/assert'
 import { describe, it } from 'remix/test'
 
-import { createGatewayRouter } from '@conduits/gateway'
+import { createGatewayRouter, createStaticRouteResolver } from '@conduits/gateway'
 import { compileConduits } from '@conduits/config'
 
 import { gatewayServiceRuntime } from '../runtime.ts'
@@ -23,10 +23,11 @@ function uniqueSubject(label: string): string {
 }
 
 function buildRouter(yamlText: string) {
-  const configs = compileConduits(yamlText, { supportedSourceTypes: ['fastmail'] })
+  const { configs, bindings } = compileConduits(yamlText, { supportedSourceTypes: ['fastmail'] })
   const byCuri = new Map(configs.map((config) => [config.curi, config]))
   return createGatewayRouter({
     resolveConfig: async (curi) => byCuri.get(curi) ?? null,
+    resolveRoute: createStaticRouteResolver(bindings),
     runtime: gatewayServiceRuntime,
   })
 }
@@ -39,6 +40,7 @@ describe('gateway service (e2e against Mailpit)', () => {
     const router = buildRouter(`
 conduits:
   contact-form:
+    curi: contact-form
     methods: [POST]
     source:
       type: fastmail
@@ -48,8 +50,10 @@ conduits:
       subject: ${subject}
 `)
 
+    // No /api prefix — the default self-hosted route is bare /<curi>
+    // (see docs/data-model.md and README.md).
     const response = await router.fetch(
-      new Request('http://localhost/api/contact-form', {
+      new Request('http://localhost/contact-form', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ fields: { name: 'Ada', email: 'ada@example.com', message: 'Hello from the gateway service' } }),
@@ -62,11 +66,80 @@ conduits:
     assert.equal(messages[0]?.To[0]?.Address, 'owner@example.com')
   })
 
+  it('also works at an explicit custom route, distinct from its curi', async () => {
+    process.env.FASTMAIL_TOKEN = 'service-test-token'
+    const subject = uniqueSubject('gateway-service custom-route')
+
+    const router = buildRouter(`
+conduits:
+  contact-form:
+    curi: contact-form
+    methods: [POST]
+    routes:
+      - path: /forms/contact
+    source:
+      type: fastmail
+      identityId: service-test-identity
+      credential: env:FASTMAIL_TOKEN
+      recipients: [owner@example.com]
+      subject: ${subject}
+`)
+
+    const response = await router.fetch(
+      new Request('http://localhost/forms/contact', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ fields: { name: 'Ada', email: 'ada@example.com', message: 'Hello via a custom route' } }),
+      }),
+    )
+    assert.equal(response.status, 201)
+
+    // The default /<curi> route no longer exists once routes: is
+    // explicit — see @conduits/config's compileConduits doc.
+    const bareResponse = await router.fetch(new Request('http://localhost/contact-form', { method: 'POST' }))
+    assert.equal(bareResponse.status, 404)
+
+    const messages = await mailpitMessagesWithSubject(subject)
+    assert.equal(messages.length, 1)
+  })
+
+  it('accepts a plain HTML <form> POST (x-www-form-urlencoded) directly against the default /<curi> route', async () => {
+    process.env.FASTMAIL_TOKEN = 'service-test-token'
+    const subject = uniqueSubject('gateway-service form-encoded')
+
+    const router = buildRouter(`
+conduits:
+  contact-form:
+    curi: contact-form
+    methods: [POST]
+    source:
+      type: fastmail
+      identityId: service-test-identity
+      credential: env:FASTMAIL_TOKEN
+      recipients: [owner@example.com]
+      subject: ${subject}
+`)
+
+    const body = new URLSearchParams({ 'fields[name]': 'Ada', 'fields[email]': 'ada@example.com' })
+    const response = await router.fetch(
+      new Request('http://localhost/contact-form', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+      }),
+    )
+    assert.equal(response.status, 201)
+
+    const messages = await mailpitMessagesWithSubject(subject)
+    assert.equal(messages.length, 1)
+  })
+
   it('enforces methods/bearerToken/hiddenFields exactly as compiled — RACM rejects GET on a POST-only conduit', async () => {
     process.env.FASTMAIL_TOKEN = 'service-test-token'
     const router = buildRouter(`
 conduits:
   contact-form:
+    curi: contact-form
     methods: [POST]
     source:
       type: fastmail
@@ -76,13 +149,13 @@ conduits:
       subject: ${uniqueSubject('gateway-service racm')}
 `)
 
-    const response = await router.fetch(new Request('http://localhost/api/contact-form'))
+    const response = await router.fetch(new Request('http://localhost/contact-form'))
     assert.equal(response.status, 405)
   })
 
   it('404s for a curi this YAML never defined, same shape as the DB-backed gateway', async () => {
     const router = buildRouter('conduits: {}\n')
-    const response = await router.fetch(new Request('http://localhost/api/does-not-exist'))
+    const response = await router.fetch(new Request('http://localhost/does-not-exist'))
     assert.equal(response.status, 404)
   })
 })

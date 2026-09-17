@@ -1,22 +1,9 @@
-import { createController } from 'remix/router'
-
-import { gatewayRoutes } from './routes.ts'
-import type { GatewayContext } from './context.ts'
-import { createReadyzGatewayMiddleware, type GatewayDeps } from './pipeline.ts'
-
-// Its own controller with its own middleware pipeline
-// (createReadyzGatewayMiddleware, not createGatewayMiddleware) — see that
-// pipeline's own comment for what this route does and doesn't check.
-export function createGatewayReadyzController(deps: Pick<GatewayDeps, 'resolveConfig'>) {
-  return createController<typeof gatewayRoutes.readyz, GatewayContext, ReturnType<typeof createReadyzGatewayMiddleware>>(
-    gatewayRoutes.readyz,
-    {
-      middleware: createReadyzGatewayMiddleware(deps),
-      actions: {
-        read() {
-          return new Response(null, { status: 204 })
-        },
-      },
-    },
-  )
+// A conduit-path's `<base>/.conduits/readyz` action (see dispatch.ts) —
+// runs behind createReadyzGatewayMiddleware(deps): confirms the curi
+// resolves to an active conduit and passes allowlist/throttle; no RACM
+// or bearer-token gate, no data-source access. Distinct from the
+// Gateway-global `/.conduits/readyz` (global-readyz.ts), which checks
+// the process is up at all, independent of any one conduit.
+export function gatewayReadyzAction(): Response {
+  return new Response(null, { status: 204 })
 }

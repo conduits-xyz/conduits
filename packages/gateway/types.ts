@@ -44,9 +44,9 @@ export interface ConduitConfig {
   hiddenFormField: HiddenFormFieldRule[]
   // Opaque to this package — never parsed or interpreted here, only
   // handed back to GatewayRuntime.getCredential/invalidateCredential.
-  // Only the host that produced this config knows what it means
-  // (today: a google_connections/fastmail_connections row id, as a
-  // string).
+  // Only the host that produced this config knows what it means —
+  // e.g. a "kind:id" string naming a row in that host's own credential
+  // store (see services/gateway's own convention).
   credentialRef: string | null
 }
 

@@ -118,6 +118,7 @@ own part below — and fill in the id from step 4:
 ```yaml
 conduits:
   newsletter-signup:
+    curi: newsletter-signup
     methods: [POST, GET]
     source:
       type: googleSheets
@@ -127,6 +128,10 @@ conduits:
       # (and only) tab is the default when this is unset.
 ```
 
+The map key (`newsletter-signup:`) is only a label for this file —
+`curi:` is the actual public identifier your URL uses. They can differ
+freely; this guide just keeps them matching for clarity.
+
 **6. Start the gateway and verify:**
 
 ```sh
@@ -134,10 +139,10 @@ npm run start
 ```
 
 ```sh
-curl -i http://localhost:8787/api/newsletter-signup/readyz   # expect 204
-curl -i -X POST http://localhost:8787/api/newsletter-signup \
+curl -i http://localhost:8787/newsletter-signup/.conduits/readyz   # expect 204
+curl -i -X POST http://localhost:8787/newsletter-signup \
   -H 'Content-Type: application/json' \
-  -d '{"fields": {"email": "ada@example.com"}}'               # expect 201
+  -d '{"fields": {"email": "ada@example.com"}}'                    # expect 201
 ```
 
 Open the spreadsheet — the row should be there, with a `conduit-id`
@@ -165,6 +170,7 @@ npm run auth:google -- --purpose gmail --name personal
 
 ```yaml
   event-rsvp:
+    curi: event-rsvp
     methods: [POST]
     source:
       type: gmail
@@ -182,8 +188,8 @@ take effect, there's no file watcher:
 
 ```sh
 npm run start
-curl -i http://localhost:8787/api/event-rsvp/readyz          # expect 204
-curl -i -X POST http://localhost:8787/api/event-rsvp \
+curl -i http://localhost:8787/event-rsvp/.conduits/readyz    # expect 204
+curl -i -X POST http://localhost:8787/event-rsvp \
   -H 'Content-Type: application/json' \
   -d '{"fields": {"name": "Ada"}}'                            # expect 201, and a real email
 ```
@@ -215,6 +221,7 @@ CONTACT_FORM_TOKEN=...    # a bearer token YOU pick, e.g. `openssl rand -hex 16`
 
 ```yaml
   contact-form:
+    curi: contact-form
     methods: [POST, GET]
     bearerToken:
       value: env:CONTACT_FORM_TOKEN
@@ -234,11 +241,11 @@ CONTACT_FORM_TOKEN=...    # a bearer token YOU pick, e.g. `openssl rand -hex 16`
 
 ```sh
 npm run start
-curl -i http://localhost:8787/api/contact-form/readyz                        # expect 204
-curl -i -X POST http://localhost:8787/api/contact-form \
+curl -i http://localhost:8787/contact-form/.conduits/readyz                  # expect 204
+curl -i -X POST http://localhost:8787/contact-form \
   -H 'Content-Type: application/json' \
   -d '{"fields": {"name": "Ada", "email": "ada@example.com"}}'                # expect 201, and a real email
-curl -i http://localhost:8787/api/contact-form \
+curl -i http://localhost:8787/contact-form \
   -H "Authorization: Bearer $CONTACT_FORM_TOKEN"                              # expect 200, without the header expect 401
 ```
 
@@ -253,6 +260,30 @@ encrypted** — protected by filesystem permissions (written `0600`, its
 parent directory `0700`), the same trust model most local CLI
 credential stores use. Treat it like an SSH private key: don't commit
 it, don't copy it somewhere with looser permissions.
+
+## Routes
+
+Every conduit's default route is `/<curi>` — no `/api` prefix, and the
+YAML map key is never the curi (see Part 1's note above). To serve a
+conduit at a different path, or on a specific hostname, add an
+explicit `routes:` list instead:
+
+```yaml
+  contact-form:
+    curi: contact-form
+    routes:
+      - path: /forms/contact
+    ...
+```
+
+Omitting `routes:` entirely is equivalent to `routes: [{path: /<curi>}]`.
+`/.conduits/` is a reserved path segment — a route's own path may never
+use it, and every conduit's own metadata (`.conduits/schema`) and
+liveness (`.conduits/readyz`) both live under that route's own
+`.conduits/` child path, plus a Gateway-global `/.conduits/readyz`
+independent of any one conduit. See
+[`docs/gateway-api.md`](../../docs/gateway-api.md#routes) for the full
+route reference.
 
 ## Source types (reference)
 

@@ -9,7 +9,7 @@
 //
 //   <script src="./xyz-rsvp.js"></script>
 //   <xyz-rsvp
-//     conduit-url="https://conduits.xyz/api/XXXXXXXX"
+//     conduit-url="https://conduits.xyz/XXXXXXXX"
 //     caption="RSVP for our launch party"
 //   ></xyz-rsvp>
 //

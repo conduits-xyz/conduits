@@ -1,7 +1,7 @@
 import * as fs from 'node:fs'
 
 import { compileConduits } from '@conduits/config'
-import type { ConduitConfig } from '@conduits/gateway'
+import type { ConduitConfig, RouteBinding } from '@conduits/gateway'
 
 // Every suriType this runtime actually knows how to operate (see
 // runtime.ts) — listed here, not in @conduits/config, because that
@@ -9,11 +9,16 @@ import type { ConduitConfig } from '@conduits/gateway'
 // runtime can operate them.
 const SUPPORTED_SOURCE_TYPES = ['fastmail', 'googleSheets', 'gmail'] as const
 
+export interface LoadedConduits {
+  configs: Map<string, ConduitConfig>
+  bindings: RouteBinding[]
+}
+
 // Restart-to-reload: this reads the file once, at process start. No
 // watcher, no hot reload — see @conduits/config's own compileConduits
 // doc on why a bad config fails the whole process rather than serving
 // with a partial or stale set of conduits.
-export function loadConduitConfigs(path: string): Map<string, ConduitConfig> {
+export function loadConduitConfigs(path: string): LoadedConduits {
   let yamlText: string
   try {
     yamlText = fs.readFileSync(path, 'utf8')
@@ -23,9 +28,9 @@ export function loadConduitConfigs(path: string): Map<string, ConduitConfig> {
     }
     throw err
   }
-  const configs = compileConduits(yamlText, { supportedSourceTypes: SUPPORTED_SOURCE_TYPES })
+  const { configs, bindings } = compileConduits(yamlText, { supportedSourceTypes: SUPPORTED_SOURCE_TYPES })
 
   const byCuri = new Map<string, ConduitConfig>()
   for (const config of configs) byCuri.set(config.curi, config)
-  return byCuri
+  return { configs: byCuri, bindings }
 }

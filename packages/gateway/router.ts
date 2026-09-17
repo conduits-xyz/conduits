@@ -1,39 +1,16 @@
 import { createRouter } from 'remix/router'
 
-import { gatewayRoutes } from './routes.ts'
 import { parseJsonBody } from './middleware/body.ts'
 import { addCorsHeaders } from './middleware/cors.ts'
-import { createGatewayController } from './controller.ts'
-import { createGatewaySchemaController } from './schema-controller.ts'
-import { createGatewayReadyzController } from './readyz-controller.ts'
-import { createGatewayItemController } from './item-controller.ts'
+import { createGatewayDispatcher } from './dispatch.ts'
+import { globalReadyzAction } from './global-readyz.ts'
+import type { GatewayContext } from './context.ts'
 import type { GatewayDeps } from './pipeline.ts'
-
-// Answers the browser's CORS preflight directly — no config lookup, no
-// RACM check. Always allows every standard verb; if a conduit's own RACM
-// forbids a method, the real request still reaches enforceRacm() and gets
-// a normal, readable JSON 405 with an Allow header.
-function answerPreflight(): Response {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Max-Age': '86400',
-    },
-  })
-}
 
 // A separate router from the host's own page router: RACM, allowlist, and
 // throttle (./pipeline.ts) are this router's own access control,
 // public-API-shaped rather than session-shaped — no session()/csrf()
 // middleware here.
-//
-// Only param-independent middleware lives at the router level; route
-// params (context.params.curi) aren't populated until the router has
-// matched a specific route, so anything needing the resolved config
-// (./pipeline.ts) is controller-level middleware instead, on every
-// controller below.
 //
 // A factory, not a module-level singleton: every DB-touching or
 // credential-touching seam is injected via `deps`, supplied by whichever
@@ -45,21 +22,25 @@ export function createGatewayRouter(deps: GatewayDeps) {
     middleware: [addCorsHeaders(), parseJsonBody()],
   })
 
-  gatewayRouter.map(gatewayRoutes, createGatewayController(deps))
-  gatewayRouter.map(gatewayRoutes.schema, createGatewaySchemaController(deps))
-  gatewayRouter.map(gatewayRoutes.readyz, createGatewayReadyzController(deps))
-  gatewayRouter.map(gatewayRoutes.item, createGatewayItemController(deps))
+  // Gateway-global, checked before any conduit resolution — see
+  // global-readyz.ts. Registered as its own fully-literal pattern so it
+  // always outranks the catch-all below (remix's route-pattern matcher
+  // ranks a literal match more specific than a splat, regardless of
+  // registration order).
+  gatewayRouter.get('.conduits/readyz', globalReadyzAction)
 
-  // Registered directly on the router, not through gatewayRoutes/
-  // createGatewayController, so a preflight is answered before any
-  // per-action middleware runs. api/:curi/schema gets its own explicit
-  // registration — it unconditionally requires an Authorization header,
-  // which makes a cross-origin request "non-simple" under the Fetch/CORS
-  // spec and triggers a real preflight, same as any other non-GET/
-  // POST-with-plain-body call.
-  gatewayRouter.options('api/:curi', answerPreflight)
-  gatewayRouter.options('api/:curi/schema', answerPreflight)
-  gatewayRouter.options('api/:curi/:id', answerPreflight)
+  // Everything else: (host, path) -> route binding -> curi ->
+  // ConduitConfig, resolved by hand rather than through remix's own
+  // per-shape route patterns — see dispatch.ts for why a static pattern
+  // tree can't express this (route bindings are configured per
+  // deployment, unknown at module-load time). `conduitPath` itself is
+  // never read — the dispatcher re-derives everything it needs from
+  // context.url directly, and sets context.params.curi/id itself
+  // (there's no static `:curi`/`:id` pattern left for remix to
+  // populate them from — see context.ts), hence the cast: this route's
+  // real, matched param is only ever `conduitPath`.
+  const dispatch = createGatewayDispatcher(deps)
+  gatewayRouter.route('ANY', '*conduitPath', (context) => dispatch(context as unknown as GatewayContext))
 
   return gatewayRouter
 }

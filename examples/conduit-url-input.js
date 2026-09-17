@@ -13,9 +13,17 @@
 // a global function declared by a classic script is still reachable
 // from a module's own scope, it's just not an import.
 //
-// Every conduit's URL has the same shape — {origin}/api/{curi} — and a
-// conduit is commonly identified by its curi alone, not the full URL,
-// so this control accepts a bare curi as the common case.
+// A self-hosted Gateway's default conduit URL has the shape
+// {origin}/{curi}, no path prefix (see the Gateway README's own
+// routing section) — and a conduit is commonly identified by its curi
+// alone, not the full URL, so this control accepts a bare curi as the
+// common case. This assumes the demo page and the Gateway share one
+// origin, true for a self-hosted single-process deployment; it is not
+// a safe assumption for a deployment where conduit traffic lives on a
+// separate host from wherever this page itself is served (a managed
+// hosting arrangement with a split dashboard/data-plane, say) — paste
+// the full cross-origin URL directly in that case instead of a bare
+// curi.
 
 const CURI_PATTERN = /^[A-Za-z0-9_-]{12}$/
 
@@ -23,31 +31,27 @@ function knownOrigin() {
   return location.protocol === 'http:' || location.protocol === 'https:' ? location.origin : null
 }
 
-// Accepts a bare curi, a full URL against this exact page's own
-// origin, or a full URL copied from somewhere else entirely — in the
-// last case the curi is pulled out and rebuilt against *this* origin,
-// since a curi only ever resolves against the deployment that issued
-// it.
+// Accepts a bare curi (built against this page's own origin) or a
+// full http(s) URL, used exactly as given — including one on a
+// different origin entirely (a managed deployment's conduit traffic
+// commonly lives on a separate data-plane host from wherever this
+// page itself is served; see this file's own top comment). Only a
+// bare value this short is ever treated as "just a curi" — anything
+// that already parses as a URL is trusted as one, on whatever origin
+// it names.
 function resolveConduitUrl(rawValue, prefix) {
   const value = rawValue.trim()
   if (!value) return null
 
-  if (!prefix) {
-    // No known origin (opened via file://, not served live) — nothing
-    // to build a prefix from, so this behaves like a plain URL field.
-    try {
-      const url = new URL(value)
-      return url.protocol === 'http:' || url.protocol === 'https:' ? value : null
-    } catch {
-      return null
-    }
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? value : null
+  } catch {
+    // Not a full URL — fall through to the bare-curi case below.
   }
 
-  if (CURI_PATTERN.test(value)) return prefix + value
-  if (value.startsWith(prefix) && CURI_PATTERN.test(value.slice(prefix.length))) return value
-
-  const lastSegment = value.replace(/\/+$/, '').split('/').pop()
-  return lastSegment && CURI_PATTERN.test(lastSegment) ? prefix + lastSegment : null
+  if (!prefix) return null // no known origin (opened via file://) to build one against
+  return CURI_PATTERN.test(value) ? prefix + value : null
 }
 
 // options:
@@ -70,14 +74,14 @@ function setupConduitUrlInput({ inputId, prefixId, statusId, onChange, storageKe
   const prefixEl = document.getElementById(prefixId)
   const status = document.getElementById(statusId)
   const origin = knownOrigin()
-  const prefix = origin ? `${origin}/api/` : null
+  const prefix = origin ? `${origin}/` : null
   const storageStateKey = storageKey ? `conduit-url:${storageKey}` : null
 
   if (prefix) {
     prefixEl.textContent = prefix
   } else {
     prefixEl.hidden = true
-    input.placeholder = 'https://conduits.xyz/api/…'
+    input.placeholder = 'https://conduits.xyz/…'
   }
 
   function setStatus(state, text) {
@@ -119,8 +123,8 @@ function setupConduitUrlInput({ inputId, prefixId, statusId, onChange, storageKe
     onChange(null) // never wire up an unconfirmed URL, not even while checking
     setStatus('pending', 'Checking…')
     try {
-      // /readyz — reachable regardless of RACM or a bearer token.
-      const response = await fetch(`${url}/readyz`)
+      // .conduits/readyz — reachable regardless of RACM or a bearer token.
+      const response = await fetch(`${url}/.conduits/readyz`)
       if (response.ok) {
         setStatus('ok', 'Reachable.')
         onChange(url)

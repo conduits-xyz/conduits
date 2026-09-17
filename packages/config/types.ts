@@ -21,3 +21,8 @@ export type RawHiddenField = {
   value?: unknown
   forward?: unknown
 }
+
+export type RawRouteEntry = {
+  host?: unknown
+  path?: unknown
+}

@@ -9,8 +9,8 @@
  * Deliberately NOT declared with a default value on `.xyz-form` itself —
  * a custom property declared anywhere on this class, at any specificity,
  * always wins over one merely inherited from an ancestor, which would
- * make a :root override silently do nothing (verified directly — see
- * research/decisions/xyz-widget-configuration-api.md). Every default
+ * make a :root override silently do nothing (verified directly).
+ * Every default
  * instead lives as the fallback argument to var() at each actual use
  * site below.
  *

@@ -9,7 +9,7 @@
 //
 //   <script src="./xyz-contact-form.js"></script>
 //   <xyz-contact-form
-//     conduit-url="https://conduits.xyz/api/XXXXXXXX"
+//     conduit-url="https://conduits.xyz/XXXXXXXX"
 //     caption="Get in touch"
 //   ></xyz-contact-form>
 //

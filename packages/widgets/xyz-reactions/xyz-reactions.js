@@ -9,7 +9,7 @@
 //
 //   <script src="./xyz-reactions.js"></script>
 //   <xyz-reactions
-//     conduit-url="https://conduits.xyz/api/XXXXXXXX"
+//     conduit-url="https://conduits.xyz/XXXXXXXX"
 //     subject="my-blog-post-slug"
 //     caption="Was this post helpful?"
 //   ></xyz-reactions>
