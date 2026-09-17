@@ -1,8 +1,16 @@
 # Copy to conduits.yaml. See README.md for the full setup for each
 # conduit below — env vars for fastmail, `conduits auth google` for the
 # googleSheets/gmail ones.
+#
+# Each conduit below has two separate names: the map key
+# (contact-form, newsletter-signup, ...) is only a label for this file
+# — change it freely, it's never sent over the wire. `curi` is the
+# public, permanent identifier your widget/client actually calls
+# (default route: /<curi> — see README.md). Give it whatever value you
+# want your public URL to use; it doesn't have to match the label.
 conduits:
   contact-form:
+    curi: contact-form
     # POST (submitting the form) stays public, for a widget to call
     # with no credential of its own; GET (reading submissions back) is
     # gated behind the bearer token below.
@@ -28,6 +36,7 @@ conduits:
       subject: New contact form submission
 
   newsletter-signup:
+    curi: newsletter-signup
     methods: [POST, GET]
     source:
       type: googleSheets
@@ -42,6 +51,7 @@ conduits:
       sheet: Signups
 
   event-rsvp:
+    curi: event-rsvp
     methods: [POST]
     source:
       type: gmail

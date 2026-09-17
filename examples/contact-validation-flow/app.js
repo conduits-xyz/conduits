@@ -62,7 +62,7 @@ function isValidUrl(value) {
   }
 }
 
-// /readyz confirms a curi resolves to an active conduit — no RACM or
+// .conduits/readyz confirms a curi resolves to an active conduit — no RACM or
 // bearer-token gate, no data-source access — before this page ever
 // tries a real read/write against it. Without this check up front, an
 // inactive conduit (or a typo'd URL) surfaces as a wall of confusing
@@ -70,7 +70,7 @@ function isValidUrl(value) {
 // back at "step 1 was the actual problem."
 async function checkReady(url) {
   try {
-    const response = await fetch(`${url.replace(/\/$/, '')}/readyz`)
+    const response = await fetch(`${url.replace(/\/$/, '')}/.conduits/readyz`)
     return response.ok
   } catch {
     return false
@@ -142,7 +142,7 @@ for (const el of document.querySelectorAll('.progress-step')) {
 // --- Step 1: conduit URLs ---
 //
 // Discipline over convenience: each conduit must be explicitly checked
-// (its own button, its own /readyz round-trip) before "Proceed to step
+// (its own button, its own .conduits/readyz round-trip) before "Proceed to step
 // 2" ever enables — not one combined check fired at submit time. Typing
 // into a field after it's been checked un-checks it again; a URL that's
 // merely *typed* has never actually been confirmed reachable.

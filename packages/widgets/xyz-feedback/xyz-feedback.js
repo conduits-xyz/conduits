@@ -9,7 +9,7 @@
 //
 //   <script src="./xyz-feedback.js"></script>
 //   <xyz-feedback
-//     conduit-url="https://conduits.xyz/api/XXXXXXXX"
+//     conduit-url="https://conduits.xyz/XXXXXXXX"
 //     scale="5"
 //     subject="checkout-flow"
 //     caption="How did we do?"

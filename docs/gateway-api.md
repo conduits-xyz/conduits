@@ -8,10 +8,18 @@ and the human-facing YAML shape `packages/config` compiles into it (see
 
 ## Access control
 
-**curi + racm + allowlist is the default security model** — a public
-conduit URI (`curi`), gated by which HTTP methods are allowed (`racm`)
-and, optionally, by source IP (`allowlist`). No session cookie, no
-account to log into on this API surface at all.
+**racm + allowlist is the default security model** — every request is
+gated by which HTTP methods are allowed (`racm`) and, optionally, by
+source IP (`allowlist`). No session cookie, no account to log into on
+this API surface at all.
+
+A conduit's **CURI** ("conduit URI") is its stable, permanent public
+identifier — a proper noun, not itself a URL: the concrete route(s) a
+CURI is reachable at can change (a custom domain, a different
+Gateway) without the CURI itself changing. Choosing a semantic or
+opaque CURI is a usability choice, not a security control — CURI
+opacity is not authentication. Enforce access with racm/allowlist/a
+bearer token, not by relying on a CURI being hard to guess.
 
 ### allowlist shape
 
@@ -70,19 +78,34 @@ apply to create (`POST`), never to update or replace.
 
 ## Routes
 
-`GET/POST /api/:curi` (list/create — create accepts single-or-bulk,
-list accepts `?cursor=`/`?limit=`), `PATCH/PUT/DELETE /api/:curi` (bulk
-update/replace/destroy), `GET/PUT/PATCH/DELETE /api/:curi/:id` (single
-read/replace/update/destroy), `GET /api/:curi/readyz` (confirms the
-curi resolves to an active conduit — no RACM or bearer-token gate, and
-no data-source access at all, so it can't fail because of a revoked
-credential or similar; the widgets call this for their own health
-check before wiring up), `GET /api/:curi/schema` (field names/types
-this conduit's table has, under their widget-facing names if a
-`fieldMap` is set — a `drop-if-filled` hff field can never appear here,
-but a `pass-if-match` field with `include: true` does), `OPTIONS
-/api/:curi` and `OPTIONS /api/:curi/:id` (CORS preflight, answered
-directly — no conduit lookup, no RACM check).
+A conduit's route defaults to `/<curi>` at whatever host serves it —
+no `/api` prefix. An operator can bind a conduit to a different
+concrete path/host instead (see `services/gateway/README.md`'s own
+routing section); the CURI stays the same identifier either way.
+
+Below, `<route>` means "wherever this conduit is actually bound" —
+`/<curi>` by default:
+
+`GET/POST <route>` (list/create — create accepts single-or-bulk, list
+accepts `?cursor=`/`?limit=`), `PATCH/PUT/DELETE <route>` (bulk
+update/replace/destroy), `GET/PUT/PATCH/DELETE <route>/:id` (single
+read/replace/update/destroy), `GET <route>/.conduits/readyz` (confirms
+the route resolves to an active conduit — no RACM or bearer-token
+gate, and no data-source access at all, so it can't fail because of a
+revoked credential or similar; the widgets call this for their own
+health check before wiring up), `GET <route>/.conduits/schema` (field
+names/types this conduit's table has, under their widget-facing names
+if a `fieldMap` is set — a `drop-if-filled` hff field can never appear
+here, but a `pass-if-match` field with `include: true` does), `OPTIONS
+<route>`, `OPTIONS <route>/:id`, and `OPTIONS <route>/.conduits/schema`
+(CORS preflight, answered directly — no conduit lookup, no RACM
+check).
+
+`.conduits` is a reserved path segment (visually similar to
+`.well-known`, not claiming to be one) — a conduit's own route can
+never use it as one of its own path segments, and a Gateway process
+also reserves the top-level `/.conduits/readyz` for its own liveness,
+independent of any one conduit.
 
 **`/schema` always requires the bearer token, unconditionally** —
 unlike every other route, which is only token-gated for methods

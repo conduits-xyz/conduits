@@ -20,7 +20,7 @@ into your own page:
 </head>
 <body>
   <script src="./xyz-waitlist.js"></script>
-  <xyz-waitlist conduit-url="https://conduits.xyz/api/XXXXXXXX"></xyz-waitlist>
+  <xyz-waitlist conduit-url="https://conduits.xyz/XXXXXXXX"></xyz-waitlist>
 </body>
 ```
 

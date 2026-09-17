@@ -243,9 +243,9 @@ body {
 
 /* Shown only when the gateway rejects a write because a field name
    isn't a real column yet — a specific, actionable case (add the
-   column via the dashboard's own Schema editor), not a generic error,
-   so it gets its own distinct (amber, not red) treatment rather than
-   just another line in the request log most visitors never open. */
+   column directly in the sheet), not a generic error, so it gets its
+   own distinct (amber, not red) treatment rather than just another
+   line in the request log most visitors never open. */
 .schema-error {
   margin: 0 0 1rem;
   padding: 0.875rem 1rem;

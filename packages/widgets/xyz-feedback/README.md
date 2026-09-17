@@ -16,7 +16,7 @@ Two scales, one widget — set with the `scale` attribute:
 </head>
 <body>
   <script src="./xyz-feedback.js"></script>
-  <xyz-feedback conduit-url="https://conduits.xyz/api/XXXXXXXX" scale="10"></xyz-feedback>
+  <xyz-feedback conduit-url="https://conduits.xyz/XXXXXXXX" scale="10"></xyz-feedback>
 </body>
 ```
 

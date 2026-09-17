@@ -6,13 +6,22 @@ import { enforceThrottle } from './middleware/throttle.ts'
 import { trackHit } from './middleware/track-event.ts'
 import { loadConduitTable } from './middleware/source-client.ts'
 import { handleSourceErrors } from './middleware/source-errors.ts'
+import type { RouteMatch } from './route-binding.ts'
 import type { ConduitConfig, GatewayRuntime } from './types.ts'
 
 // What every gateway route needs injected: how to resolve a request's
-// curi into a ConduitConfig, and the runtime seam for everything that
-// touches state outside this package (credentials, metrics).
+// curi into a ConduitConfig, how to resolve a live request's (host,
+// pathname) into a route binding + suffix (see dispatch.ts) — a host
+// with a small, precomputed RouteBinding[] (self-hosted YAML, a
+// managed Gateway's local active-config cache) should implement this
+// with route-binding.ts's createStaticRouteResolver rather than
+// writing its own; a host whose conduit set is too large or dynamic to
+// precompute (backed by a live database, say) implements it directly
+// against its own store — and the runtime seam for everything else
+// that touches state outside this package (credentials, metrics).
 export interface GatewayDeps {
   resolveConfig: (curi: string) => Promise<ConduitConfig | null>
+  resolveRoute: (host: string | undefined, pathname: string) => Promise<RouteMatch | null>
   runtime: GatewayRuntime
 }
 

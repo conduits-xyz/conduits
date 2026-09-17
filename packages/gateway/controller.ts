@@ -1,13 +1,9 @@
-import { createController } from 'remix/router'
-
-import { gatewayRoutes } from './routes.ts'
 import type { GatewayContext } from './context.ts'
-import { createGatewayMiddleware, type GatewayDeps } from './pipeline.ts'
+import type { GatewayDeps } from './pipeline.ts'
 import { jsonResponse } from './response.ts'
-import { conduitTableContext } from './middleware/source-client.ts'
 import type { ConduitTable } from '@conduits/conduit'
 import { jsonBodyContext } from './middleware/body.ts'
-import { conduitConfigContext } from './middleware/conduit-config.ts'
+import { requireConduitConfig, requireConduitTable } from './require-context.ts'
 import { checkHiddenFormField } from './middleware/hidden-form-field.ts'
 import type { GatewayRuntime } from './types.ts'
 import {
@@ -100,145 +96,153 @@ async function runBulkWrite(
   return jsonResponse({ records })
 }
 
-export function createGatewayController(deps: GatewayDeps) {
-  return createController<typeof gatewayRoutes, GatewayContext, ReturnType<typeof createGatewayMiddleware>>(
-    gatewayRoutes,
-    {
-      middleware: createGatewayMiddleware(deps),
-      actions: {
-        async list(context) {
-          const config = context.get(conduitConfigContext)
-          const table = context.get(conduitTableContext)
-          const { fieldMap } = config.suriConfig
+// The "bare" conduit-path actions (see dispatch.ts) — list/create/bulk
+// update/bulk replace/bulk destroy, dispatched by HTTP method rather
+// than by remix's own route-action mapping (see dispatch.ts for why).
+// Each still runs behind createGatewayMiddleware(deps) — dispatch.ts
+// invokes that itself via run-middleware.ts, identically to how
+// remix's router used to.
+export interface GatewayActions {
+  list(context: GatewayContext): Promise<Response>
+  write(context: GatewayContext): Promise<Response>
+  bulkUpdate(context: GatewayContext): Promise<Response>
+  bulkReplace(context: GatewayContext): Promise<Response>
+  bulkDestroy(context: GatewayContext): Promise<Response>
+}
 
-          const cursor = context.url.searchParams.get('cursor') ?? undefined
-          const limitParam = context.url.searchParams.get('limit')
-          let limit: number | undefined
-          if (limitParam !== null) {
-            limit = Number(limitParam)
-            if (!Number.isInteger(limit) || limit <= 0) return jsonResponse({ error: 'Bad Request' }, 400)
-          }
+export function createGatewayActions(deps: GatewayDeps): GatewayActions {
+  return {
+    async list(context) {
+      const config = requireConduitConfig(context)
+      const table = requireConduitTable(context)
+      const { fieldMap } = config.suriConfig
 
-          const { records, nextCursor } = await table.listRecords({ cursor, limit })
-          return jsonResponse({
-            records: records.map((record) => wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) })),
-            nextCursor,
-          })
-        },
+      const cursor = context.url.searchParams.get('cursor') ?? undefined
+      const limitParam = context.url.searchParams.get('limit')
+      let limit: number | undefined
+      if (limitParam !== null) {
+        limit = Number(limitParam)
+        if (!Number.isInteger(limit) || limit <= 0) return jsonResponse({ error: 'Bad Request' }, 400)
+      }
 
-        async write(context) {
-          const config = context.get(conduitConfigContext)
-          const table = context.get(conduitTableContext)
-          const body = context.get(jsonBodyContext)
-          const rules = config.hiddenFormField
-          const { fieldMap } = config.suriConfig
-
-          // A single record (`{fields}`) or a bulk array (`{records:
-          // [{fields}, ...]}`) on this same create endpoint — shape alone
-          // decides which (see packages/conduit/record-shape.ts's isBulkBody).
-          if (isBulkBody(body)) {
-            // A source whose createRecords loops over independent,
-            // irreversible side effects (Fastmail/Gmail: each is a real,
-            // already-sent email) can't safely accept a bulk create — a
-            // partial-batch failure has no way to report what already
-            // succeeded, so a caller's retry would resend it. See
-            // ConduitSourceCapabilities.bulkCreate's own doc.
-            if (!sourceClients[config.suriType]?.capabilities().bulkCreate) {
-              return jsonResponse({ error: 'Bad Request' }, 400)
-            }
-            if (exceedsBulkLimit(body.records.length)) return jsonResponse({ error: 'Bad Request' }, 400)
-            const entries = extractBulkRecords(body.records, false)
-            if (!entries) return jsonResponse({ error: 'Bad Request' }, 400)
-
-            // _redirect is reserved everywhere, not just the single-record
-            // path below, so it never leaks into Sheets as literal data.
-            for (const entry of entries) {
-              if (REDIRECT_FIELD in entry) delete entry[REDIRECT_FIELD]
-            }
-
-            // A dropped record (tripped honeypot or mismatched pass-if-match)
-            // never reaches Sheets; everything else is appended in one
-            // createRecords call for the whole batch.
-            const outcomes = entries.map((entry) => checkHiddenFormField(rules, entry))
-            const toAppend: ConduitFields[] = []
-            for (const outcome of outcomes) {
-              if (outcome.outcome === 'ok') {
-                toAppend.push(toSourceFields(outcome.fields, fieldMap))
-              }
-            }
-            const appended = toAppend.length === 0 ? [] : await table.createRecords(toAppend)
-
-            let cursor = 0
-            const records: WireRecord[] = outcomes.map((outcome) => {
-              if (outcome.outcome === 'dropped') {
-                return wrapRecord({ id: randomRowId(), fields: outcome.fields })
-              }
-              const record = appended[cursor++]
-              return wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) })
-            })
-            const droppedCount = outcomes.filter((outcome) => outcome.outcome === 'dropped').length
-            await recordHoneypotDrops(deps.runtime, config.curi, droppedCount)
-            return jsonResponse({ records }, 201)
-          }
-
-          // A caller can't assign their own id on create (see packages/conduit/record-shape.ts).
-          if (hasBodyId(body)) return jsonResponse({ error: 'Bad Request' }, 400)
-
-          // Resolved and stripped from the fields before extractFields() below,
-          // so REDIRECT_FIELD never gets written into the sheet as a literal
-          // column.
-          const rawFields = (body as { fields?: Record<string, unknown> }).fields
-          const redirectTarget = resolveRedirectTarget(rawFields, context.request)
-          if (rawFields && REDIRECT_FIELD in rawFields) delete rawFields[REDIRECT_FIELD]
-
-          const fields = extractFields(body)
-          if (!fields) return jsonResponse({ error: 'Bad Request' }, 400)
-
-          const outcome = checkHiddenFormField(rules, fields)
-          if (outcome.outcome === 'dropped') {
-            // Same 201 (and _redirect handling) a real create returns — a
-            // dropped record must be indistinguishable from a real success.
-            await recordHoneypotDrops(deps.runtime, config.curi, 1)
-            if (redirectTarget) return Response.redirect(redirectTarget, 303)
-            return jsonResponse(wrapRecord({ id: randomRowId(), fields: outcome.fields }), 201)
-          }
-
-          const record = await table.createRecord(toSourceFields(outcome.fields, fieldMap))
-          if (redirectTarget) return Response.redirect(redirectTarget, 303)
-          return jsonResponse(wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) }), 201)
-        },
-
-        async bulkUpdate(context) {
-          const config = context.get(conduitConfigContext)
-          const table = context.get(conduitTableContext)
-          const body = context.get(jsonBodyContext)
-          const { fieldMap } = config.suriConfig
-          return runBulkWrite(table, fieldMap, body, 'update')
-        },
-
-        async bulkReplace(context) {
-          const config = context.get(conduitConfigContext)
-          const table = context.get(conduitTableContext)
-          const body = context.get(jsonBodyContext)
-          const { fieldMap } = config.suriConfig
-          return runBulkWrite(table, fieldMap, body, 'replace')
-        },
-
-        async bulkDestroy(context) {
-          const table = context.get(conduitTableContext)
-          const body = context.get(jsonBodyContext)
-          const ids = extractIds(body)
-          if (!ids) return jsonResponse({ error: 'Bad Request' }, 400)
-          if (exceedsBulkLimit(ids.length)) return jsonResponse({ error: 'Bad Request' }, 400)
-          if (hasDuplicateIds(ids)) return jsonResponse({ error: 'Bad Request' }, 400)
-
-          // One deleteRecords call for the whole batch — atomic, so a bad id
-          // can't leave some of the batch deleted and some not.
-          const ok = await table.deleteRecords(ids)
-          if (!ok) return jsonResponse({ error: 'Not Found' }, 404)
-          return jsonResponse({ records: ids.map((id) => ({ id, deleted: true })) })
-        },
-      },
+      const { records, nextCursor } = await table.listRecords({ cursor, limit })
+      return jsonResponse({
+        records: records.map((record) => wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) })),
+        nextCursor,
+      })
     },
-  )
+
+    async write(context) {
+      const config = requireConduitConfig(context)
+      const table = requireConduitTable(context)
+      const body = context.get(jsonBodyContext)
+      const rules = config.hiddenFormField
+      const { fieldMap } = config.suriConfig
+
+      // A single record (`{fields}`) or a bulk array (`{records:
+      // [{fields}, ...]}`) on this same create endpoint — shape alone
+      // decides which (see packages/conduit/record-shape.ts's isBulkBody).
+      if (isBulkBody(body)) {
+        // A source whose createRecords loops over independent,
+        // irreversible side effects (Fastmail/Gmail: each is a real,
+        // already-sent email) can't safely accept a bulk create — a
+        // partial-batch failure has no way to report what already
+        // succeeded, so a caller's retry would resend it. See
+        // ConduitSourceCapabilities.bulkCreate's own doc.
+        if (!sourceClients[config.suriType]?.capabilities().bulkCreate) {
+          return jsonResponse({ error: 'Bad Request' }, 400)
+        }
+        if (exceedsBulkLimit(body.records.length)) return jsonResponse({ error: 'Bad Request' }, 400)
+        const entries = extractBulkRecords(body.records, false)
+        if (!entries) return jsonResponse({ error: 'Bad Request' }, 400)
+
+        // _redirect is reserved everywhere, not just the single-record
+        // path below, so it never leaks into Sheets as literal data.
+        for (const entry of entries) {
+          if (REDIRECT_FIELD in entry) delete entry[REDIRECT_FIELD]
+        }
+
+        // A dropped record (tripped honeypot or mismatched pass-if-match)
+        // never reaches Sheets; everything else is appended in one
+        // createRecords call for the whole batch.
+        const outcomes = entries.map((entry) => checkHiddenFormField(rules, entry))
+        const toAppend: ConduitFields[] = []
+        for (const outcome of outcomes) {
+          if (outcome.outcome === 'ok') {
+            toAppend.push(toSourceFields(outcome.fields, fieldMap))
+          }
+        }
+        const appended = toAppend.length === 0 ? [] : await table.createRecords(toAppend)
+
+        let cursor = 0
+        const records: WireRecord[] = outcomes.map((outcome) => {
+          if (outcome.outcome === 'dropped') {
+            return wrapRecord({ id: randomRowId(), fields: outcome.fields })
+          }
+          const record = appended[cursor++]
+          return wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) })
+        })
+        const droppedCount = outcomes.filter((outcome) => outcome.outcome === 'dropped').length
+        await recordHoneypotDrops(deps.runtime, config.curi, droppedCount)
+        return jsonResponse({ records }, 201)
+      }
+
+      // A caller can't assign their own id on create (see packages/conduit/record-shape.ts).
+      if (hasBodyId(body)) return jsonResponse({ error: 'Bad Request' }, 400)
+
+      // Resolved and stripped from the fields before extractFields() below,
+      // so REDIRECT_FIELD never gets written into the sheet as a literal
+      // column.
+      const rawFields = (body as { fields?: Record<string, unknown> }).fields
+      const redirectTarget = resolveRedirectTarget(rawFields, context.request)
+      if (rawFields && REDIRECT_FIELD in rawFields) delete rawFields[REDIRECT_FIELD]
+
+      const fields = extractFields(body)
+      if (!fields) return jsonResponse({ error: 'Bad Request' }, 400)
+
+      const outcome = checkHiddenFormField(rules, fields)
+      if (outcome.outcome === 'dropped') {
+        // Same 201 (and _redirect handling) a real create returns — a
+        // dropped record must be indistinguishable from a real success.
+        await recordHoneypotDrops(deps.runtime, config.curi, 1)
+        if (redirectTarget) return Response.redirect(redirectTarget, 303)
+        return jsonResponse(wrapRecord({ id: randomRowId(), fields: outcome.fields }), 201)
+      }
+
+      const record = await table.createRecord(toSourceFields(outcome.fields, fieldMap))
+      if (redirectTarget) return Response.redirect(redirectTarget, 303)
+      return jsonResponse(wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) }), 201)
+    },
+
+    async bulkUpdate(context) {
+      const config = requireConduitConfig(context)
+      const table = requireConduitTable(context)
+      const body = context.get(jsonBodyContext)
+      const { fieldMap } = config.suriConfig
+      return runBulkWrite(table, fieldMap, body, 'update')
+    },
+
+    async bulkReplace(context) {
+      const config = requireConduitConfig(context)
+      const table = requireConduitTable(context)
+      const body = context.get(jsonBodyContext)
+      const { fieldMap } = config.suriConfig
+      return runBulkWrite(table, fieldMap, body, 'replace')
+    },
+
+    async bulkDestroy(context) {
+      const table = requireConduitTable(context)
+      const body = context.get(jsonBodyContext)
+      const ids = extractIds(body)
+      if (!ids) return jsonResponse({ error: 'Bad Request' }, 400)
+      if (exceedsBulkLimit(ids.length)) return jsonResponse({ error: 'Bad Request' }, 400)
+      if (hasDuplicateIds(ids)) return jsonResponse({ error: 'Bad Request' }, 400)
+
+      // One deleteRecords call for the whole batch — atomic, so a bad id
+      // can't leave some of the batch deleted and some not.
+      const ok = await table.deleteRecords(ids)
+      if (!ok) return jsonResponse({ error: 'Not Found' }, 404)
+      return jsonResponse({ records: ids.map((id) => ({ id, deleted: true })) })
+    },
+  }
 }

@@ -6,16 +6,18 @@ it, only what's needed to build against it quickly.
 [`packages/conduit/INTEGRATIONS.md`](../packages/conduit/INTEGRATIONS.md)
 covers the source-integration contract if you're adding a new backend.
 
-**Vocabulary used throughout:** **curi** — a conduit's own public
-identifier (the map key in `conduits.yaml`); a bare curi
+**Vocabulary used throughout:** **CURI** — a conduit's own stable
+public identifier (the explicit `curi:` field in `conduits.yaml` — not
+the map key, which is only a local label); a bare curi
 (`contact-form`) and a full URL
-(`https://your-gateway.example/api/contact-form`) are both valid
-wherever this guide accepts a conduit URL. **RACM** — which HTTP
-methods a conduit allows (`methods:` in YAML). **Allowlist** — the
-optional IP restriction. **Schema** — `GET /api/:curi/schema`, the
-field names/types a conduit's table has. **Field map** — the optional
-widget-facing-name → real-column-name translation
-(`fieldMap:` in YAML).
+(`https://your-gateway.example/contact-form`) are both valid wherever
+this guide accepts a conduit URL. A CURI is a proper noun, not a URL —
+see [`docs/gateway-api.md`](gateway-api.md#access-control). **RACM** —
+which HTTP methods a conduit allows (`methods:` in YAML).
+**Allowlist** — the optional IP restriction. **Schema** — `GET
+<route>/.conduits/schema`, the field names/types a conduit's table
+has. **Field map** — the optional widget-facing-name →
+real-column-name translation (`fieldMap:` in YAML).
 
 **Contents:** [Concepts](#concepts) ·
 [Tutorial: your first widget](#tutorial-your-first-widget-end-to-end) ·
@@ -30,28 +32,28 @@ Beyond the vocabulary above:
 | Term | Meaning |
 |:-----|:--------|
 | **Wire envelope** | `{fields: {...}}` in, `{id, createdTime, fields: {...}}` out for a single record; a list is `{records: [...]}`. Keeps `id`/`createdTime` out of a record's own data namespace. |
-| **curi resolution** | A bare curi (`XXXXXXXX`) and a full URL (`https://host/api/XXXXXXXX`) are both valid wherever this guide accepts a conduit URL, resolved against the calling page's own origin. |
+| **curi resolution** | A bare curi (`XXXXXXXX`) and a full URL (`https://host/XXXXXXXX`) are both valid wherever this guide accepts a conduit URL — a bare curi resolves against the calling page's own origin. |
 
 ## Tutorial: your first widget, end to end
 
 **1. Get a conduit URL.** Define one in your gateway's `conduits.yaml`
 (see [`services/gateway/README.md`](../services/gateway/README.md)) —
-its map key is the curi — or ask whoever runs the gateway you're
-building against for the URL.
+give it an explicit `curi:` field — or ask whoever runs the gateway
+you're building against for the URL.
 
 **2. Confirm it's reachable before wiring anything up.**
 
 ```js
-const ok = (await fetch(`${conduitUrl}/readyz`)).ok
+const ok = (await fetch(`${conduitUrl}/.conduits/readyz`)).ok
 ```
 
 ```sh
-curl -i "$CONDUIT_URL/readyz"   # 204 = reachable
+curl -i "$CONDUIT_URL/.conduits/readyz"   # 204 = reachable
 ```
 
-`/readyz` needs no RACM, no token, and never touches the underlying
-sheet — a failure here means the URL itself is wrong (or the conduit's
-inactive), not a transient data-source problem. See
+`.conduits/readyz` needs no RACM, no token, and never touches the
+underlying sheet — a failure here means the URL itself is wrong (or
+the conduit's inactive), not a transient data-source problem. See
 [Explanation](#explanation) for why it's a separate route.
 
 **3. Write a record.**
@@ -106,7 +108,7 @@ its conduit from an attribute:
 
 ```html
 <script src="xyz-waitlist.js"></script>
-<xyz-waitlist conduit-url="https://your-domain/api/XXXXXXXX"></xyz-waitlist>
+<xyz-waitlist conduit-url="https://your-domain/XXXXXXXX"></xyz-waitlist>
 ```
 
 Copy the file, drop it next to your page, done. Read the widget's own
@@ -115,9 +117,8 @@ comment. Attributes: see [Reference](#reference) below.
 
 Testing against your own locally running gateway (`npm run gateway` in
 `services/gateway`, default port `8787`)? `conduit-url` is just
-`{origin}/api/{curi}` — point it at
-`http://localhost:8787/api/your-curi`, no different from any other
-origin.
+`{origin}/{curi}` — point it at
+`http://localhost:8787/your-curi`, no different from any other origin.
 
 ### Accept a bare curi, not just a full URL
 
@@ -176,7 +177,7 @@ successful, non-fetch submission redirects there instead of showing
 the raw JSON response:
 
 ```html
-<form method="POST" action="https://your-domain/api/XXXXXXXX">
+<form method="POST" action="https://your-domain/XXXXXXXX">
   <input type="hidden" name="_redirect" value="/thanks">
 </form>
 ```
@@ -204,8 +205,8 @@ curl "$CONDUIT_URL" -H "Authorization: Bearer $TOKEN"
 
 Regenerating a token invalidates the old one immediately — a caller
 still using it gets `401` on its very next request, no grace period.
-`GET /api/:curi/schema` always requires a token, even for a conduit
-with no method marked token-required at all. Token generation,
+`GET <route>/.conduits/schema` always requires a token, even for a
+conduit with no method marked token-required at all. Token generation,
 hashing, and the fail-closed behavior when no token has ever been
 issued are covered in
 [`docs/gateway-api.md`](gateway-api.md#bearer-token).
@@ -214,15 +215,19 @@ issued are covered in
 
 ### Routes
 
+`<route>` means "wherever this conduit is bound" — `/<curi>` by
+default, no `/api` prefix (see
+[`docs/gateway-api.md`](gateway-api.md#routes)).
+
 | Route | Extra auth | Success | Notes |
 |:------|:-----------|:--------|:------|
-| `GET /api/:curi` | — | `200 {records, nextCursor}` | `?cursor=`/`?limit=` |
-| `POST /api/:curi` | — | `201` | single `{fields}` or bulk `{records: [...]}` (max 10), decided by shape |
-| `GET/PUT/PATCH/DELETE /api/:curi/:id` | — | `200` / `200 {id, deleted: true}` | body must not also carry `id` |
-| `PUT/PATCH/DELETE /api/:curi` (bulk) | — | `200 {records}` | atomic — one bad id/field fails the whole batch |
-| `GET /api/:curi/readyz` | none at all | `204` | see [Tutorial](#tutorial-your-first-widget-end-to-end) step 2 |
-| `GET /api/:curi/schema` | token, always | `200 {fields: [...]}` | field names under their widget-facing names if a field map is set |
-| `OPTIONS /api/:curi[/:id]` | — | `204` | CORS preflight, no conduit lookup |
+| `GET <route>` | — | `200 {records, nextCursor}` | `?cursor=`/`?limit=` |
+| `POST <route>` | — | `201` | single `{fields}` or bulk `{records: [...]}` (max 10), decided by shape |
+| `GET/PUT/PATCH/DELETE <route>/:id` | — | `200` / `200 {id, deleted: true}` | body must not also carry `id` |
+| `PUT/PATCH/DELETE <route>` (bulk) | — | `200 {records}` | atomic — one bad id/field fails the whole batch |
+| `GET <route>/.conduits/readyz` | none at all | `204` | see [Tutorial](#tutorial-your-first-widget-end-to-end) step 2 |
+| `GET <route>/.conduits/schema` | token, always | `200 {fields: [...]}` | field names under their widget-facing names if a field map is set |
+| `OPTIONS <route>[/:id]`, `OPTIONS <route>/.conduits/schema` | — | `204` | CORS preflight, no conduit lookup |
 
 Full request/response shapes: [`docs/gateway-api.md`](gateway-api.md#routes).
 
@@ -231,7 +236,7 @@ Full request/response shapes: [`docs/gateway-api.md`](gateway-api.md#routes).
 | Status | Meaning | Where |
 |:-------|:--------|:------|
 | `200`/`201` | Success | every route |
-| `204` | No content | `/readyz` reachable; `OPTIONS` preflight |
+| `204` | No content | `.conduits/readyz` reachable; `OPTIONS` preflight |
 | `400` | Malformed body, duplicate/too-many ids, `id` supplied on create, or `Unknown field: '<name>'` | every write route |
 | `401` | Missing/invalid bearer token | any token-required method; always on `/schema` |
 | `403` | Caller's IP isn't allowlisted | every route but `OPTIONS` |

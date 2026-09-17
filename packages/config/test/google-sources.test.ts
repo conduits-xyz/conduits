@@ -11,13 +11,14 @@ describe('compileConduits — googleSheets', () => {
     const yaml = `
 conduits:
   newsletter:
+    curi: newsletter
     methods: [POST, GET]
     source:
       type: googleSheets
       credential: google:personal
       spreadsheetId: 1AbCSpreadsheetId
 `
-    const [config] = compileConduits(yaml, GOOGLE_SUPPORTED)
+    const { configs: [config] } = compileConduits(yaml, GOOGLE_SUPPORTED)
     assert.equal(config?.suriType, 'googleSheets')
     assert.equal(config?.suriObjectKey, '1AbCSpreadsheetId')
     assert.equal(config?.credentialRef, 'google:personal')
@@ -28,6 +29,7 @@ conduits:
     const yaml = `
 conduits:
   newsletter:
+    curi: newsletter
     methods: [POST]
     source:
       type: googleSheets
@@ -37,7 +39,7 @@ conduits:
       fieldMap:
         fullName: Name
 `
-    const [config] = compileConduits(yaml, GOOGLE_SUPPORTED)
+    const { configs: [config] } = compileConduits(yaml, GOOGLE_SUPPORTED)
     assert.deepEqual(config?.suriConfig, { table: 'Responses', fieldMap: { fullName: 'Name' } })
   })
 
@@ -45,6 +47,7 @@ conduits:
     const yaml = `
 conduits:
   newsletter:
+    curi: newsletter
     methods: [POST]
     source:
       type: googleSheets
@@ -58,6 +61,7 @@ conduits:
     const yaml = `
 conduits:
   newsletter:
+    curi: newsletter
     methods: [POST]
     source:
       type: googleSheets
@@ -70,6 +74,7 @@ conduits:
     const yaml = `
 conduits:
   newsletter:
+    curi: newsletter
     methods: [POST]
     source:
       type: googleSheets
@@ -87,6 +92,7 @@ describe('compileConduits — gmail', () => {
     const yaml = `
 conduits:
   contact-form:
+    curi: contact-form
     methods: [POST]
     source:
       type: gmail
@@ -94,7 +100,7 @@ conduits:
       recipients: [owner@example.com]
       subject: New submission
 `
-    const [config] = compileConduits(yaml, GOOGLE_SUPPORTED)
+    const { configs: [config] } = compileConduits(yaml, GOOGLE_SUPPORTED)
     assert.equal(config?.suriType, 'gmail')
     assert.equal(config?.suriObjectKey, '')
     assert.equal(config?.credentialRef, 'google:personal')
@@ -105,6 +111,7 @@ conduits:
     const yaml = `
 conduits:
   contact-form:
+    curi: contact-form
     methods: [POST]
     source:
       type: gmail
@@ -120,6 +127,7 @@ describe('a config naming a Google source type this runtime does not list as sup
     const yaml = `
 conduits:
   newsletter:
+    curi: newsletter
     methods: [POST]
     source:
       type: googleSheets

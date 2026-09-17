@@ -28,7 +28,7 @@ README for the full list and its shared `--xyz-*` theming vocabulary.
   fuller QA harness: write, read, update, and RACM (per-method access
   control) end to end.
 - **Automation recipe**: point a Zapier/n8n/Make webhook step directly
-  at your conduit's own URL (`https://conduits.xyz/api/XXXXXXXX`), same
+  at your conduit's own URL (`https://conduits.xyz/XXXXXXXX`), same
   as any other webhook target — no code, this already works. `POST`
   writes a row (`{fields: {...}}`); `GET` reads the sheet back, so the
   same tool can validate against existing data instead of only writing

@@ -130,9 +130,9 @@
         line-height: 1.5;
       }
 
-      /* Plain vanilla tabs — no framework here, so this is hand-rolled
-         rather than reusing the dashboard's own tab-strip.tsx (a Remix
-         clientEntry component, unavailable on a buildless static page). */
+      /* Plain vanilla tabs — no framework here, so the WAI-ARIA APG
+         tabs pattern below is hand-rolled directly, on purpose: this
+         page stays a buildless static file, copyable as-is. */
       .tablist {
         display: flex;
         gap: 0.25rem;
@@ -168,12 +168,10 @@
          height is always the tallest panel's (the Contact form panel,
          with two embedded forms, is much taller than Waitlist or
          Reactions alone) — switching tabs toggles `visibility`, not
-         `display`, so it never shifts the page underneath it. Same fix
-         as the dashboard's own tab-panel-group (form-page.tsx/app.css);
-         hand-rolled here since this page has no framework to reuse it
-         from. A `hidden`/`display: none` panel would drop out of the
-         grid's height calculation entirely, which is exactly the shift
-         this avoids. */
+         `display`, so it never shifts the page underneath it. A
+         `hidden`/`display: none` panel would drop out of the grid's
+         height calculation entirely, which is exactly the shift this
+         avoids. */
       .tabpanel-group {
         display: grid;
       }
@@ -183,9 +181,9 @@
         min-width: 0;
       }
 
-      /* Matches the dashboard's own .brand-footer (app.css) — a quiet
-         credit line, not a call to action, so it stays in this page's
-         neutral gray rather than the #2563eb accent above. */
+      /* A quiet credit line, not a call to action, so it stays in
+         this page's neutral gray rather than the #2563eb accent
+         above. */
       .brand-footer {
         margin-top: 2rem;
         padding: 1.5rem 0;
@@ -402,8 +400,8 @@
     <script type="module">
       // WAI-ARIA APG tabs pattern: activation follows focus, arrow keys
       // move between tabs (wrapping), Home/End jump to the first/last —
-      // the same behavior tab-strip.tsx implements for the dashboard,
-      // hand-rolled here since this page has no framework to reuse it from.
+      // hand-rolled directly, on purpose: this page stays a buildless
+      // static file, copyable as-is.
       const tabs = Array.from(document.querySelectorAll('[role="tab"]'))
 
       function activate(tab) {
