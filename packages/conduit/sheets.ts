@@ -323,10 +323,42 @@ async function sheetsFetch(path: string, credential: string, init?: RequestInit)
   })
 }
 
-function throwForStatus(response: Response, action: string): void {
+// Google's own non-2xx error bodies are shaped {error: {code, message,
+// status}} — this is the one place that shape gets read, so every
+// throwForStatus caller gets Google's actual reason (e.g. "Unable to
+// parse range: A1:ZZ10000") instead of just a bare status code. Never
+// throws itself: an empty body (some non-2xx responses have none), a
+// non-JSON body (an intermediary's own HTML error page), or a JSON
+// body that isn't shaped as expected all fall back to undefined rather
+// than replacing "the request failed" with "and then parsing the
+// failure also failed."
+async function extractGoogleErrorMessage(response: Response): Promise<string | undefined> {
+  let text: string
+  try {
+    text = await response.text()
+  } catch {
+    return undefined
+  }
+  if (!text) return undefined
+
+  let body: unknown
+  try {
+    body = JSON.parse(text)
+  } catch {
+    return undefined
+  }
+
+  const message = (body as { error?: { message?: unknown } } | null)?.error?.message
+  return typeof message === 'string' && message !== '' ? message : undefined
+}
+
+async function throwForStatus(response: Response, action: string): Promise<void> {
   if (response.ok) return
-  if (response.status === 401) throw new ConduitAuthError(SOURCE, `Sheets ${action} failed: access token rejected (401)`)
-  throw new ConduitSourceError(SOURCE, `Sheets ${action} failed (${response.status})`, response.status)
+  const detail = await extractGoogleErrorMessage(response)
+  if (response.status === 401) {
+    throw new ConduitAuthError(SOURCE, `Sheets ${action} failed: access token rejected (401)${detail ? ` — ${detail}` : ''}`)
+  }
+  throw new ConduitSourceError(SOURCE, `Sheets ${action} failed (${response.status})${detail ? `: ${detail}` : ''}`, response.status)
 }
 
 // Sheet names can contain spaces or other characters that A1 notation
@@ -342,7 +374,7 @@ function rangeFor(tableName: string | undefined, a1Range: string): string {
 
 async function getGrid(sourceKey: string, tableName: string | undefined, credential: string): Promise<string[][]> {
   const response = await sheetsFetch(`${sourceKey}/values/${rangeFor(tableName, RANGE)}`, credential)
-  throwForStatus(response, 'read')
+  await throwForStatus(response, 'read')
   const body = (await response.json()) as { values?: string[][] }
   return body.values ?? []
 }
@@ -363,7 +395,7 @@ async function getGrid(sourceKey: string, tableName: string | undefined, credent
 // reads/writes.
 export async function getSheetId(sourceKey: string, tableName: string | undefined, credential: string): Promise<number> {
   const response = await sheetsFetch(`${sourceKey}?fields=sheets.properties(sheetId,title)`, credential)
-  throwForStatus(response, 'read sheet metadata')
+  await throwForStatus(response, 'read sheet metadata')
   const body = (await response.json()) as { sheets?: { properties?: { sheetId?: number; title?: string } }[] }
   const sheets = body.sheets ?? []
   const named = tableName ? sheets.find((sheet) => sheet.properties?.title === tableName) : undefined
@@ -522,7 +554,7 @@ async function addColumnsToGrid(
     method: 'POST',
     body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }),
   })
-  throwForStatus(response, 'add columns')
+  await throwForStatus(response, 'add columns')
 
   const newHeader = [...header, ...newColumnNames]
   const newDataRows = dataRows.map((row, i) => [
@@ -614,7 +646,7 @@ async function appendRows(
     credential,
     { method: 'POST', body: JSON.stringify({ values: rows.map((row) => gridRowFromFields(header, row)) }) },
   )
-  throwForStatus(response, 'append')
+  await throwForStatus(response, 'append')
   return rows
 }
 
@@ -671,7 +703,7 @@ async function bulkWriteRows(
     method: 'POST',
     body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }),
   })
-  throwForStatus(response, 'bulk write')
+  await throwForStatus(response, 'bulk write')
   return { rows: merged, schema: inferSchema(grid[0], grid.slice(1)) }
 }
 
@@ -713,7 +745,7 @@ async function deleteRows(
     method: 'POST',
     body: JSON.stringify({ requests }),
   })
-  throwForStatus(response, 'bulk delete')
+  await throwForStatus(response, 'bulk delete')
   return true
 }
 
@@ -845,7 +877,7 @@ export function createHttpSheetsClient(): ConduitSourceClient {
         async listTables() {
           return cached(`tabs\0${sourceKey}\0${tokenDigest(credential)}`, async () => {
             const response = await sheetsFetch(`${sourceKey}?fields=sheets.properties.title`, credential)
-            throwForStatus(response, 'list tabs')
+            await throwForStatus(response, 'list tabs')
             const body = (await response.json()) as { sheets?: { properties?: { title?: string } }[] }
             return (body.sheets ?? [])
               .map((sheet) => sheet.properties?.title)
