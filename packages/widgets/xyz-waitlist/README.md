@@ -64,19 +64,6 @@ generator, not just this table.
 
 ## Theming
 
-Styled entirely through CSS custom properties on `xyz-waitlist`
-(`style.css`) — the same `--xyz-*` vocabulary every widget and form in
-this repo shares (`examples/basic-form`, `examples/basic-ajax-form`,
-`packages/widgets/xyz-reactions`). Set them once, on `:root` or any ancestor
-common to everything you embed, and your whole brand applies at once —
-or override on the element itself for a one-off:
-
-```css
-xyz-waitlist {
-  --xyz-accent: #2563eb;
-  --xyz-radius: 12px;
-  --xyz-font: 'Inter', sans-serif;
-}
-```
-
-See `style.css` for the full list of available properties.
+See [THEME.md](../THEME.md) for the shared `--xyz-*` property reference,
+defaults, and examples for theming all widgets together or overriding
+`xyz-waitlist` on its own.

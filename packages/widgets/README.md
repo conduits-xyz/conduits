@@ -15,8 +15,9 @@ them — along with `examples/basic-form` and `examples/basic-ajax-form`
 — shares one `--xyz-*` CSS custom-property vocabulary (font, colors,
 radius, spacing). Set those once, on `:root` or any ancestor common to
 everything you embed, and your whole brand applies across every widget
-and form at once, not just one at a time. See each widget's own
-README for its exact list of properties.
+and form at once, not just one at a time. See [THEME.md](THEME.md) for
+the complete property reference and examples for theming one or several
+widgets.
 
 - [`xyz-waitlist/`](xyz-waitlist/README.md) — a real `<xyz-waitlist>`
   custom element, battle-tested in production, not a simplified demo.
