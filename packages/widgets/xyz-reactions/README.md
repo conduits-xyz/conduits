@@ -42,6 +42,22 @@ own demo page before you've entered one), the element renders "Not
 connected to a conduit yet." instead of buttons that could only ever
 fail.
 
+## Wire format
+
+A vote is `POST {fields: {subject, reaction, votedAt}}` — `reaction` is
+`"up"` or `"down"`, and the same envelope every conduit accepts (see
+`docs/gateway-api.md`). Point `conduit-url` at a Google Sheet with
+`subject`, `reaction`, and `votedAt` columns and a conduit that allows
+both `GET` and `POST`. A completely empty sheet is supported: the first
+vote creates those columns and the gateway's reserved `conduit-id`
+column. If the sheet already has any field columns, add the three widget
+columns directly to the sheet first; the gateway does not silently add
+missing fields to an established sheet. Keep `conduit-id` once the
+gateway has created it. Counts are computed from `GET conduit-url` by
+tallying records whose `subject` matches, so use a different `subject`
+for each page or post when sharing one conduit; otherwise all votes are
+counted together.
+
 ## Configuration
 
 Every optional attribute below is also machine-readable — load this
@@ -57,16 +73,6 @@ for the same list with types, defaults, and requirement info attached
 | `success-message` | `Thanks for the feedback.` | Shown after a vote is recorded. |
 | `up-label` | `Helpful` | The "up" button's own label — this widget is meant for any kind of content, not just blog posts, so the default framing won't always fit (e.g. a recipe might want "Delicious"/"Not for me"). |
 | `down-label` | `Not helpful` | The "down" button's own label. |
-
-## Wire format
-
-A vote is `POST {fields: {subject, reaction, votedAt}}` — `reaction` is
-`"up"` or `"down"`. Counts are computed by fetching `GET conduit-url`
-and tallying records whose `subject` matches, client-side — the same
-"read through the same public API every caller uses" approach
-`xyz-waitlist` already takes for its own signup count. A very
-high-traffic post would eventually want real server-side aggregation;
-this widget deliberately doesn't invent one.
 
 ## Voting once per visitor
 
