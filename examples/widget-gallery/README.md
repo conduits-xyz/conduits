@@ -15,8 +15,10 @@ can't drive widgets that write different-shaped rows. This page has
 three tabs, one per widget group, each with its own "Conduit URL"
 field:
 
-1. **Contact form** — shared by the plain and fetch-enhanced forms,
-   which both write the same `name`/`email` shape.
+1. **Contact form** — shared by the plain and fetch-enhanced forms;
+    the custom-element example also demonstrates the built-in
+    `qualified-lead` preset, which writes `name`/`email`/`message`/
+    `services`/`budget`.
 2. **Waitlist widget** — writes `firstName`/`email`.
 3. **Reactions widget** — writes `subject`/`reaction`/`votedAt`.
 

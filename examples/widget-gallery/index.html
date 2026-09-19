@@ -303,8 +303,9 @@
       <div id="panel-contact-widget" role="tabpanel" aria-labelledby="tab-contact-widget" tabindex="0" style="visibility: hidden">
         <h2>Contact form widget</h2>
         <p>A real <code>&lt;xyz-contact-form&gt;</code> element — name/
-          email/message, no CAPTCHA needed. Writes
-          <code>name</code>/<code>email</code>/<code>message</code>. See
+          email/message by default, with a built-in qualified-lead preset.
+          Writes <code>name</code>/<code>email</code>/<code>message</code>/
+          <code>services</code>/<code>budget</code>. See
           <a href="../../packages/widgets/xyz-contact-form/README.md">xyz-contact-form/README.md</a>.</p>
         <div class="field">
           <label for="contact-widget-curi-input">Contact widget conduit URL</label>
@@ -315,7 +316,7 @@
           <div id="contact-widget-curi-status" class="conduit-url-status" role="status" aria-live="polite"></div>
         </div>
         <div class="demo-card">
-          <xyz-contact-form id="contact-form-widget" caption="Get in touch"></xyz-contact-form>
+          <xyz-contact-form id="contact-form-widget" caption="How can we help?" preset="qualified-lead"></xyz-contact-form>
         </div>
       </div>
 
@@ -522,7 +523,10 @@
         statusId: 'contact-widget-curi-status',
         storageKey: 'contact-form-widget',
         onChange(url) {
-          reconfigure('xyz-contact-form', 'contact-form-widget', url, { caption: 'Get in touch' })
+          reconfigure('xyz-contact-form', 'contact-form-widget', url, {
+            caption: 'How can we help?',
+            preset: 'qualified-lead',
+          })
         },
       })
 

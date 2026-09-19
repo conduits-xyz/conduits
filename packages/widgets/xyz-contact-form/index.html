@@ -46,7 +46,7 @@
       <!-- caption: the widget renders its own label and wires it to
            the form itself (aria-labelledby) — see packages/widgets/README.md's
            "Semantic markup" section. -->
-      <xyz-contact-form id="contact-form" caption="Get in touch"></xyz-contact-form>
+      <xyz-contact-form id="contact-form" caption="Tell us about yourself" preset="qualified-lead"></xyz-contact-form>
     </div>
 
     <script src="./xyz-contact-form.js"></script>
@@ -62,7 +62,8 @@
           // re-configuring means recreating the element.
           const fresh = document.createElement('xyz-contact-form')
           fresh.id = 'contact-form'
-          fresh.setAttribute('caption', 'Get in touch')
+          fresh.setAttribute('caption', 'How can we help?')
+          fresh.setAttribute('preset', 'qualified-lead')
           if (url) fresh.setAttribute('conduit-url', url)
           document.getElementById('contact-form').replaceWith(fresh)
         },

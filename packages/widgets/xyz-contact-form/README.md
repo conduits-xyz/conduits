@@ -1,17 +1,19 @@
 # Contact form widget
 
-A real `<xyz-contact-form>` custom element — a name/email/message
-contact form backed by a conduit, for the single most common thing a
-site needs a form for. Zero dependencies, no build step, no JavaScript
-framework: one script tag, one element.
+A real `<xyz-contact-form>` custom element backed by a conduit. The
+default form collects name, email, and message; the built-in
+`qualified-lead` preset adds service and budget questions. Zero
+dependencies, no build step, no JavaScript framework: one script tag, one
+element.
 
 No CAPTCHA anywhere in this widget, unlike most contact-form guidance
 elsewhere, which treats one as an optional bolt-on — conduits.xyz's own
 honeypot + pass-if-match spam controls (gateway-level, already on for
 every conduit) make that unnecessary here.
 
-Fields are fixed (`name`, `email`, `message`), not configurable — if
-you need a different field set, see `examples/basic-ajax-form`'s
+The default fields are fixed (`name`, `email`, `message`). Use
+`preset="qualified-lead"` for the built-in lead qualification fields;
+for a different field set, see `examples/basic-ajax-form`'s
 progressive-enhancement-over-a-plain-form pattern instead.
 
 ## Running it
@@ -25,7 +27,10 @@ into your own page:
 </head>
 <body>
   <script src="./xyz-contact-form.js"></script>
-  <xyz-contact-form conduit-url="https://conduits.xyz/XXXXXXXX"></xyz-contact-form>
+  <xyz-contact-form
+    conduit-url="https://conduits.xyz/XXXXXXXX"
+    preset="qualified-lead"
+  ></xyz-contact-form>
 </body>
 ```
 
@@ -40,10 +45,26 @@ instead of a form that could only ever fail.
 
 ## Wire format
 
-A message is `POST {fields: {name, email, message}}` — the same
-envelope every conduit accepts (see `docs/gateway-api.md`). Point
-`conduit-url` at a sheet with `name`, `email`, and `message`
-columns — add them directly to the sheet if it's still blank.
+A default message is `POST {fields: {name, email, message}}`. The
+`qualified-lead` preset adds `services` and `budget`; selected services
+are sent as a semicolon-separated string so the payload remains friendly
+to spreadsheet columns:
+
+```json
+{
+  "fields": {
+    "name": "Ada Lovelace",
+    "email": "ada@example.com",
+    "message": "I would like to talk.",
+    "services": "research-development; rent-cto",
+    "budget": "25000-50000"
+  }
+}
+```
+
+Point `conduit-url` at a sheet with the fields used by the selected
+preset. Add `name`, `email`, `message`, `services`, and `budget` directly
+to the sheet if it is still blank.
 
 ## Configuration
 
@@ -56,6 +77,7 @@ for the same list with types, defaults, and requirement info attached
 |---|---|---|
 | `caption` | *(none)* | Shown above the form; also becomes the form's accessible name. |
 | `heading-level` | *(none)* | Only used when `caption` is set. |
+| `preset` | *(none)* | `qualified-lead` adds required service checkboxes and a required budget choice. |
 | `unconfigured-message` | `Not connected to a conduit yet.` | Shown before `conduit-url` is set. |
 | `success-message` | `Thanks — we'll get back to you.` | Shown after a successful send. |
 | `button-text` | `Send message` | The submit button's own label. |
