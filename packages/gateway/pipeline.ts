@@ -3,7 +3,6 @@ import { enforceRacm } from './middleware/racm.ts'
 import { enforceAllowlist } from './middleware/allowlist.ts'
 import { enforceBearerToken, requireBearerToken } from './middleware/bearer-token.ts'
 import { enforceThrottle } from './middleware/throttle.ts'
-import { trackHit } from './middleware/track-event.ts'
 import { loadConduitTable } from './middleware/source-client.ts'
 import { handleSourceErrors } from './middleware/source-errors.ts'
 import type { RouteMatch } from './route-binding.ts'
@@ -41,7 +40,6 @@ export function createGatewayMiddleware(deps: GatewayDeps) {
     enforceRacm(),
     enforceBearerToken(),
     enforceThrottle(),
-    trackHit(deps.runtime),
     handleSourceErrors(deps.runtime),
     loadConduitTable(deps.runtime),
   ] as const
@@ -58,7 +56,6 @@ export function createSchemaGatewayMiddleware(deps: GatewayDeps) {
     enforceRacm(),
     requireBearerToken(),
     enforceThrottle(),
-    trackHit(deps.runtime),
     handleSourceErrors(deps.runtime),
     loadConduitTable(deps.runtime),
   ] as const

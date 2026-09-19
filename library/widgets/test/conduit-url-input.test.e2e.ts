@@ -45,7 +45,6 @@ const testRuntime: GatewayRuntime = {
     return config.credentialRef == null ? null : resolveEnvRef(config.credentialRef)
   },
   async invalidateCredential() {},
-  recordEvent() {},
 }
 
 const WIDGETS_ROOT = path.resolve(import.meta.dirname, '..')

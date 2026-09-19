@@ -50,9 +50,8 @@ export interface ConduitConfig {
   credentialRef: string | null
 }
 
-export type GatewayEvent =
-  | { type: 'hit'; curi: string }
-  | { type: 'honeypot'; curi: string }
+export type { GatewayObservation, RouteKind, StatusClass } from './observation.ts'
+import type { GatewayObservation } from './observation.ts'
 
 // The one seam this package uses to reach outside itself, implemented
 // by whichever host resolved the ConduitConfig it's called with. Every
@@ -65,9 +64,26 @@ export interface GatewayRuntime {
   // cleanup from the runtime's side; the response already sent back to
   // the caller doesn't wait on or change based on this.
   invalidateCredential(config: ConduitConfig): Promise<void>
-  // A metrics write must never fail the request it's counting — every
-  // call site here awaits this so a count is durable before the
-  // response goes out, but treats a rejection as best-effort, same as
-  // the implementation itself should.
-  recordEvent(event: GatewayEvent): void | Promise<void>
+  // Optional — a runtime that doesn't implement this gets none of the
+  // measurement work at all (see dispatch.ts's own dispatch()): no
+  // timing, no byte counting, no observation object ever built. A
+  // metrics write must never fail the request it's counting — the
+  // dispatcher awaits this so an observation is durable (from the
+  // runtime's own point of view) before the response goes out, but
+  // treats a rejection as best-effort, same as the implementation
+  // itself should.
+  recordObservation?(observation: GatewayObservation): void | Promise<void>
+  // Optional — lets a runtime measure provider-leg bytes without any
+  // global mutation. Called once by loadConduitTable
+  // (middleware/source-client.ts), right before resolving the
+  // credential; the returned fetchImpl is passed straight into
+  // ConduitSourceClient.connect()'s own optional third parameter.
+  // finish() is called in the same finally block that already calls
+  // client.disconnect() — its result is stashed on providerBytesContext
+  // for dispatch()'s wrapper to read back once the whole pipeline
+  // completes.
+  instrumentFetch?(): {
+    fetchImpl: typeof fetch
+    finish(): { providerRequestBytes: number; providerResponseBytes: number; providerAttempted: boolean }
+  }
 }

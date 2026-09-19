@@ -49,8 +49,9 @@ async function jmapCall(
   credential: string,
   using: string[],
   methodCalls: Array<[string, Record<string, unknown>, string]>,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<Map<string, [string, Record<string, unknown>]>> {
-  const response = await fetch(apiUrl, {
+  const response = await fetchImpl(apiUrl, {
     method: 'POST',
     headers: { Authorization: `Bearer ${credential}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ using, methodCalls }),
@@ -79,8 +80,11 @@ type FastmailSession = { apiUrl: string; accountId: string; identityId: string |
 // connect time via `listFastmailIdentities` below; the account/session
 // lookup here is otherwise identical to that function's own, factored
 // out to avoid the two diverging.
-async function fetchMailAccount(credential: string): Promise<{ apiUrl: string; accountId: string }> {
-  const response = await fetch(SESSION_URL, { headers: { Authorization: `Bearer ${credential}` } })
+async function fetchMailAccount(
+  credential: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ apiUrl: string; accountId: string }> {
+  const response = await fetchImpl(SESSION_URL, { headers: { Authorization: `Bearer ${credential}` } })
   if (response.status === 401) throw new ConduitAuthError(SOURCE, 'Fastmail session fetch failed: token rejected (401)')
   if (!response.ok) throw new ConduitSourceError(SOURCE, `Fastmail session fetch failed (${response.status})`, response.status)
 
@@ -100,8 +104,12 @@ async function fetchMailAccount(credential: string): Promise<{ apiUrl: string; a
 // identity was ever chosen (or one somehow missing its own) has no
 // fallback: requireSendable() below fails clearly rather than silently
 // picking whichever identity JMAP happens to list first.
-async function fetchSession(credential: string, identityId: string | null): Promise<FastmailSession> {
-  const { apiUrl, accountId } = await fetchMailAccount(credential)
+async function fetchSession(
+  credential: string,
+  identityId: string | null,
+  fetchImpl: typeof fetch = fetch,
+): Promise<FastmailSession> {
+  const { apiUrl, accountId } = await fetchMailAccount(credential, fetchImpl)
   return { apiUrl, accountId, identityId }
 }
 
@@ -141,8 +149,14 @@ async function listMailpitIdentities(): Promise<FastmailIdentity[]> {
 export const listFastmailIdentities: (credential: string) => Promise<FastmailIdentity[]> =
   process.env.NODE_ENV === 'test' ? listMailpitIdentities : listJmapIdentities
 
-async function findMailboxId(apiUrl: string, credential: string, accountId: string, name: string): Promise<string> {
-  const results = await jmapCall(apiUrl, credential, [CORE, MAIL], [['Mailbox/get', { accountId, ids: null }, '0']])
+async function findMailboxId(
+  apiUrl: string,
+  credential: string,
+  accountId: string,
+  name: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string> {
+  const results = await jmapCall(apiUrl, credential, [CORE, MAIL], [['Mailbox/get', { accountId, ids: null }, '0']], fetchImpl)
   const mailboxes = (results.get('0')?.[1] as { list?: Array<{ id: string; name: string; role: string | null }> } | undefined)
     ?.list ?? []
   const wanted = name.toLowerCase()
@@ -181,7 +195,12 @@ const FIXED_FIELDS: Array<{ name: string; type: ConduitFieldType; nullable: bool
   { name: 'date', type: 'date', nullable: true },
 ]
 
-function openTable(session: FastmailSession, credential: string, config: FastmailConfig): ConduitTable {
+function openTable(
+  session: FastmailSession,
+  credential: string,
+  config: FastmailConfig,
+  fetchImpl: typeof fetch = fetch,
+): ConduitTable {
   const mailboxName = config.table ?? 'Inbox'
 
   async function requireSendable(): Promise<{ recipients: string[]; subject: string; identityId: string }> {
@@ -196,36 +215,42 @@ function openTable(session: FastmailSession, credential: string, config: Fastmai
 
   async function send(fields: ConduitFields): Promise<ConduitRecord> {
     const { recipients, subject, identityId } = await requireSendable()
-    const draftsId = await findMailboxId(session.apiUrl, credential, session.accountId, 'drafts')
-    const results = await jmapCall(session.apiUrl, credential, [CORE, MAIL, SUBMISSION], [
+    const draftsId = await findMailboxId(session.apiUrl, credential, session.accountId, 'drafts', fetchImpl)
+    const results = await jmapCall(
+      session.apiUrl,
+      credential,
+      [CORE, MAIL, SUBMISSION],
       [
-        'Email/set',
-        {
-          accountId: session.accountId,
-          create: {
-            draft: {
-              mailboxIds: { [draftsId]: true },
-              keywords: { $draft: true },
-              from: [{ email: recipients[0] }], // overwritten by the account's own identity server-side
-              to: recipients.map((email) => ({ email })),
-              subject,
-              textBody: [{ partId: 'body', type: 'text/plain' }],
-              bodyValues: { body: { value: renderBody(fields), charset: 'utf-8' } },
+        [
+          'Email/set',
+          {
+            accountId: session.accountId,
+            create: {
+              draft: {
+                mailboxIds: { [draftsId]: true },
+                keywords: { $draft: true },
+                from: [{ email: recipients[0] }], // overwritten by the account's own identity server-side
+                to: recipients.map((email) => ({ email })),
+                subject,
+                textBody: [{ partId: 'body', type: 'text/plain' }],
+                bodyValues: { body: { value: renderBody(fields), charset: 'utf-8' } },
+              },
             },
           },
-        },
-        '0',
+          '0',
+        ],
+        [
+          'EmailSubmission/set',
+          {
+            accountId: session.accountId,
+            onSuccessDestroyEmail: ['#sendIt'],
+            create: { sendIt: { emailId: '#draft', identityId } },
+          },
+          '1',
+        ],
       ],
-      [
-        'EmailSubmission/set',
-        {
-          accountId: session.accountId,
-          onSuccessDestroyEmail: ['#sendIt'],
-          create: { sendIt: { emailId: '#draft', identityId } },
-        },
-        '1',
-      ],
-    ])
+      fetchImpl,
+    )
 
     const created = (results.get('0')?.[1] as { created?: Record<string, { id: string }> } | undefined)?.created
     const draftId = created?.draft?.id
@@ -249,21 +274,27 @@ function openTable(session: FastmailSession, credential: string, config: Fastmai
     },
 
     async listRecords(page) {
-      const mailboxId = await findMailboxId(session.apiUrl, credential, session.accountId, mailboxName)
+      const mailboxId = await findMailboxId(session.apiUrl, credential, session.accountId, mailboxName, fetchImpl)
       const limit = page?.limit ?? 50
       const position = page?.cursor ? Number(page.cursor) : 0
-      const results = await jmapCall(session.apiUrl, credential, [CORE, MAIL], [
-        ['Email/query', { accountId: session.accountId, filter: { inMailbox: mailboxId }, position, limit }, '0'],
+      const results = await jmapCall(
+        session.apiUrl,
+        credential,
+        [CORE, MAIL],
         [
-          'Email/get',
-          {
-            accountId: session.accountId,
-            '#ids': { resultOf: '0', name: 'Email/query', path: '/ids' },
-            properties: ['id', 'from', 'to', 'subject', 'receivedAt', 'preview'],
-          },
-          '1',
+          ['Email/query', { accountId: session.accountId, filter: { inMailbox: mailboxId }, position, limit }, '0'],
+          [
+            'Email/get',
+            {
+              accountId: session.accountId,
+              '#ids': { resultOf: '0', name: 'Email/query', path: '/ids' },
+              properties: ['id', 'from', 'to', 'subject', 'receivedAt', 'preview'],
+            },
+            '1',
+          ],
         ],
-      ])
+        fetchImpl,
+      )
       const emails = (results.get('1')?.[1] as { list?: Parameters<typeof toConduitRecord>[0][] } | undefined)?.list ?? []
       const nextCursor = emails.length === limit ? String(position + limit) : null
       return { records: emails.map(toConduitRecord), nextCursor }
@@ -317,20 +348,28 @@ function openTable(session: FastmailSession, credential: string, config: Fastmai
     // matching what's actually mutable for a message (folder
     // membership), same reasoning the investigation doc gives.
     async deleteRecord(id) {
-      const trashId = await findMailboxId(session.apiUrl, credential, session.accountId, 'trash')
-      const results = await jmapCall(session.apiUrl, credential, [CORE, MAIL], [
-        ['Email/set', { accountId: session.accountId, update: { [id]: { mailboxIds: { [trashId]: true } } } }, '0'],
-      ])
+      const trashId = await findMailboxId(session.apiUrl, credential, session.accountId, 'trash', fetchImpl)
+      const results = await jmapCall(
+        session.apiUrl,
+        credential,
+        [CORE, MAIL],
+        [['Email/set', { accountId: session.accountId, update: { [id]: { mailboxIds: { [trashId]: true } } } }, '0']],
+        fetchImpl,
+      )
       const updated = (results.get('0')?.[1] as { updated?: Record<string, unknown> } | undefined)?.updated
       return Boolean(updated && id in updated)
     },
     async deleteRecords(ids) {
-      const trashId = await findMailboxId(session.apiUrl, credential, session.accountId, 'trash')
+      const trashId = await findMailboxId(session.apiUrl, credential, session.accountId, 'trash', fetchImpl)
       const update: Record<string, { mailboxIds: Record<string, boolean> }> = {}
       for (const id of ids) update[id] = { mailboxIds: { [trashId]: true } }
-      const results = await jmapCall(session.apiUrl, credential, [CORE, MAIL], [
-        ['Email/set', { accountId: session.accountId, update }, '0'],
-      ])
+      const results = await jmapCall(
+        session.apiUrl,
+        credential,
+        [CORE, MAIL],
+        [['Email/set', { accountId: session.accountId, update }, '0']],
+        fetchImpl,
+      )
       const updated = (results.get('0')?.[1] as { updated?: Record<string, unknown>; notUpdated?: Record<string, unknown> } | undefined)
       if (!updated || updated.notUpdated) return false // atomic: any failure fails the whole batch
       return ids.every((id) => id in (updated.updated ?? {}))
@@ -344,23 +383,27 @@ function openTable(session: FastmailSession, credential: string, config: Fastmai
 // in the test environment.
 export function createJmapFastmailClient(): ConduitSourceClient {
   return {
-    async connect(sourceKey, credential) {
+    async connect(sourceKey, credential, fetchImpl = fetch) {
       // sourceKey is the identity id chosen at connect time (see
       // fetchSession's own comment) — the JMAP account itself is still
       // fully identified by the credential alone, but *which identity
       // to send as* is a real per-conduit choice, the same role a
       // spreadsheet id plays for Sheets.
-      const session = await fetchSession(credential, sourceKey || null)
+      const session = await fetchSession(credential, sourceKey || null, fetchImpl)
       return {
         async listTables() {
-          const results = await jmapCall(session.apiUrl, credential, [CORE, MAIL], [
-            ['Mailbox/get', { accountId: session.accountId, ids: null }, '0'],
-          ])
+          const results = await jmapCall(
+            session.apiUrl,
+            credential,
+            [CORE, MAIL],
+            [['Mailbox/get', { accountId: session.accountId, ids: null }, '0']],
+            fetchImpl,
+          )
           const mailboxes = (results.get('0')?.[1] as { list?: Array<{ name: string }> } | undefined)?.list ?? []
           return mailboxes.map((m) => m.name)
         },
         open(config) {
-          return openTable(session, credential, configFrom(config))
+          return openTable(session, credential, configFrom(config), fetchImpl)
         },
       }
     },

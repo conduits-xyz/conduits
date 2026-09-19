@@ -8,6 +8,8 @@ import { createGatewayItemActions } from './item-controller.ts'
 import { gatewaySchemaAction } from './schema-controller.ts'
 import { gatewayReadyzAction } from './readyz-controller.ts'
 import { jsonResponse } from './response.ts'
+import { conduitConfigContext } from './middleware/conduit-config.ts'
+import { providerBytesContext, honeypotDropCountContext, classifyStatus, type RouteKind, type GatewayObservation } from './observation.ts'
 
 // Answers the browser's CORS preflight directly — no config lookup, no
 // RACM check. Always allows every standard verb; if a conduit's own
@@ -48,7 +50,14 @@ export function createGatewayDispatcher(deps: GatewayDeps): (context: GatewayCon
   const actions = createGatewayActions(deps)
   const itemActions = createGatewayItemActions()
 
-  return async function dispatch(context: GatewayContext): Promise<Response> {
+  // The actual routing/pipeline logic, unchanged from before observations
+  // existed — `routeKind` is a plain out-parameter (a one-element box, not
+  // a return-value restructure) so every existing early return below stays
+  // exactly as it was. Absent a real route match at all, it stays
+  // 'unmatched' — there's no curi to attribute to in that case either
+  // (context.params.curi is only ever set a few lines below, once a
+  // binding actually resolves).
+  async function route(context: GatewayContext, routeKind: { current: RouteKind }): Promise<Response> {
     const match = await deps.resolveRoute(context.url.hostname, context.url.pathname)
     if (!match) return jsonResponse({ error: 'Not Found' }, 404)
 
@@ -56,6 +65,7 @@ export function createGatewayDispatcher(deps: GatewayDeps): (context: GatewayCon
     if (!action) return jsonResponse({ error: 'Not Found' }, 404)
 
     context.params.curi = match.binding.curi
+    routeKind.current = action.kind
 
     if (context.method === 'OPTIONS') return answerPreflight()
 
@@ -99,5 +109,62 @@ export function createGatewayDispatcher(deps: GatewayDeps): (context: GatewayCon
         if (context.method !== 'GET') return methodNotAllowed(['GET'])
         return runMiddleware(readyzMiddleware, context, gatewayReadyzAction)
     }
+  }
+
+  return async function dispatch(context: GatewayContext): Promise<Response> {
+    // No runtime wants observations at all: skip every bit of the
+    // measurement work below, not just the reporting — zero added cost
+    // for a host that never implements recordObservation (the public
+    // self-hosted wrapper, today).
+    if (!deps.runtime.recordObservation) {
+      const routeKind = { current: 'unmatched' as RouteKind }
+      return route(context, routeKind)
+    }
+
+    const start = Date.now()
+    const routeKind = { current: 'unmatched' as RouteKind }
+    let response: Response
+    try {
+      response = await route(context, routeKind)
+    } catch (err) {
+      // Same shape services/gateway's own server.ts already falls back
+      // to for an uncaught error — caught here too so an observation is
+      // never silently skipped for exactly the traffic most worth
+      // seeing. That outer catch stays as a harmless safety net; this
+      // is now the one that actually fires.
+      console.error(err)
+      response = jsonResponse({ error: 'Internal Server Error' }, 500)
+    }
+
+    const config = context.get(conduitConfigContext)
+    const providerBytes = context.get(providerBytesContext)
+    const clientRequestBytes = Number(context.headers.get('content-length')) || 0
+    const clientResponseBytes = Number(response.headers.get('content-length')) || 0
+
+    const observation: GatewayObservation = {
+      timestamp: new Date(start).toISOString(),
+      latencyMs: Date.now() - start,
+      curi: context.params.curi || undefined,
+      routeKind: routeKind.current,
+      host: context.url.hostname || undefined,
+      method: context.method,
+      status: response.status,
+      statusClass: classifyStatus(response.status),
+      clientRequestBytes,
+      clientResponseBytes,
+      providerRequestBytes: providerBytes?.providerRequestBytes ?? 0,
+      providerResponseBytes: providerBytes?.providerResponseBytes ?? 0,
+      providerAttempted: providerBytes?.providerAttempted ?? false,
+      honeypotDropCount: context.get(honeypotDropCountContext) ?? 0,
+      suriType: config?.suriType,
+    }
+
+    try {
+      await deps.runtime.recordObservation(observation)
+    } catch {
+      // Best-effort — see GatewayRuntime.recordObservation's own doc.
+    }
+
+    return response
   }
 }

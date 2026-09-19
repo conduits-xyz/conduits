@@ -1,5 +1,5 @@
 import { resolveEnvRef, parseGoogleRef, type GooglePurpose } from '@conduits/config'
-import type { ConduitConfig, GatewayEvent, GatewayRuntime } from '@conduits/gateway'
+import type { ConduitConfig, GatewayObservation, GatewayRuntime } from '@conduits/gateway'
 
 import { credentialStorePath, deleteGoogleGrant, getFreshGoogleAccessToken } from '@conduits/credential-store'
 
@@ -105,13 +105,16 @@ async function invalidateCredential(config: ConduitConfig): Promise<void> {
 // in. Logged instead, so an operator who wants these can pipe process
 // logs to whatever they already use for that (journald, a log
 // aggregator) — a real, if minimal, answer rather than silently
-// dropping them.
-function recordEvent(event: GatewayEvent): void {
-  console.log(`[gateway-service] ${event.type} curi=${event.curi}`)
+// dropping them. No instrumentFetch either: this wrapper has no
+// byte-accounting relationship with anything, so provider-leg bytes
+// stay unmeasured here (recordObservation still gets everything else —
+// curi, status, latency, client-leg bytes).
+function recordObservation(observation: GatewayObservation): void {
+  console.log(`[gateway-service] ${observation.statusClass} curi=${observation.curi ?? '(unmatched)'}`)
 }
 
 export const gatewayServiceRuntime: GatewayRuntime = {
   getCredential,
   invalidateCredential,
-  recordEvent,
+  recordObservation,
 }

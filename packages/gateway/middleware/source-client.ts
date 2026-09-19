@@ -3,6 +3,7 @@ import { sourceClients, type ConduitTable } from '@conduits/conduit'
 
 import { jsonResponse } from '../response.ts'
 import type { GatewayRuntime } from '../types.ts'
+import { providerBytesContext } from '../observation.ts'
 import { conduitConfigContext } from './conduit-config.ts'
 
 export const conduitTableContext = createContextKey<ConduitTable>()
@@ -32,7 +33,13 @@ export function loadConduitTable(
     const credential = await runtime.getCredential(config)
     if (!credential) return jsonResponse({ error: 'Service Unavailable' }, 502)
 
-    const source = await client.connect(config.suriObjectKey, credential)
+    // Optional — a runtime that doesn't implement instrumentFetch (the
+    // common case) means fetchImpl is undefined, which every
+    // ConduitSourceClient.connect() already defaults away to the
+    // ambient global fetch. No AsyncLocalStorage, no global mutation —
+    // see GatewayRuntime.instrumentFetch's own doc.
+    const instrumentation = runtime.instrumentFetch?.()
+    const source = await client.connect(config.suriObjectKey, credential, instrumentation?.fetchImpl)
     try {
       context.set(conduitTableContext, source.open(JSON.stringify(config.suriConfig)))
       return await next()
@@ -45,6 +52,10 @@ export function loadConduitTable(
       } catch (err) {
         console.error(`${config.suriType} disconnect failed:`, err)
       }
+      // Read back once the request's provider work is done — the outer
+      // dispatch() wrapper picks this up after the whole pipeline
+      // completes (see observation.ts).
+      if (instrumentation) context.set(providerBytesContext, instrumentation.finish())
     }
   }
 }

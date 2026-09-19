@@ -5,7 +5,7 @@ import type { ConduitTable } from '@conduits/conduit'
 import { jsonBodyContext } from './middleware/body.ts'
 import { requireConduitConfig, requireConduitTable } from './require-context.ts'
 import { checkHiddenFormField } from './middleware/hidden-form-field.ts'
-import type { GatewayRuntime } from './types.ts'
+import { honeypotDropCountContext } from './observation.ts'
 import {
   randomRowId,
   type ConduitRecord,
@@ -51,17 +51,13 @@ function resolveRedirectTarget(fields: Record<string, unknown> | undefined, requ
 }
 
 // A dropped record (honeypot tripped, or a pass-if-match mismatch) is
-// counted even though it's never written, for reporting elsewhere.
-// One recordEvent call per dropped record — a metrics write must
-// never fail the actual response, same contract as trackHit's.
-async function recordHoneypotDrops(runtime: GatewayRuntime, curi: string, count: number): Promise<void> {
-  for (let i = 0; i < count; i++) {
-    try {
-      await runtime.recordEvent({ type: 'honeypot', curi })
-    } catch {
-      // Best-effort — see above.
-    }
-  }
+// counted even though it's never written, for reporting elsewhere —
+// stashed on the context for dispatch()'s own outer wrapper to read
+// back once, alongside providerBytesContext (see observation.ts),
+// rather than a separate recordEvent call per drop the way this used
+// to work.
+function recordHoneypotDrops(context: GatewayContext, count: number): void {
+  if (count > 0) context.set(honeypotDropCountContext, count)
 }
 
 // Applies a bulk update/replace as one Sheets API call for the whole batch
@@ -183,7 +179,7 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
           return wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) })
         })
         const droppedCount = outcomes.filter((outcome) => outcome.outcome === 'dropped').length
-        await recordHoneypotDrops(deps.runtime, config.curi, droppedCount)
+        recordHoneypotDrops(context, droppedCount)
         return jsonResponse({ records }, 201)
       }
 
@@ -204,7 +200,7 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
       if (outcome.outcome === 'dropped') {
         // Same 201 (and _redirect handling) a real create returns — a
         // dropped record must be indistinguishable from a real success.
-        await recordHoneypotDrops(deps.runtime, config.curi, 1)
+        recordHoneypotDrops(context, 1)
         if (redirectTarget) return Response.redirect(redirectTarget, 303)
         return jsonResponse(wrapRecord({ id: randomRowId(), fields: outcome.fields }), 201)
       }

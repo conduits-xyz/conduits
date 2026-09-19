@@ -86,7 +86,7 @@ async function gmailErrorDetail(response: Response): Promise<string> {
   }
 }
 
-function openTable(credential: string, config: GmailConfig): ConduitTable {
+function openTable(credential: string, config: GmailConfig, fetchImpl: typeof fetch = fetch): ConduitTable {
   async function requireSendable(): Promise<{ recipients: string[]; subject: string }> {
     if (!config.recipients || config.recipients.length === 0 || !config.subject) {
       throw new ConduitSourceError(SOURCE, 'This conduit has no recipients/subject configured', 502)
@@ -97,7 +97,7 @@ function openTable(credential: string, config: GmailConfig): ConduitTable {
   async function send(fields: ConduitFields): Promise<ConduitRecord> {
     const { recipients, subject } = await requireSendable()
     const raw = buildRawMessage(recipients, subject, renderBody(fields))
-    const response = await fetch(SEND_URL, {
+    const response = await fetchImpl(SEND_URL, {
       method: 'POST',
       headers: { Authorization: `Bearer ${credential}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ raw }),
@@ -177,7 +177,7 @@ function openTable(credential: string, config: GmailConfig): ConduitTable {
 // test environment.
 export function createGmailApiClient(): ConduitSourceClient {
   return {
-    async connect(_sourceKey, credential) {
+    async connect(_sourceKey, credential, fetchImpl = fetch) {
       // No account-level session/discovery call needed — the Gmail
       // REST API addresses the authenticated user via the fixed `me`
       // alias, unlike JMAP's own session-discovery handshake. sourceKey
@@ -193,7 +193,7 @@ export function createGmailApiClient(): ConduitSourceClient {
           return []
         },
         open(config) {
-          return openTable(credential, configFrom(config))
+          return openTable(credential, configFrom(config), fetchImpl)
         },
       }
     },

@@ -29,12 +29,14 @@ const config: ConduitConfig = {
 
 const bindings: RouteBinding[] = [{ path: '/smoke-test', curi: 'smoke-test' }]
 
+// recordObservation/instrumentFetch both omitted on purpose — this
+// exercises the "no runtime support" path, where dispatch() skips all
+// observation measurement outright.
 const runtime: GatewayRuntime = {
   async getCredential() {
     return null
   },
   async invalidateCredential() {},
-  recordEvent() {},
 }
 
 describe('createGatewayRouter (package smoke test)', () => {

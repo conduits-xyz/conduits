@@ -122,7 +122,12 @@ export interface ConduitSourceCapabilities {
 }
 
 export interface ConduitSourceClient {
-  connect(sourceKey: string, credential: string): Promise<ConduitSource>
+  // fetchImpl is optional and defaults to the ambient global `fetch` —
+  // a caller wanting provider-leg byte accounting (see
+  // packages/gateway's GatewayRuntime.instrumentFetch) passes an
+  // instrumented one; every other caller is unaffected. No global
+  // mutation, no AsyncLocalStorage — just a plain, optional parameter.
+  connect(sourceKey: string, credential: string, fetchImpl?: typeof fetch): Promise<ConduitSource>
   disconnect(source: ConduitSource): Promise<void>
 
   // Deliberately synchronous and connection-free (no connect() call
@@ -316,8 +321,13 @@ function inferSchema(header: string[], dataRows: string[][]): Map<string, Condui
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets'
 const RANGE = 'A1:ZZ10000'
 
-async function sheetsFetch(path: string, credential: string, init?: RequestInit): Promise<Response> {
-  return fetch(`${SHEETS_API}/${path}`, {
+async function sheetsFetch(
+  path: string,
+  credential: string,
+  init?: RequestInit,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Response> {
+  return fetchImpl(`${SHEETS_API}/${path}`, {
     ...init,
     headers: { ...init?.headers, Authorization: `Bearer ${credential}`, 'Content-Type': 'application/json' },
   })
@@ -372,8 +382,13 @@ function rangeFor(tableName: string | undefined, a1Range: string): string {
   return tableName ? `${quoteSheetName(tableName)}!${a1Range}` : a1Range
 }
 
-async function getGrid(sourceKey: string, tableName: string | undefined, credential: string): Promise<string[][]> {
-  const response = await sheetsFetch(`${sourceKey}/values/${rangeFor(tableName, RANGE)}`, credential)
+async function getGrid(
+  sourceKey: string,
+  tableName: string | undefined,
+  credential: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string[][]> {
+  const response = await sheetsFetch(`${sourceKey}/values/${rangeFor(tableName, RANGE)}`, credential, undefined, fetchImpl)
   await throwForStatus(response, 'read')
   const body = (await response.json()) as { values?: string[][] }
   return body.values ?? []
@@ -393,8 +408,13 @@ async function getGrid(sourceKey: string, tableName: string | undefined, credent
 // own tab — a plain /edit URL with no `gid` always lands on the
 // sheet's first tab regardless of which one the conduit actually
 // reads/writes.
-export async function getSheetId(sourceKey: string, tableName: string | undefined, credential: string): Promise<number> {
-  const response = await sheetsFetch(`${sourceKey}?fields=sheets.properties(sheetId,title)`, credential)
+export async function getSheetId(
+  sourceKey: string,
+  tableName: string | undefined,
+  credential: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<number> {
+  const response = await sheetsFetch(`${sourceKey}?fields=sheets.properties(sheetId,title)`, credential, undefined, fetchImpl)
   await throwForStatus(response, 'read sheet metadata')
   const body = (await response.json()) as { sheets?: { properties?: { sheetId?: number; title?: string } }[] }
   const sheets = body.sheets ?? []
@@ -505,6 +525,7 @@ async function ensureColumnsForWrite(
   credential: string,
   grid: string[][],
   fieldNames: string[],
+  fetchImpl: typeof fetch = fetch,
 ): Promise<string[][]> {
   const header = grid[0] ?? []
 
@@ -517,7 +538,7 @@ async function ensureColumnsForWrite(
   }
 
   const newColumnNames = needsIdColumn ? [ID_COLUMN_NAME, ...missingFieldNames] : missingFieldNames
-  return addColumnsToGrid(sourceKey, tableName, credential, grid, newColumnNames)
+  return addColumnsToGrid(sourceKey, tableName, credential, grid, newColumnNames, fetchImpl)
 }
 
 // The actual "append columns to the header row, backfill existing rows"
@@ -533,6 +554,7 @@ async function addColumnsToGrid(
   credential: string,
   grid: string[][],
   newColumnNames: string[],
+  fetchImpl: typeof fetch = fetch,
 ): Promise<string[][]> {
   const header = grid[0] ?? []
   const dataRows = grid.slice(1)
@@ -550,10 +572,12 @@ async function addColumnsToGrid(
     ]
   })
 
-  const response = await sheetsFetch(`${sourceKey}/values:batchUpdate`, credential, {
-    method: 'POST',
-    body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }),
-  })
+  const response = await sheetsFetch(
+    `${sourceKey}/values:batchUpdate`,
+    credential,
+    { method: 'POST', body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }) },
+    fetchImpl,
+  )
   await throwForStatus(response, 'add columns')
 
   const newHeader = [...header, ...newColumnNames]
@@ -574,16 +598,17 @@ async function createFieldsOnSheet(
   tableName: string | undefined,
   credential: string,
   fields: Array<{ name: string; type?: ConduitFieldType }>,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<void> {
   const names = fields.map((field) => field.name)
   if (names.includes(ID_COLUMN_NAME)) {
     throw new Error(`"${ID_COLUMN_NAME}" is reserved and can't be used as a field name`)
   }
 
-  const grid = await getGrid(sourceKey, tableName, credential)
+  const grid = await getGrid(sourceKey, tableName, credential, fetchImpl)
   const header = grid[0] ?? []
   const newColumnNames = names.filter((name) => !header.includes(name))
-  await addColumnsToGrid(sourceKey, tableName, credential, grid, newColumnNames)
+  await addColumnsToGrid(sourceKey, tableName, credential, grid, newColumnNames, fetchImpl)
 
   // Without this, a describeFields() call within SHEET_METADATA_CACHE_TTL_MS
   // of creating a field (e.g. immediately re-opening this same conduit's
@@ -631,13 +656,15 @@ async function appendRows(
   tableName: string | undefined,
   credential: string,
   fieldsList: FlatRow[],
+  fetchImpl: typeof fetch = fetch,
 ): Promise<FlatRow[]> {
   const grid = await ensureColumnsForWrite(
     sourceKey,
     tableName,
     credential,
-    await getGrid(sourceKey, tableName, credential),
+    await getGrid(sourceKey, tableName, credential, fetchImpl),
     unionFieldNames(fieldsList),
+    fetchImpl,
   )
   const header = grid[0]
   const rows = fieldsList.map((fields) => ({ ...fields, id: randomRowId() }))
@@ -645,6 +672,7 @@ async function appendRows(
     `${sourceKey}/values/${rangeFor(tableName, RANGE)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
     credential,
     { method: 'POST', body: JSON.stringify({ values: rows.map((row) => gridRowFromFields(header, row)) }) },
+    fetchImpl,
   )
   await throwForStatus(response, 'append')
   return rows
@@ -670,8 +698,9 @@ async function bulkWriteRows(
   credential: string,
   entries: FlatRow[],
   merge: (existing: FlatRow, fields: FlatRow) => FlatRow,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<{ rows: FlatRow[]; schema: Map<string, ConduitFieldType> } | null> {
-  let grid = await getGrid(sourceKey, tableName, credential)
+  let grid = await getGrid(sourceKey, tableName, credential, fetchImpl)
   const header = grid[0]
   if (!header) return null
 
@@ -692,17 +721,19 @@ async function bulkWriteRows(
 
   // rowIndexes stay valid — ensureColumnsForWrite only ever appends
   // columns, never rows.
-  grid = await ensureColumnsForWrite(sourceKey, tableName, credential, grid, unionFieldNames(merged))
+  grid = await ensureColumnsForWrite(sourceKey, tableName, credential, grid, unionFieldNames(merged), fetchImpl)
 
   const data = merged.map((fields, i) => ({
     range: rangeFor(tableName, `A${rowIndexes[i] + 1}:ZZ${rowIndexes[i] + 1}`),
     values: [gridRowFromFields(grid[0], fields)],
   }))
 
-  const response = await sheetsFetch(`${sourceKey}/values:batchUpdate`, credential, {
-    method: 'POST',
-    body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }),
-  })
+  const response = await sheetsFetch(
+    `${sourceKey}/values:batchUpdate`,
+    credential,
+    { method: 'POST', body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }) },
+    fetchImpl,
+  )
   await throwForStatus(response, 'bulk write')
   return { rows: merged, schema: inferSchema(grid[0], grid.slice(1)) }
 }
@@ -722,8 +753,9 @@ async function deleteRows(
   tableName: string | undefined,
   credential: string,
   ids: string[],
+  fetchImpl: typeof fetch = fetch,
 ): Promise<boolean> {
-  const grid = await getGrid(sourceKey, tableName, credential)
+  const grid = await getGrid(sourceKey, tableName, credential, fetchImpl)
   const idIndex = idColumnIndex(grid[0] ?? [])
   if (idIndex === -1) return false // no id column yet means nothing has ever been assigned this id
 
@@ -734,17 +766,19 @@ async function deleteRows(
     rowIndexes.push(rowIndex)
   }
 
-  const sheetId = await getSheetId(sourceKey, tableName, credential)
+  const sheetId = await getSheetId(sourceKey, tableName, credential, fetchImpl)
   const requests = [...rowIndexes]
     .sort((a, b) => b - a)
     .map((rowIndex) => ({
       deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex, endIndex: rowIndex + 1 } },
     }))
 
-  const response = await sheetsFetch(`${sourceKey}:batchUpdate`, credential, {
-    method: 'POST',
-    body: JSON.stringify({ requests }),
-  })
+  const response = await sheetsFetch(
+    `${sourceKey}:batchUpdate`,
+    credential,
+    { method: 'POST', body: JSON.stringify({ requests }) },
+    fetchImpl,
+  )
   await throwForStatus(response, 'bulk delete')
   return true
 }
@@ -754,8 +788,9 @@ function bulkReplaceRows(
   tableName: string | undefined,
   credential: string,
   entries: FlatRow[],
+  fetchImpl: typeof fetch = fetch,
 ): Promise<{ rows: FlatRow[]; schema: Map<string, ConduitFieldType> } | null> {
-  return bulkWriteRows(sourceKey, tableName, credential, entries, (_existing, fields) => fields)
+  return bulkWriteRows(sourceKey, tableName, credential, entries, (_existing, fields) => fields, fetchImpl)
 }
 
 function bulkUpdateRows(
@@ -763,21 +798,31 @@ function bulkUpdateRows(
   tableName: string | undefined,
   credential: string,
   entries: FlatRow[],
+  fetchImpl: typeof fetch = fetch,
 ): Promise<{ rows: FlatRow[]; schema: Map<string, ConduitFieldType> } | null> {
-  return bulkWriteRows(sourceKey, tableName, credential, entries, (existing, fields) => ({
-    ...existing,
-    ...fields,
-  }))
+  return bulkWriteRows(
+    sourceKey,
+    tableName,
+    credential,
+    entries,
+    (existing, fields) => ({ ...existing, ...fields }),
+    fetchImpl,
+  )
 }
 
 // Builds the ConduitTable for one (sourceKey, tableName) pair against the
 // real Sheets API. Synchronous — see INTEGRATIONS.md's "open() is
 // synchronous" note: nothing here does I/O until a real method is called.
-function openHttpTable(sourceKey: string, credential: string, tableName: string | undefined): ConduitTable {
+function openHttpTable(
+  sourceKey: string,
+  credential: string,
+  tableName: string | undefined,
+  fetchImpl: typeof fetch = fetch,
+): ConduitTable {
   return {
     async describeFields() {
       return cached(`fields\0${sourceKey}\0${tableName ?? ''}\0${tokenDigest(credential)}`, async () => {
-        const grid = await getGrid(sourceKey, tableName, credential)
+        const grid = await getGrid(sourceKey, tableName, credential, fetchImpl)
         const [header, ...dataRows] = grid
         if (!header) return []
         const schema = inferSchema(header, dataRows)
@@ -791,14 +836,14 @@ function openHttpTable(sourceKey: string, credential: string, tableName: string 
     },
 
     async createField(name, type) {
-      return createFieldsOnSheet(sourceKey, tableName, credential, [{ name, type }])
+      return createFieldsOnSheet(sourceKey, tableName, credential, [{ name, type }], fetchImpl)
     },
     async createFields(fields) {
-      return createFieldsOnSheet(sourceKey, tableName, credential, fields)
+      return createFieldsOnSheet(sourceKey, tableName, credential, fields, fetchImpl)
     },
 
     async listRecords(page) {
-      const grid = await getGrid(sourceKey, tableName, credential)
+      const grid = await getGrid(sourceKey, tableName, credential, fetchImpl)
       const [header, ...dataRows] = grid
       const schema = header ? inferSchema(header, dataRows) : new Map<string, ConduitFieldType>()
       const allRows = rowsFromGrid(grid)
@@ -819,11 +864,11 @@ function openHttpTable(sourceKey: string, credential: string, tableName: string 
     // simpler and more accurate than round-tripping it through the grid's
     // all-string representation and re-inferring types from scratch.
     async createRecord(fields) {
-      const [row] = await appendRows(sourceKey, tableName, credential, [fieldsToFlatRow(fields)])
+      const [row] = await appendRows(sourceKey, tableName, credential, [fieldsToFlatRow(fields)], fetchImpl)
       return { id: row.id, fields }
     },
     async createRecords(fieldsList) {
-      const rows = await appendRows(sourceKey, tableName, credential, fieldsList.map(fieldsToFlatRow))
+      const rows = await appendRows(sourceKey, tableName, credential, fieldsList.map(fieldsToFlatRow), fetchImpl)
       return rows.map((row, i) => ({ id: row.id, fields: fieldsList[i] }))
     },
 
@@ -832,11 +877,11 @@ function openHttpTable(sourceKey: string, credential: string, tableName: string 
     // nothing to read back or re-type — only whether the write itself
     // succeeded (a non-null result) matters here.
     async replaceRecord(record) {
-      const result = await bulkReplaceRows(sourceKey, tableName, credential, [fromConduitRecord(record)])
+      const result = await bulkReplaceRows(sourceKey, tableName, credential, [fromConduitRecord(record)], fetchImpl)
       return result ? { id: record.id, fields: record.fields } : null
     },
     async replaceRecords(records) {
-      const result = await bulkReplaceRows(sourceKey, tableName, credential, records.map(fromConduitRecord))
+      const result = await bulkReplaceRows(sourceKey, tableName, credential, records.map(fromConduitRecord), fetchImpl)
       return result ? records.map((record) => ({ id: record.id, fields: record.fields })) : null
     },
 
@@ -845,19 +890,19 @@ function openHttpTable(sourceKey: string, credential: string, tableName: string 
     // need real type inference, the same as listRecords/describeFields
     // get it, not a blanket 'string' default.
     async updateRecord(record) {
-      const result = await bulkUpdateRows(sourceKey, tableName, credential, [fromConduitRecord(record)])
+      const result = await bulkUpdateRows(sourceKey, tableName, credential, [fromConduitRecord(record)], fetchImpl)
       return result ? toConduitRecord(result.rows[0], result.schema) : null
     },
     async updateRecords(records) {
-      const result = await bulkUpdateRows(sourceKey, tableName, credential, records.map(fromConduitRecord))
+      const result = await bulkUpdateRows(sourceKey, tableName, credential, records.map(fromConduitRecord), fetchImpl)
       return result ? result.rows.map((row) => toConduitRecord(row, result.schema)) : null
     },
 
     deleteRecord(id) {
-      return deleteRows(sourceKey, tableName, credential, [id])
+      return deleteRows(sourceKey, tableName, credential, [id], fetchImpl)
     },
     deleteRecords(ids) {
-      return deleteRows(sourceKey, tableName, credential, ids)
+      return deleteRows(sourceKey, tableName, credential, ids, fetchImpl)
     },
   }
 }
@@ -872,11 +917,11 @@ export function createHttpSheetsClient(): ConduitSourceClient {
     // A REST API call needs no real handshake — connect() is synchronous
     // in spirit (cheap, no I/O of its own); it just closes over
     // sourceKey/credential for open() to use later.
-    async connect(sourceKey, credential) {
+    async connect(sourceKey, credential, fetchImpl = fetch) {
       return {
         async listTables() {
           return cached(`tabs\0${sourceKey}\0${tokenDigest(credential)}`, async () => {
-            const response = await sheetsFetch(`${sourceKey}?fields=sheets.properties.title`, credential)
+            const response = await sheetsFetch(`${sourceKey}?fields=sheets.properties.title`, credential, undefined, fetchImpl)
             await throwForStatus(response, 'list tabs')
             const body = (await response.json()) as { sheets?: { properties?: { title?: string } }[] }
             return (body.sheets ?? [])
@@ -885,7 +930,7 @@ export function createHttpSheetsClient(): ConduitSourceClient {
           })
         },
         open(config) {
-          return openHttpTable(sourceKey, credential, tableFromConfig(config))
+          return openHttpTable(sourceKey, credential, tableFromConfig(config), fetchImpl)
         },
       }
     },

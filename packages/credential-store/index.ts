@@ -19,3 +19,6 @@ export {
   deleteFastmailCredential,
 } from './fastmail-credential-store.ts'
 export type { StoredFastmailCredential } from './fastmail-credential-store.ts'
+
+export { createFileCredentialStore } from './credential-store-interface.ts'
+export type { CredentialStore, FileCredentialStorePaths } from './credential-store-interface.ts'

@@ -1,6 +1,10 @@
 export function jsonResponse(body: unknown, status = 200, headers?: Record<string, string>): Response {
-  return new Response(JSON.stringify(body), {
+  const text = JSON.stringify(body)
+  return new Response(text, {
     status,
-    headers: { 'content-type': 'application/json', ...headers },
+    // Explicit, not left to the runtime to infer: this is what the
+    // observation wrapper in dispatch.ts reads back for
+    // clientResponseBytes — correct HTTP either way.
+    headers: { 'content-type': 'application/json', 'content-length': String(new TextEncoder().encode(text).length), ...headers },
   })
 }
