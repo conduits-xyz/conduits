@@ -14,8 +14,8 @@
 //   ></xyz-contact-form>
 //
 // See `static configFields` below for the full, authoritative list of
-// optional attributes (caption, unconfigured-message, success-message,
-// button-text, heading-level) — also what any config UI could
+// optional attributes (preset, caption, unconfigured-message,
+// success-message, button-text, heading-level) — also what any config UI could
 // read to build a form for this widget.
 //
 // `caption` — when set, the widget renders it itself and gives its
@@ -23,12 +23,9 @@
 // default: the widget can't know what heading level is correct
 // wherever it lands. Set `heading-level` alongside it to opt in.
 //
-// Wire format: a message is `POST {fields: {name, email, message}}` —
+// Wire format: the default message is `POST {fields: {name, email, message}}` —
 // the same envelope every conduit accepts (see docs/gateway-api.md).
-// Deliberately not configurable-fields: examples/basic-ajax-form's
-// progressive-enhancement-over-a-plain-form pattern already covers
-// "I need different fields." This is the single most common contact
-// shape, built once, well.
+// The built-in `qualified-lead` preset adds `services` and `budget`.
 //
 // No CAPTCHA anywhere in this widget, unlike most contact-form
 // guidance elsewhere, which treats one as an optional bolt-on —
@@ -80,6 +77,23 @@
     return 'Something went wrong. Please try again.'
   }
 
+  const presets = {
+    'qualified-lead': {
+      services: [
+        ['research-development', 'Research and development'],
+        ['rent-cto', 'Rent a CTO'],
+        ['scale-technical-operations', 'Scale technical operations'],
+        ['get-started', 'Help me get started'],
+      ],
+      budgets: [
+        ['10000-25000', '$10,000 - $25,000'],
+        ['25000-50000', '$25,000 - $50,000'],
+        ['50000-100000-plus', '$50,000 - $100,000+'],
+        ['not-sure', 'Not sure, we should talk'],
+      ],
+    },
+  }
+
   class XyzContactForm extends HTMLElement {
     // See xyz-waitlist.js's identical static property for what this is
     // and how it's meant to be read.
@@ -91,6 +105,18 @@
         default: null,
         requirement: 'required',
         description: 'Which conduit this widget submits messages to.',
+      },
+      {
+        attribute: 'preset',
+        label: 'Preset',
+        type: 'select',
+        options: [
+          { value: '', label: 'Default' },
+          { value: 'qualified-lead', label: 'Qualified lead' },
+        ],
+        default: '',
+        requirement: 'optional',
+        description: 'Adds service and budget questions to the contact form.',
       },
       {
         attribute: 'caption',
@@ -147,6 +173,7 @@
       this.style.display ||= 'block'
       this._status = 'idle' // 'idle' | 'pending' | 'success' | 'error'
       this._errorText = null
+      this._formValues = {}
       this._captionId = `xyz-contact-form-caption-${nextCaptionId++}`
       this._render()
     }
@@ -157,6 +184,14 @@
 
     get caption() {
       return this.getAttribute('caption') || ''
+    }
+
+    get preset() {
+      return this.getAttribute('preset') || ''
+    }
+
+    get presetDefinition() {
+      return presets[this.preset] || null
     }
 
     get headingLevel() {
@@ -183,6 +218,56 @@
       return `<p class="xyz-contact-form-caption" id="${this._captionId}"${headingAttrs}>${escapeHtml(this.caption)}</p>`
     }
 
+    _renderPresetFields(pending) {
+      const preset = this.presetDefinition
+      if (!preset) return ''
+
+      const selectedServices = new Set(this._formValues.services || [])
+      const serviceInputs = preset.services
+        .map(
+          ([value, label], index) => `
+            <label class="xyz-contact-form-choice">
+              <input
+                type="checkbox"
+                name="services"
+                value="${escapeHtml(value)}"
+                ${selectedServices.has(value) ? 'checked' : ''}
+                ${pending ? 'disabled' : ''}
+              />
+              <span>${escapeHtml(label)}</span>
+            </label>`,
+        )
+        .join('')
+
+      const budgetInputs = preset.budgets
+        .map(
+          ([value, label]) => `
+            <label class="xyz-contact-form-choice">
+              <input
+                type="radio"
+                name="budget"
+                value="${escapeHtml(value)}"
+                required
+                ${this._formValues.budget === value ? 'checked' : ''}
+                ${pending ? 'disabled' : ''}
+              />
+              <span>${escapeHtml(label)}</span>
+            </label>`,
+        )
+        .join('')
+
+      return `
+        <fieldset class="xyz-contact-form-choice-group">
+          <legend>How can we help?</legend>
+          <div class="xyz-contact-form-choice-grid">${serviceInputs}</div>
+        </fieldset>
+        <fieldset class="xyz-contact-form-choice-group">
+          <legend>What is your budget?</legend>
+          <div class="xyz-contact-form-choice-grid">${budgetInputs}</div>
+        </fieldset>
+      `
+    }
+
     async _submit(event) {
       event.preventDefault()
       if (this._status === 'pending') return
@@ -190,6 +275,17 @@
       const name = this.querySelector('input[name="name"]').value
       const email = this.querySelector('input[name="email"]').value
       const message = this.querySelector('textarea[name="message"]').value
+      const services = Array.from(this.querySelectorAll('input[name="services"]:checked')).map(
+        (input) => input.value,
+      )
+      const budget = this.querySelector('input[name="budget"]:checked')?.value || ''
+      this._formValues = { name, email, message, services, budget }
+      if (this.presetDefinition && services.length === 0) {
+        this._errorText = 'Please select at least one service.'
+        this._status = 'error'
+        this._render()
+        return
+      }
       this._status = 'pending'
       this._errorText = null
       this._render()
@@ -198,7 +294,14 @@
         const response = await fetch(this.conduitUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fields: { name, email, message } }),
+          body: JSON.stringify({
+            fields: {
+              name,
+              email,
+              message,
+              ...(this.presetDefinition ? { services: services.join('; '), budget } : {}),
+            },
+          }),
         })
         if (response.ok) {
           this._status = 'success'
@@ -228,6 +331,7 @@
 
       const pending = this._status === 'pending'
       const caption = this.caption
+      const values = this._formValues
 
       this.innerHTML = `
         <article class="xyz-contact-form-widget">
@@ -241,6 +345,7 @@
                 required
                 autocomplete="name"
                 class="xyz-contact-form-input"
+                value="${escapeHtml(values.name || '')}"
                 ${pending ? 'disabled' : ''}
               />
             </label>
@@ -252,6 +357,7 @@
                 required
                 autocomplete="email"
                 class="xyz-contact-form-input"
+                value="${escapeHtml(values.email || '')}"
                 ${pending ? 'disabled' : ''}
               />
             </label>
@@ -263,8 +369,9 @@
                 rows="4"
                 class="xyz-contact-form-input xyz-contact-form-textarea"
                 ${pending ? 'disabled' : ''}
-              ></textarea>
+              >${escapeHtml(values.message || '')}</textarea>
             </label>
+            ${this._renderPresetFields(pending)}
             <button type="submit" class="xyz-contact-form-btn" ${pending ? 'disabled' : ''}>
               ${pending ? 'Sending…' : escapeHtml(this.buttonText)}
             </button>

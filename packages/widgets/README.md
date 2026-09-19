@@ -26,8 +26,9 @@ widgets.
   custom element, battle-tested in production, not a simplified demo.
   Thumbs-up/thumbs-down, one script tag.
 - [`xyz-contact-form/`](xyz-contact-form/README.md) — a real
-  `<xyz-contact-form>` custom element. Name/email/message, no CAPTCHA
-  needed (conduits.xyz's own spam controls are gateway-level already).
+  `<xyz-contact-form>` custom element. Name/email/message by default,
+  with a built-in qualified-lead preset, and no CAPTCHA needed
+  (conduits.xyz's own spam controls are gateway-level already).
 - [`xyz-feedback/`](xyz-feedback/README.md) — a real `<xyz-feedback>`
   custom element. A scored rating, not free text — 5-star or
   10-point NPS, set with one `scale` attribute, plus an optional

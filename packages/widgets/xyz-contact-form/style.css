@@ -78,6 +78,43 @@ xyz-contact-form *::after {
   resize: vertical;
 }
 
+.xyz-contact-form-choice-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.xyz-contact-form-choice-group legend {
+  padding: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.xyz-contact-form-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1.5rem;
+}
+
+.xyz-contact-form-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.xyz-contact-form-choice input {
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0.15rem 0 0;
+  accent-color: var(--xyz-accent, #a30020);
+}
+
 .xyz-contact-form-input:focus-visible {
   outline: 2px solid var(--xyz-accent, #a30020);
   outline-offset: 1px;
@@ -119,4 +156,10 @@ xyz-contact-form *::after {
 
 .xyz-contact-form-status[data-state='idle'] {
   opacity: 0.6;
+}
+
+@media (max-width: 32rem) {
+  .xyz-contact-form-choice-grid {
+    grid-template-columns: 1fr;
+  }
 }
