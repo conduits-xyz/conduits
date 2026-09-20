@@ -1,0 +1,164 @@
+/*
+ * Theming hook: every visual property a host page might want to override
+ * is a --xyz-* custom property, with a sane default — the same --xyz-*
+ * vocabulary every widget/form in this repo shares (library/examples/basic-form,
+ * library/examples/basic-ajax-form, library/widgets/xyz-waitlist, library/widgets/xyz-reactions,
+ * library/widgets/xyz-contact-form, library/widgets/xyz-feedback). Set these once, on
+ * :root or any ancestor common to everything you embed, and every one of
+ * them picks up your brand at once, not just this widget.
+ *
+ * Deliberately NOT declared with a default value on `xyz-rsvp` itself —
+ * see xyz-waitlist/style.css's own comment for the full reasoning: a
+ * custom property declared anywhere on this tag, at any specificity,
+ * always wins over one merely inherited from an ancestor, which would
+ * make a :root override silently do nothing. Every default instead lives
+ * as the fallback argument to var() at each actual use site below.
+ */
+xyz-rsvp {
+  display: block;
+  font-family: var(--xyz-font, system-ui, sans-serif);
+  color: var(--xyz-fg, #1a1a1a);
+  box-sizing: border-box;
+}
+
+/* Self-containment: every element this widget draws has its own
+   padding/border math scoped to *this* box-sizing, never a host page's
+   ambient convention (or lack of one — content-box is the CSS default,
+   and a host that hasn't reset it must render this widget identically
+   to one that has). Scoped under the widget's own tag, so this can
+   never leak out and change how the host page's *other* content boxes
+   its own elements. */
+xyz-rsvp *,
+xyz-rsvp *::before,
+xyz-rsvp *::after {
+  box-sizing: inherit;
+}
+
+/* A sensible, neutral default for the optional `caption` attribute —
+   a host page can still restyle it (e.g. an uppercase "eyebrow" look)
+   by reaching into this class the same way it already can for
+   .xyz-rsvp-input/.xyz-rsvp-btn; this is just what it looks like with
+   zero host CSS at all. */
+.xyz-rsvp-caption {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.xyz-rsvp-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--xyz-gap, 10px);
+}
+
+.xyz-rsvp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.xyz-rsvp-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* The UA default `[hidden] { display: none }` rule and
+   `.xyz-rsvp-field { display: flex }` above are equal specificity —
+   an author rule always beats a same-specificity UA one, so without
+   this the guest-count field would stay visible (as flex) even while
+   `hidden`. Higher-specificity override, not !important, so a host's
+   own more-specific selector could still never reach in here anyway —
+  see library/widgets/README.md's "Self-containment" section. */
+.xyz-rsvp-field[hidden] {
+  display: none;
+}
+
+.xyz-rsvp-input {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  font-family: inherit;
+  font-size: 1rem;
+  color: inherit;
+  background: var(--xyz-bg, #ffffff);
+  border: 1px solid var(--xyz-border, #e0e0e0);
+  border-radius: var(--xyz-radius, 6px);
+}
+
+.xyz-rsvp-input:focus-visible {
+  outline: 2px solid var(--xyz-accent, #798b3c);
+  outline-offset: 1px;
+}
+
+/* A real <fieldset> now (was a <div role="radiogroup">), with its own
+   <legend> (was a <span> + aria-label) — the fieldset default
+   border/padding/margin/min-width is reset so it behaves like the
+   plain container it's replacing, and legend gets forced onto its own
+   full-width line (flex-basis: 100%) so the three choices below it
+   still wrap into their own row, exactly like before. */
+.xyz-rsvp-attending-fieldset {
+  display: flex;
+  /* .xyz-rsvp-field (same specificity, earlier in this file) sets
+     flex-direction: column — must be redeclared here, not just
+     omitted, since the cascade is per-property: a property this rule
+     never mentions keeps whatever the earlier rule already set. */
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 1rem;
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.xyz-rsvp-attending-fieldset > legend {
+  flex-basis: 100%;
+  padding: 0;
+}
+
+.xyz-rsvp-attending-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.95rem;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.xyz-rsvp-btn {
+  align-self: flex-start;
+  height: 2.5rem;
+  padding: 0 1.25rem;
+  min-width: 8rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--xyz-accent-fg, #ffffff);
+  background: var(--xyz-accent, #798b3c);
+  border: none;
+  border-radius: var(--xyz-radius, 6px);
+  cursor: pointer;
+}
+
+.xyz-rsvp-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.xyz-rsvp-status {
+  margin: 0;
+  font-size: 0.9rem;
+  min-height: 1.2em;
+}
+
+.xyz-rsvp-status[data-state='error'] {
+  color: var(--xyz-error, crimson);
+}
+
+.xyz-rsvp-status[data-state='success'] {
+  color: var(--xyz-success, #1a7a3a);
+}
+
+.xyz-rsvp-status[data-state='idle'] {
+  opacity: 0.6;
+}

@@ -20,10 +20,10 @@ write.
   the gateway's own config, plus the CLI that authorizes Google
   (`conduits auth google`) and runs the service (`conduits gateway`).
   No database.
-- **The `xyz-*` widgets** (`packages/widgets`) — zero-dependency,
+- **The `xyz-*` widgets** (`library/widgets`) — zero-dependency,
   framework-free custom elements (waitlist signup, reactions, contact
   form, feedback, RSVP) — copy the script tag onto any page.
-- **`examples/`** — reference demos and QA harnesses to build on.
+- **`library/examples/`** — reference demos and QA harnesses to build on.
 
 Point `services/gateway` at your own `conduits.yaml`, your own Fastmail
 token or Google OAuth client, and it runs standalone.
@@ -50,8 +50,9 @@ This repository is organized as an npm workspaces monorepo:
   no UI of their own. See [`services/README.md`](services/README.md).
 - `packages/` — shared libraries: `gateway` (the request pipeline),
   `conduit` (provider integrations), `config` (the YAML compiler),
-  `widgets` (copy-paste custom elements).
-- `examples/` — runnable demos and reference code to build *on*, not
+  `credential-store` (provider credentials).
+- `library/` — copy-paste widgets, showcase examples, and the public catalog.
+- `library/examples/` — runnable demos and reference code to build *on*, not
   copy as-is.
 
 ## Getting started

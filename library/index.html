@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Copy-ready widgets powered by conduits." />
+    <title>Widget Library | conduits.xyz</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#library">Skip to library</a>
+    <header class="site-header">
+      <a class="brand" href="../">conduits<span>.xyz</span></a>
+      <nav aria-label="Primary navigation">
+        <a href="#library">Library</a>
+        <a href="./CONTRIBUTING.md">Contribute</a>
+        <a href="../docs/gateway-api.md">API</a>
+      </nav>
+    </header>
+
+    <main id="library">
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow">THE CONDUITS LIBRARY</p>
+        <h1 id="page-title">Widgets that connect<br /><em>to the work.</em></h1>
+        <p class="intro-copy">Copy-ready interface widgets for turning a conduit into a useful part of your site.</p>
+        <div class="intro-actions">
+          <a class="button button-dark" href="#catalog">Browse the library <span aria-hidden="true">↓</span></a>
+          <a class="text-link" href="./CONTRIBUTING.md">Build for the library <span aria-hidden="true">↗</span></a>
+        </div>
+      </section>
+
+      <section class="catalog-shell" id="catalog" aria-labelledby="catalog-title">
+        <div class="catalog-heading">
+          <div>
+            <p class="eyebrow">OPEN COLLECTION</p>
+            <h2 id="catalog-title">Find something useful.</h2>
+          </div>
+          <p class="catalog-count" id="catalog-count" aria-live="polite"></p>
+        </div>
+
+        <div class="catalog-controls">
+          <label class="search-field">
+            <span class="sr-only">Search the library</span>
+            <span aria-hidden="true">⌕</span>
+            <input id="search" type="search" placeholder="Search by name or purpose" autocomplete="off" />
+          </label>
+          <div class="category-tags" role="group" aria-label="Filter by category">
+            <button class="category-tag is-active" type="button" data-category="all">All categories</button>
+            <button class="category-tag" type="button" data-category="capture">Capture</button>
+            <button class="category-tag" type="button" data-category="feedback">Feedback</button>
+            <button class="category-tag" type="button" data-category="engagement">Engagement</button>
+            <button class="category-tag" type="button" data-category="events">Events</button>
+            <button class="category-tag" type="button" data-category="utilities">Utilities</button>
+          </div>
+        </div>
+
+        <div class="featured-strip" id="featured" aria-labelledby="featured-title">
+          <div class="featured-label">
+            <p class="eyebrow">SELECTED BY THE TEAM</p>
+            <h3 id="featured-title">Featured</h3>
+          </div>
+          <div class="featured-list" id="featured-list"></div>
+        </div>
+
+        <div class="catalog-grid" id="catalog-grid" aria-live="polite"></div>
+        <p class="empty-state" id="empty-state" hidden>No library items match that search.</p>
+      </section>
+
+      <section class="contribute-band" aria-labelledby="contribute-title">
+        <div>
+          <p class="eyebrow">MAKE SOMETHING FOR THE COLLECTION</p>
+          <h2 id="contribute-title">Have a widget worth sharing?</h2>
+        </div>
+        <div class="contribute-copy">
+          <p>Submit a zero-dependency, buildless widget and its runnable demo through GitHub. Every contribution is reviewed against the public checklist before it joins the library.</p>
+          <a class="button button-light" href="./CONTRIBUTING.md">Read the contribution guide <span aria-hidden="true">↗</span></a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>conduits.xyz / library</span>
+      <span>MIT licensed infrastructure for useful forms</span>
+    </footer>
+    <script src="./catalog.js"></script>
+  </body>
+</html>

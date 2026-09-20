@@ -24,7 +24,7 @@ import {
   type WireRecord,
 } from '@conduits/conduit'
 
-// A reserved field name a plain HTML <form> (examples/basic-form) can
+// A reserved field name a plain HTML <form> (library/examples/basic-form) can
 // include as a hidden input to get redirected to its own "thanks" page
 // after a real create, instead of landing on this endpoint's raw JSON
 // body.

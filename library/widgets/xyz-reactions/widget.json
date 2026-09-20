@@ -1,0 +1,17 @@
+{
+  "slug": "xyz-reactions",
+  "name": "Reactions",
+  "tag": "xyz-reactions",
+  "kind": "widget",
+  "status": "official",
+  "featured": true,
+  "category": "engagement",
+  "description": "A thumbs-up or thumbs-down response widget with one vote per subject and visitor.",
+  "author": { "name": "Conduits", "url": "https://conduits.xyz" },
+  "license": "MIT",
+  "source": "https://github.com/conduits/conduits/tree/main/library/widgets/xyz-reactions",
+  "demo": "demo.html",
+  "screenshot": null,
+  "examples": [],
+  "reviewedAt": "2026-09-19"
+}

@@ -2,7 +2,7 @@ import type { Middleware } from 'remix/router'
 
 // A conduit's public API is meant to be called directly from a
 // framework-free web component embedded on someone else's page (see the
-// widget examples under examples/). A cross-origin fetch() needs both
+// widget examples under library/examples/). A cross-origin fetch() needs both
 // this and the OPTIONS preflight handlers in router.ts.
 //
 // Applied at the router level (see router.ts), not inside jsonResponse():

@@ -1,0 +1,17 @@
+{
+  "slug": "xyz-contact-form",
+  "name": "Contact form",
+  "tag": "xyz-contact-form",
+  "kind": "widget",
+  "status": "official",
+  "featured": true,
+  "category": "capture",
+  "description": "A copy-ready contact form backed by a conduit, with an optional qualified-lead preset.",
+  "author": { "name": "Conduits", "url": "https://conduits.xyz" },
+  "license": "MIT",
+  "source": "https://github.com/conduits/conduits/tree/main/library/widgets/xyz-contact-form",
+  "demo": "demo.html",
+  "screenshot": null,
+  "examples": [],
+  "reviewedAt": "2026-09-19"
+}

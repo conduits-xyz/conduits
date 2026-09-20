@@ -41,7 +41,7 @@ methods — e.g. leaving `GET` open to a public widget while requiring a
 secret `Authorization: Bearer <token>` header for `PATCH`. Not a
 replacement for the curi/racm model, and not the mechanism for
 splitting public-write from private-read on the same underlying
-source either — see `examples/contact-validation-flow` for that (two
+source either — see `library/examples/contact-validation-flow` for that (two
 conduits pointing at the same source, each with its own racm).
 
 - The configured set of token-required methods only ever gates a

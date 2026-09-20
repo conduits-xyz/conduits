@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>conduits.xyz widget — reactions</title>
+    <link href="../conduit-url-input.css" rel="stylesheet" />
+    <!-- In <head>, not down by the widget's own <script> — see
+         xyz-waitlist/index.html's identical comment for why. -->
+    <link href="./style.css" rel="stylesheet" />
+    <link href="../../detail.css" rel="stylesheet" />
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 28rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+        margin-bottom: 1.5rem;
+      }
+      .demo-card {
+        padding: 1.25rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body class="library-page" data-category="engagement">
+    <header class="library-header">
+      <a class="library-brand" href="../../">conduits<span>.xyz</span></a>
+      <nav class="library-nav" aria-label="Primary navigation">
+        <a href="../../">Library</a>
+        <a href="../../CONTRIBUTING.md">Contribute</a>
+        <a href="../../../docs/gateway-api.md">API</a>
+      </nav>
+    </header>
+    <main class="library-detail">
+      <a class="library-back" href="../../">← Back to library</a>
+    <h1>Reactions widget</h1>
+    <p>Paste a conduit's own ID (the part your dashboard card shows) below
+      to try it — a real embed hardcodes a full conduit URL in its own
+      copy of the tag instead.</p>
+    <p class="library-signup">Don't have a conduit? <a data-library-signup href="https://conduits.xyz">Sign up at conduits.xyz to get a free 3-pack.</a></p>
+    <div class="field">
+      <label for="curi-input">Conduit URL</label>
+      <div class="conduit-url-control">
+        <span id="curi-prefix" class="conduit-url-prefix"></span>
+        <input id="curi-input" type="text" autocomplete="off" spellcheck="false" placeholder="newsletter-signup" />
+        <button id="check-conduit" class="conduit-url-check" type="button">Check</button>
+      </div>
+      <div id="curi-status" class="conduit-url-status" role="status" aria-live="polite"></div>
+    </div>
+    <div class="detail-actions">
+      <button id="reset-widget" class="detail-action" type="button">Reset demo</button>
+    </div>
+
+    <section class="library-widget-stage">
+    <div class="demo-card">
+      <!-- caption: the widget renders its own label and wires it to
+           the button group itself (aria-labelledby) — no external
+           heading needed here the way an older version of this demo
+           had one. See widgets/README.md's "Semantic markup" section. -->
+      <xyz-reactions id="reactions" demo subject="xyz-reactions-demo" caption="Was this example helpful?"></xyz-reactions>
+      <div class="detail-actions"><button id="copy-embed" class="detail-action" type="button">Copy embed</button></div>
+    </div>
+    </section>
+
+    </main>
+
+    <script src="./xyz-reactions.js"></script>
+    <script src="../conduit-url-input.js"></script>
+    <script src="../../config.js"></script>
+    <script src="../detail-actions.js"></script>
+    <script type="module">
+      setupConduitUrlInput({
+        inputId: 'curi-input',
+        prefixId: 'curi-prefix',
+        statusId: 'curi-status',
+        checkButtonId: 'check-conduit',
+        resetButtonId: 'reset-widget',
+        storageKey: 'reactions',
+        onChange(url) {
+          // conduit-url is only read once, in connectedCallback, so
+          // re-configuring means recreating the element.
+          const fresh = document.createElement('xyz-reactions')
+          fresh.id = 'reactions'
+          fresh.setAttribute('subject', 'xyz-reactions-demo')
+          fresh.setAttribute('caption', 'Was this example helpful?')
+          if (url) fresh.setAttribute('conduit-url', url)
+          else fresh.setAttribute('demo', '')
+          document.getElementById('reactions').replaceWith(fresh)
+        },
+      })
+      setupWidgetCopyButton({ buttonId: 'copy-embed', tag: 'xyz-reactions', slug: 'xyz-reactions', attributes: { subject: 'xyz-reactions-demo', caption: 'Was this example helpful?' } })
+    </script>
+    <footer class="library-footer">
+      <span>conduits.xyz / library</span>
+      <span>MIT licensed infrastructure for useful forms</span>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "slug": "xyz-rsvp",
+  "name": "RSVP",
+  "tag": "xyz-rsvp",
+  "kind": "widget",
+  "status": "official",
+  "featured": true,
+  "category": "events",
+  "description": "A yes, no, or maybe response widget for an event, with an optional guest count.",
+  "author": { "name": "Conduits", "url": "https://conduits.xyz" },
+  "license": "MIT",
+  "source": "https://github.com/conduits/conduits/tree/main/library/widgets/xyz-rsvp",
+  "demo": "demo.html",
+  "screenshot": null,
+  "examples": [],
+  "reviewedAt": "2026-09-19"
+}

@@ -5,12 +5,14 @@
   "license": "MIT",
   "workspaces": [
     "services/*",
-    "packages/*"
+    "packages/*",
+    "library/widgets"
   ],
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "test:all": "npm run test:all --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "validate:library": "node scripts/validate-library.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0"
