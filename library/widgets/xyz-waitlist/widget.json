@@ -1,17 +1,9 @@
 {
   "slug": "xyz-waitlist",
   "name": "Waitlist",
-  "tag": "xyz-waitlist",
   "kind": "widget",
-  "status": "official",
-  "featured": true,
-  "category": "capture",
-  "description": "A focused first-name and email signup form for a waitlist or launch page.",
-  "author": { "name": "Conduits", "url": "https://conduits.xyz" },
-  "license": "MIT",
-  "source": "https://github.com/conduits/conduits/tree/main/library/widgets/xyz-waitlist",
-  "demo": "demo.html",
-  "screenshot": null,
-  "examples": [],
-  "reviewedAt": "2026-09-19"
+  "tags": ["waitlist", "newsletter-signup"],
+  "description": "Collect first-name and email signups for a waitlist or launch.",
+  "author": { "name": "Conduits", "social": { "github": "conduits-xyz" } },
+  "demo": "demo.html"
 }

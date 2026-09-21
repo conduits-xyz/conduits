@@ -2,10 +2,8 @@
   "slug": "basic-form",
   "name": "Basic form",
   "kind": "example",
-  "category": "capture",
+  "tags": ["contact-information"],
   "description": "The smallest possible HTML form that posts fields to a conduit.",
-  "author": { "name": "Conduits", "url": "https://conduits.xyz" },
-  "license": "MIT",
-  "screenshot": null,
+  "author": { "name": "Conduits", "social": { "github": "conduits-xyz" } },
   "widgets": []
 }

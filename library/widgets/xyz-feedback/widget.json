@@ -1,17 +1,9 @@
 {
   "slug": "xyz-feedback",
   "name": "Feedback",
-  "tag": "xyz-feedback",
   "kind": "widget",
-  "status": "official",
-  "featured": true,
-  "category": "feedback",
-  "description": "A compact rating widget with five-star and NPS modes, plus an optional comment.",
-  "author": { "name": "Conduits", "url": "https://conduits.xyz" },
-  "license": "MIT",
-  "source": "https://github.com/conduits/conduits/tree/main/library/widgets/xyz-feedback",
-  "demo": "demo.html",
-  "screenshot": null,
-  "examples": [],
-  "reviewedAt": "2026-09-19"
+  "tags": ["feedback"],
+  "description": "Collect five-star or NPS ratings with an optional comment.",
+  "author": { "name": "Conduits", "social": { "github": "conduits-xyz" } },
+  "demo": "demo.html"
 }

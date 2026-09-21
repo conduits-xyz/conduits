@@ -2,10 +2,8 @@
   "slug": "basic-ajax-form",
   "name": "Basic AJAX form",
   "kind": "example",
-  "category": "capture",
+  "tags": ["contact-information"],
   "description": "A progressive-enhancement form that submits with fetch and reports its result inline.",
-  "author": { "name": "Conduits", "url": "https://conduits.xyz" },
-  "license": "MIT",
-  "screenshot": null,
+  "author": { "name": "Conduits", "social": { "github": "conduits-xyz" } },
   "widgets": []
 }

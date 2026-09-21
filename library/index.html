@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Copy-ready widgets powered by conduits." />
+    <meta name="description" content="Ready-to-embed widgets for collecting responses and connecting your site to a conduit." />
     <title>Widget Library | conduits.xyz</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
@@ -20,20 +20,20 @@
 
     <main id="library">
       <section class="intro" aria-labelledby="page-title">
-        <p class="eyebrow">THE CONDUITS LIBRARY</p>
-        <h1 id="page-title">Widgets that connect<br /><em>to the work.</em></h1>
-        <p class="intro-copy">Copy-ready interface widgets for turning a conduit into a useful part of your site.</p>
+        <p class="eyebrow">FROM INTEREST TO ACTION</p>
+        <h1 id="page-title">A form starts the conversation.<br /><em>A conduit moves it forward.</em></h1>
+        <p class="intro-copy">Add a ready-to-embed widget to your site and give every response somewhere useful to go.</p>
         <div class="intro-actions">
-          <a class="button button-dark" href="#catalog">Browse the library <span aria-hidden="true">↓</span></a>
-          <a class="text-link" href="./CONTRIBUTING.md">Build for the library <span aria-hidden="true">↗</span></a>
+          <a class="button button-dark" href="#catalog">Browse widgets <span aria-hidden="true">↓</span></a>
+          <a class="text-link" href="./CONTRIBUTING.md">Build a widget <span aria-hidden="true">↗</span></a>
         </div>
       </section>
 
       <section class="catalog-shell" id="catalog" aria-labelledby="catalog-title">
         <div class="catalog-heading">
           <div>
-            <p class="eyebrow">OPEN COLLECTION</p>
-            <h2 id="catalog-title">Find something useful.</h2>
+            <p class="eyebrow">WIDGET COLLECTION</p>
+            <h2 id="catalog-title">Find a widget for the job.</h2>
           </div>
           <p class="catalog-count" id="catalog-count" aria-live="polite"></p>
         </div>
@@ -44,19 +44,13 @@
             <span aria-hidden="true">⌕</span>
             <input id="search" type="search" placeholder="Search by name or purpose" autocomplete="off" />
           </label>
-          <div class="category-tags" role="group" aria-label="Filter by category">
-            <button class="category-tag is-active" type="button" data-category="all">All categories</button>
-            <button class="category-tag" type="button" data-category="capture">Capture</button>
-            <button class="category-tag" type="button" data-category="feedback">Feedback</button>
-            <button class="category-tag" type="button" data-category="engagement">Engagement</button>
-            <button class="category-tag" type="button" data-category="events">Events</button>
-            <button class="category-tag" type="button" data-category="utilities">Utilities</button>
+          <div class="tag-filters" id="tag-filters" role="group" aria-label="Filter by tag">
           </div>
         </div>
 
         <div class="featured-strip" id="featured" aria-labelledby="featured-title">
           <div class="featured-label">
-            <p class="eyebrow">SELECTED BY THE TEAM</p>
+            <p class="eyebrow">SELECTED WIDGETS</p>
             <h3 id="featured-title">Featured</h3>
           </div>
           <div class="featured-list" id="featured-list"></div>
@@ -68,20 +62,21 @@
 
       <section class="contribute-band" aria-labelledby="contribute-title">
         <div>
-          <p class="eyebrow">MAKE SOMETHING FOR THE COLLECTION</p>
+          <p class="eyebrow">ADD TO THE COLLECTION</p>
           <h2 id="contribute-title">Have a widget worth sharing?</h2>
         </div>
         <div class="contribute-copy">
-          <p>Submit a zero-dependency, buildless widget and its runnable demo through GitHub. Every contribution is reviewed against the public checklist before it joins the library.</p>
-          <a class="button button-light" href="./CONTRIBUTING.md">Read the contribution guide <span aria-hidden="true">↗</span></a>
+          <p>Build a useful widget with plain HTML, CSS, and JavaScript, then add it to the collection in a GitHub pull request. No framework, build pipeline, or package to publish.</p>
+          <a class="button button-light" href="./CONTRIBUTING.md">Build for the collection <span aria-hidden="true">↗</span></a>
         </div>
       </section>
     </main>
 
     <footer class="site-footer">
       <span>conduits.xyz / library</span>
-      <span>MIT licensed infrastructure for useful forms</span>
+      <span>MIT-licensed widgets for connected sites</span>
     </footer>
+    <script src="./config.js"></script>
     <script src="./catalog.js"></script>
   </body>
 </html>

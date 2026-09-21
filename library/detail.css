@@ -53,11 +53,11 @@ button, input, select { font: inherit; }
 .library-signup a { color: var(--detail-muted); font-weight: 700; text-underline-offset: .2em; }
 .library-signup a:hover { color: var(--detail-ink); }
 .library-widget-stage { margin-top: var(--detail-space-5); padding: var(--detail-stage-padding); border: 1px solid var(--detail-ink); border-radius: var(--detail-radius); background: var(--detail-lime); }
-.library-page[data-category='capture'] .library-widget-stage { background: #b6d9e8; }
-.library-page[data-category='feedback'] .library-widget-stage { background: #f29b73; }
-.library-page[data-category='engagement'] .library-widget-stage { background: #c3e5c1; }
-.library-page[data-category='events'] .library-widget-stage { background: #e3c7e9; }
-.library-page[data-category='utilities'] .library-widget-stage { background: #f1d69a; }
+.library-page[data-theme='capture'] .library-widget-stage { background: #b6d9e8; }
+.library-page[data-theme='feedback'] .library-widget-stage { background: #f29b73; }
+.library-page[data-theme='engagement'] .library-widget-stage { background: #c3e5c1; }
+.library-page[data-theme='events'] .library-widget-stage { background: #e3c7e9; }
+.library-page[data-theme='utilities'] .library-widget-stage { background: #f1d69a; }
 .library-widget-stage > .demo-card { padding: var(--detail-space-3); border: 1px solid var(--detail-line); border-radius: var(--detail-radius); background: var(--detail-card-bg); }
 .library-widget-stage > .demo-card + .demo-card { margin-top: var(--detail-space-2); }
 .library-widget-stage .field { display: flex; flex-direction: column; gap: var(--detail-space-1); margin-bottom: var(--detail-space-4); }

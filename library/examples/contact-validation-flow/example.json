@@ -2,10 +2,8 @@
   "slug": "contact-validation-flow",
   "name": "Contact validation flow",
   "kind": "example",
-  "category": "utilities",
+  "tags": ["contact-information", "validation"],
   "description": "A browser QA harness for exercising write, review, update, and read conduits together.",
-  "author": { "name": "Conduits", "url": "https://conduits.xyz" },
-  "license": "MIT",
-  "screenshot": null,
+  "author": { "name": "Conduits", "social": { "github": "conduits-xyz" } },
   "widgets": []
 }

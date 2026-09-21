@@ -6,9 +6,6 @@ rate-limited, spam-filtered interest-list endpoint live in minutes.
 Zero dependencies, no build step, no JavaScript framework: one script
 tag, one element.
 
-This is the widget as shipped and battle-tested in production — not a
-simplified look-alike built separately for this README.
-
 ## Running it
 
 Open `index.html` directly in a browser, or copy `xyz-waitlist.js`

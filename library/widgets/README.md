@@ -20,15 +20,12 @@ the complete property reference and examples for theming one or several
 widgets.
 
 - [`xyz-waitlist/`](xyz-waitlist/README.md) — a real `<xyz-waitlist>`
-  custom element, battle-tested in production, not a simplified demo.
-  First name + email capture, one script tag.
+  custom element for first-name and email capture, using one script tag.
 - [`xyz-reactions/`](xyz-reactions/README.md) — a real `<xyz-reactions>`
-  custom element, battle-tested in production, not a simplified demo.
-  Thumbs-up/thumbs-down, one script tag.
+  custom element for thumbs-up or thumbs-down responses, using one script tag.
 - [`xyz-contact-form/`](xyz-contact-form/README.md) — a real
-  `<xyz-contact-form>` custom element. Name/email/message by default,
-  with a built-in qualified-lead preset, and no CAPTCHA needed
-  (conduits.xyz's own spam controls are gateway-level already).
+  `<xyz-contact-form>` custom element. Name, email, and message by default,
+  with optional lead-qualification fields.
 - [`xyz-feedback/`](xyz-feedback/README.md) — a real `<xyz-feedback>`
   custom element. A scored rating, not free text — 5-star or
   10-point NPS, set with one `scale` attribute, plus an optional

@@ -3,142 +3,131 @@
     "slug": "basic-ajax-form",
     "name": "Basic AJAX form",
     "kind": "example",
-    "category": "capture",
+    "tags": [
+      "contact-information"
+    ],
     "description": "A progressive-enhancement form that submits with fetch and reports its result inline.",
     "author": {
       "name": "Conduits",
-      "url": "https://conduits.xyz"
+      "social": {
+        "github": "conduits-xyz"
+      }
     },
-    "license": "MIT",
-    "screenshot": null,
     "widgets": []
   },
   {
     "slug": "basic-form",
     "name": "Basic form",
     "kind": "example",
-    "category": "capture",
+    "tags": [
+      "contact-information"
+    ],
     "description": "The smallest possible HTML form that posts fields to a conduit.",
     "author": {
       "name": "Conduits",
-      "url": "https://conduits.xyz"
+      "social": {
+        "github": "conduits-xyz"
+      }
     },
-    "license": "MIT",
-    "screenshot": null,
     "widgets": []
   },
   {
     "slug": "contact-validation-flow",
     "name": "Contact validation flow",
     "kind": "example",
-    "category": "utilities",
+    "tags": [
+      "contact-information",
+      "validation"
+    ],
     "description": "A browser QA harness for exercising write, review, update, and read conduits together.",
     "author": {
       "name": "Conduits",
-      "url": "https://conduits.xyz"
+      "social": {
+        "github": "conduits-xyz"
+      }
     },
-    "license": "MIT",
-    "screenshot": null,
     "widgets": []
   },
   {
     "slug": "xyz-contact-form",
     "name": "Contact form",
-    "tag": "xyz-contact-form",
     "kind": "widget",
-    "status": "official",
-    "featured": true,
-    "category": "capture",
-    "description": "A copy-ready contact form backed by a conduit, with an optional qualified-lead preset.",
+    "tags": [
+      "contact-information"
+    ],
+    "description": "A ready-to-embed contact form with optional fields for qualifying leads.",
     "author": {
       "name": "Conduits",
-      "url": "https://conduits.xyz"
+      "social": {
+        "github": "conduits-xyz"
+      }
     },
-    "license": "MIT",
-    "source": "https://github.com/conduits/conduits/tree/main/library/widgets/xyz-contact-form",
-    "demo": "demo.html",
-    "screenshot": null,
-    "examples": [],
-    "reviewedAt": "2026-09-19"
+    "demo": "demo.html"
   },
   {
     "slug": "xyz-feedback",
     "name": "Feedback",
-    "tag": "xyz-feedback",
     "kind": "widget",
-    "status": "official",
-    "featured": true,
-    "category": "feedback",
-    "description": "A compact rating widget with five-star and NPS modes, plus an optional comment.",
+    "tags": [
+      "feedback"
+    ],
+    "description": "Collect five-star or NPS ratings with an optional comment.",
     "author": {
       "name": "Conduits",
-      "url": "https://conduits.xyz"
+      "social": {
+        "github": "conduits-xyz"
+      }
     },
-    "license": "MIT",
-    "source": "https://github.com/conduits/conduits/tree/main/library/widgets/xyz-feedback",
-    "demo": "demo.html",
-    "screenshot": null,
-    "examples": [],
-    "reviewedAt": "2026-09-19"
+    "demo": "demo.html"
   },
   {
     "slug": "xyz-reactions",
     "name": "Reactions",
-    "tag": "xyz-reactions",
     "kind": "widget",
-    "status": "official",
-    "featured": true,
-    "category": "engagement",
-    "description": "A thumbs-up or thumbs-down response widget with one vote per subject and visitor.",
+    "tags": [
+      "feedback"
+    ],
+    "description": "Collect a thumbs-up or thumbs-down response, one vote per subject and visitor.",
     "author": {
       "name": "Conduits",
-      "url": "https://conduits.xyz"
+      "social": {
+        "github": "conduits-xyz"
+      }
     },
-    "license": "MIT",
-    "source": "https://github.com/conduits/conduits/tree/main/library/widgets/xyz-reactions",
-    "demo": "demo.html",
-    "screenshot": null,
-    "examples": [],
-    "reviewedAt": "2026-09-19"
+    "demo": "demo.html"
   },
   {
     "slug": "xyz-rsvp",
     "name": "RSVP",
-    "tag": "xyz-rsvp",
     "kind": "widget",
-    "status": "official",
-    "featured": true,
-    "category": "events",
-    "description": "A yes, no, or maybe response widget for an event, with an optional guest count.",
+    "tags": [
+      "event-registration",
+      "rsvp"
+    ],
+    "description": "Collect yes, no, or maybe responses for an event, with an optional guest count.",
     "author": {
       "name": "Conduits",
-      "url": "https://conduits.xyz"
+      "social": {
+        "github": "conduits-xyz"
+      }
     },
-    "license": "MIT",
-    "source": "https://github.com/conduits/conduits/tree/main/library/widgets/xyz-rsvp",
-    "demo": "demo.html",
-    "screenshot": null,
-    "examples": [],
-    "reviewedAt": "2026-09-19"
+    "demo": "demo.html"
   },
   {
     "slug": "xyz-waitlist",
     "name": "Waitlist",
-    "tag": "xyz-waitlist",
     "kind": "widget",
-    "status": "official",
-    "featured": true,
-    "category": "capture",
-    "description": "A focused first-name and email signup form for a waitlist or launch page.",
+    "tags": [
+      "waitlist",
+      "newsletter-signup"
+    ],
+    "description": "Collect first-name and email signups for a waitlist or launch.",
     "author": {
       "name": "Conduits",
-      "url": "https://conduits.xyz"
+      "social": {
+        "github": "conduits-xyz"
+      }
     },
-    "license": "MIT",
-    "source": "https://github.com/conduits/conduits/tree/main/library/widgets/xyz-waitlist",
-    "demo": "demo.html",
-    "screenshot": null,
-    "examples": [],
-    "reviewedAt": "2026-09-19"
+    "demo": "demo.html"
   }
 ]
