@@ -10,7 +10,7 @@ function setupWidgetCopyButton({ buttonId, tag, slug, attributes = {} }) {
     try {
       await navigator.clipboard.writeText(snippet)
       button.textContent = 'Copied'
-      setTimeout(() => { button.textContent = 'Copy embed' }, 1400)
+      setTimeout(() => { button.textContent = 'Copy code' }, 1400)
     } catch {
       button.textContent = 'Copy unavailable'
     }

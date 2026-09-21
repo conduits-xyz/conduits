@@ -52,20 +52,20 @@ button, input, select { font: inherit; }
 .library-signup { margin-top: calc(var(--detail-space-2) * -1); font-size: .78rem !important; }
 .library-signup a { color: var(--detail-muted); font-weight: 700; text-underline-offset: .2em; }
 .library-signup a:hover { color: var(--detail-ink); }
-.library-widget-stage { margin-top: var(--detail-space-5); padding: var(--detail-stage-padding); border: 1px solid var(--detail-ink); border-radius: var(--detail-radius); background: var(--detail-lime); }
+.library-widget-stage { display: grid; grid-template-columns: minmax(0, 1fr) auto; row-gap: var(--detail-space-2); column-gap: var(--detail-space-2); margin-top: var(--detail-space-5); padding: var(--detail-space-2) var(--detail-stage-padding) var(--detail-stage-padding); border: 1px solid var(--detail-ink); border-radius: var(--detail-radius); background: var(--detail-lime); }
 .library-page[data-theme='capture'] .library-widget-stage { background: #b6d9e8; }
 .library-page[data-theme='feedback'] .library-widget-stage { background: #f29b73; }
 .library-page[data-theme='engagement'] .library-widget-stage { background: #c3e5c1; }
 .library-page[data-theme='events'] .library-widget-stage { background: #e3c7e9; }
 .library-page[data-theme='utilities'] .library-widget-stage { background: #f1d69a; }
-.library-widget-stage > .demo-card { padding: var(--detail-space-3); border: 1px solid var(--detail-line); border-radius: var(--detail-radius); background: var(--detail-card-bg); }
-.library-widget-stage > .demo-card + .demo-card { margin-top: var(--detail-space-2); }
+.stage-actions { grid-column: 2; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--detail-space-2); }
+.stage-actions .detail-action { border-color: var(--detail-ink); background: var(--detail-card-bg); }
+.library-widget-stage > .demo-card { grid-column: 1 / -1; padding: var(--detail-space-3); border: 1px solid var(--detail-line); border-radius: var(--detail-radius); background: var(--detail-card-bg); }
 .library-widget-stage .field { display: flex; flex-direction: column; gap: var(--detail-space-1); margin-bottom: var(--detail-space-4); }
 .library-widget-stage .field label { font-family: var(--detail-body-font); font-size: .8rem; font-weight: 700; }
 .detail-actions { display: flex; flex-wrap: wrap; gap: var(--detail-space-2); margin-top: calc(var(--detail-space-2) * -1); margin-bottom: var(--detail-space-4); }
 .detail-action { border: 1px solid var(--detail-line); border-radius: 999px; padding: .55rem .8rem; background: transparent; color: var(--detail-ink); font-family: var(--detail-body-font); font-size: .76rem; font-weight: 700; }
 .detail-action:hover { border-color: var(--detail-ink); background: var(--detail-ink); color: #fff; }
-.demo-card .detail-actions { margin: var(--detail-space-2) 0 0; }
 .library-detail code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .library-footer { color: var(--detail-muted); font-family: var(--detail-body-font); font-size: .68rem; }
 

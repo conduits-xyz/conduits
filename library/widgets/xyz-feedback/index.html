@@ -69,16 +69,18 @@
          Both are shown here at once to demonstrate they're separate,
          composable pieces of context. -->
     <section class="library-widget-stage">
+    <div class="stage-actions">
+      <button id="copy-stars-embed" class="detail-action" type="button">Copy 5-star code</button>
+      <button id="copy-nps-embed" class="detail-action" type="button">Copy NPS code</button>
+    </div>
     <div class="demo-card">
       <h2>5-star (default)</h2>
       <xyz-feedback id="feedback-stars" demo subject="xyz-feedback-demo-stars" caption="How did we do?"></xyz-feedback>
-      <div class="detail-actions"><button id="copy-stars-embed" class="detail-action" type="button">Copy embed</button></div>
     </div>
 
     <div class="demo-card">
       <h2>10-point NPS</h2>
       <xyz-feedback id="feedback-nps" demo scale="10" subject="xyz-feedback-demo-nps" caption="How did we do?"></xyz-feedback>
-      <div class="detail-actions"><button id="copy-nps-embed" class="detail-action" type="button">Copy embed</button></div>
     </div>
     </section>
 

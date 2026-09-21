@@ -94,7 +94,7 @@ async function copyEmbed(button) {
   try {
     await navigator.clipboard.writeText(snippet)
     button.textContent = 'Copied'
-    setTimeout(() => { button.textContent = 'Copy embed' }, 1400)
+    setTimeout(() => { button.textContent = 'Copy' }, 1400)
   } catch {
     button.textContent = 'Open docs to copy'
   }
