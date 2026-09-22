@@ -13,8 +13,8 @@ every conduit) make that unnecessary here.
 
 The default fields are fixed (`name`, `email`, `message`). Use
 `preset="qualified-lead"` for the built-in lead qualification fields;
-for a different field set, see `library/examples/basic-ajax-form`'s
-progressive-enhancement-over-a-plain-form pattern instead.
+for a different field set, see `library/pages/progressive-enhancement-form`'s
+own plain-form-vs-fetch pattern instead.
 
 ## Running it
 

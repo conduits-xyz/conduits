@@ -1,6 +1,7 @@
-// Manual QA harness for exercising conduits.xyz end to end: write via a
-// write-only conduit, read + update via a read/update conduit, then read
-// again via a read-only conduit and visualize validity.
+// A moderated submission flow built from three conduits with different
+// access levels: write via a write-only conduit, read + update via a
+// read/update conduit, then read again via a read-only conduit and
+// visualize validity.
 //
 // Wire format: the gateway's request/response shape matches Airtable's
 // own — a record is always `{fields: {...}}`, a list response is

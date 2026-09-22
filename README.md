@@ -18,12 +18,12 @@ write.
 - **Config and auth tooling** (`packages/config`,
   `services/gateway`) — compiles a human-facing `conduits.yaml` into
   the gateway's own config, plus the CLI that authorizes Google
-  (`conduits auth google`) and runs the service (`conduits gateway`).
-  No database.
+  (`npm run auth:google`, from `services/gateway`) and runs the
+  service (`npm run gateway`). No database.
 - **The `xyz-*` widgets** (`library/widgets`) — zero-dependency,
   framework-free custom elements (waitlist signup, reactions, contact
   form, feedback, RSVP) — copy the script tag onto any page.
-- **`library/examples/`** — reference demos and QA harnesses to build on.
+- **`library/pages/`** — integration tutorials to build on.
 
 Point `services/gateway` at your own `conduits.yaml`, your own Fastmail
 token or Google OAuth client, and it runs standalone.
@@ -32,7 +32,7 @@ token or Google OAuth client, and it runs standalone.
 
 [`services/gateway/README.md`](services/gateway/README.md) — the
 fastest path to a running gateway: copy `conduits.example.yaml`, set a
-few environment variables (or run `conduits auth google` for Sheets/
+few environment variables (or run `npm run auth:google` for Sheets/
 Gmail), and start the service. No database.
 
 [`docs/gateway-api.md`](docs/gateway-api.md) — the wire contract every
@@ -51,8 +51,8 @@ This repository is organized as an npm workspaces monorepo:
 - `packages/` — shared libraries: `gateway` (the request pipeline),
   `conduit` (provider integrations), `config` (the YAML compiler),
   `credential-store` (provider credentials).
-- `library/` — copy-paste widgets, showcase examples, and the public catalog.
-- `library/examples/` — runnable demos and reference code to build *on*, not
+- `library/` — copy-paste widgets, integration tutorials, and the public catalog.
+- `library/pages/` — runnable tutorials and reference code to build *on*, not
   copy as-is.
 
 ## Getting started
@@ -73,8 +73,11 @@ npm run gateway
 
 # Contribution
 
-This project isn't accepting unsolicited pull requests. Please open an
-issue first if you'd like to propose a feature or change.
+The gateway, provider integrations, and config tooling (`packages/`,
+`services/`) aren't accepting unsolicited pull requests — open an issue
+first if you'd like to propose a change there. The widget library is
+different: see [`library/CONTRIBUTING.md`](library/CONTRIBUTING.md) to
+submit a widget.
 
 ---
 

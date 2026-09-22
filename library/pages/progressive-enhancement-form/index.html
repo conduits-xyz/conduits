@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>conduits.xyz tutorial — progressive enhancement form</title>
+    <link href="../../widgets/conduit-url-input.css" rel="stylesheet" />
+    <link href="./style.css" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- One form, submitted two ways via a checkbox: a native POST
+         with zero JavaScript, or the same markup enhanced with fetch(). -->
+    <h1>Progressive enhancement form</h1>
+    <p>
+      Paste a real conduit below and try submitting both ways: with
+      "Enhance with JavaScript" checked, submitting fetches in the
+      background and reports success inline. Uncheck it and submit
+      again — the exact same form now does a real page navigation to
+      the gateway's own JSON response, no JavaScript involved at all.
+    </p>
+    <p class="library-signup">Don't have a conduit? <a data-library-signup href="https://conduits.xyz">Sign up at conduits.xyz to get a free 3-pack.</a></p>
+
+    <div class="field">
+      <label for="curi-input">Conduit URL</label>
+      <div class="conduit-url-control">
+        <span id="curi-prefix" class="conduit-url-prefix"></span>
+        <input id="curi-input" type="text" autocomplete="off" spellcheck="false" placeholder="contact-form" />
+        <button id="check-conduit" class="conduit-url-check" type="button">Check</button>
+      </div>
+      <div id="curi-status" class="conduit-url-status" role="status" aria-live="polite"></div>
+    </div>
+
+    <label class="enhance-toggle">
+      <input type="checkbox" id="enhance-toggle" checked />
+      Enhance with JavaScript (submit via fetch, no page reload)
+    </label>
+
+    <form id="widget-form" class="xyz-form" method="post">
+      <h3>Contact us</h3>
+      <div class="field">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" required />
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required />
+      </div>
+      <button type="submit" id="submit-button" disabled>Submit</button>
+      <p class="status" data-state="idle" role="status" aria-live="polite">Not connected to a conduit yet.</p>
+    </form>
+
+    <script src="../../widgets/conduit-url-input.js"></script>
+    <script src="../../widgets/detail-actions.js"></script>
+    <script type="module">
+      const form = document.getElementById('widget-form')
+      const submitButton = document.getElementById('submit-button')
+      const status = form.querySelector('.status')
+      const enhanceToggle = document.getElementById('enhance-toggle')
+
+      let conduitUrl = null
+
+      function applyConduitUrl() {
+        if (conduitUrl) {
+          form.action = conduitUrl
+          submitButton.disabled = false
+          status.textContent = ''
+        } else {
+          form.removeAttribute('action')
+          submitButton.disabled = true
+          status.textContent = 'Not connected to a conduit yet.'
+        }
+      }
+
+      setupConduitUrlInput({
+        inputId: 'curi-input',
+        prefixId: 'curi-prefix',
+        statusId: 'curi-status',
+        checkButtonId: 'check-conduit',
+        storageKey: 'progressive-enhancement-form',
+        onChange(url) {
+          conduitUrl = url
+          applyConduitUrl()
+        },
+      })
+
+      form.addEventListener('submit', async (event) => {
+        if (!conduitUrl) {
+          event.preventDefault()
+          status.textContent = 'Not connected to a conduit yet.'
+          return
+        }
+
+        if (!enhanceToggle.checked) return // real native submission — a real navigation to the response, on purpose
+
+        event.preventDefault()
+        submitButton.disabled = true
+        status.textContent = 'Sending…'
+        try {
+          // Serialize the whole form, not just name/email, so both
+          // submission paths carry the same fields.
+          const fields = Object.fromEntries(new FormData(form))
+          const response = await fetch(conduitUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fields }),
+          })
+          if (response.ok) {
+            status.dataset.state = 'success'
+            status.textContent = 'Thanks — your message was sent.'
+            form.reset()
+          } else {
+            let detail = `(${response.status})`
+            try {
+              const body = await response.json()
+              if (body?.error) detail = body.error
+            } catch {
+              // Not a JSON body — the bare status code above is all we have.
+            }
+            status.dataset.state = 'error'
+            status.textContent = `Could not send: ${detail}`
+          }
+        } catch {
+          status.dataset.state = 'error'
+          status.textContent = 'Could not reach the server.'
+        } finally {
+          submitButton.disabled = false
+        }
+      })
+    </script>
+  </body>
+</html>

@@ -956,6 +956,10 @@ export function createHttpSheetsClient(): ConduitSourceClient {
 
 const fakeStore = new Map<string, ConduitRecord[]>()
 const fakeAuthFailures = new Set<string>()
+// A valid credential without access to this specific file — mirrors the
+// real client mapping Google's 403/404 to ConduitSourceError, not
+// ConduitAuthError.
+const fakeForbiddenFailures = new Set<string>()
 // Mirrors the real client's ensureColumnsForWrite policy: undefined means
 // "still bootstrapping, anything goes"; once set, any field name outside
 // it is rejected the same way a real established sheet would reject it.
@@ -965,9 +969,12 @@ function fakeKey(sourceKey: string, tableName: string | undefined): string {
   return `${sourceKey}\0${tableName ?? ''}`
 }
 
-function checkFakeAuth(sourceKey: string): void {
+function checkFakeAccess(sourceKey: string): void {
   if (fakeAuthFailures.has(sourceKey)) {
     throw new ConduitAuthError(SOURCE, 'Sheets read failed: access token rejected (401)')
+  }
+  if (fakeForbiddenFailures.has(sourceKey)) {
+    throw new ConduitSourceError(SOURCE, 'Sheets read failed: caller lacks access to this file (403)', 403)
   }
 }
 
@@ -977,7 +984,7 @@ function checkFakeAuth(sourceKey: string): void {
 // never been seeded/written to before is deliberate: a genuinely blank
 // fake sheet can have fields created for it too, the same as a real one.
 function createFakeFields(sourceKey: string, tableName: string | undefined, names: string[]): void {
-  checkFakeAuth(sourceKey)
+  checkFakeAccess(sourceKey)
   if (names.includes(ID_COLUMN_NAME)) {
     throw new Error(`"${ID_COLUMN_NAME}" is reserved and can't be used as a field name`)
   }
@@ -1002,7 +1009,7 @@ function checkFakeSchema(key: string, fieldsList: ConduitFields[]): void {
 }
 
 function appendRowsFake(sourceKey: string, tableName: string | undefined, fieldsList: ConduitFields[]): ConduitRecord[] {
-  checkFakeAuth(sourceKey)
+  checkFakeAccess(sourceKey)
   const key = fakeKey(sourceKey, tableName)
   checkFakeSchema(key, fieldsList)
   const rows = fieldsList.map((fields) => ({ id: randomRowId(), fields }))
@@ -1019,7 +1026,7 @@ function bulkWriteRowsFake(
   entries: ConduitRecord[],
   merge: (existing: ConduitFields, fields: ConduitFields) => ConduitFields,
 ): ConduitRecord[] | null {
-  checkFakeAuth(sourceKey)
+  checkFakeAccess(sourceKey)
   const key = fakeKey(sourceKey, tableName)
   const rows = fakeStore.get(key) ?? []
   const indexes = entries.map((entry) => rows.findIndex((row) => row.id === entry.id))
@@ -1038,7 +1045,7 @@ function bulkWriteRowsFake(
 }
 
 function deleteRowsFake(sourceKey: string, tableName: string | undefined, ids: string[]): boolean {
-  checkFakeAuth(sourceKey)
+  checkFakeAccess(sourceKey)
   const key = fakeKey(sourceKey, tableName)
   const rows = fakeStore.get(key) ?? []
   if (!ids.every((id) => rows.some((row) => row.id === id))) return false
@@ -1063,7 +1070,7 @@ function inferFakeFieldType(values: (string | number | boolean | null)[]): Condu
 function openFakeTable(sourceKey: string, tableName: string | undefined): ConduitTable {
   return {
     async describeFields() {
-      checkFakeAuth(sourceKey)
+      checkFakeAccess(sourceKey)
       const known = fakeSchemas.get(fakeKey(sourceKey, tableName))
       const rows = fakeStore.get(fakeKey(sourceKey, tableName)) ?? []
       return [...(known ?? [])].map((name) => ({
@@ -1088,7 +1095,7 @@ function openFakeTable(sourceKey: string, tableName: string | undefined): Condui
     },
 
     async listRecords(page) {
-      checkFakeAuth(sourceKey)
+      checkFakeAccess(sourceKey)
       const allRows = [...(fakeStore.get(fakeKey(sourceKey, tableName)) ?? [])]
       const offset = page?.cursor ? Number(page.cursor) : 0
       const limit = page?.limit ?? allRows.length
@@ -1141,7 +1148,7 @@ function openFakeTable(sourceKey: string, tableName: string | undefined): Condui
 function createFakeSheetsClient(): ConduitSourceClient {
   return {
     async connect(sourceKey) {
-      checkFakeAuth(sourceKey)
+      checkFakeAccess(sourceKey)
       return {
         async listTables() {
           return [] // no fake test currently exercises multi-tab discovery
@@ -1176,10 +1183,20 @@ export function simulateFakeAuthFailure(sourceKey: string): void {
   fakeAuthFailures.add(sourceKey)
 }
 
+/**
+ * Test-only: make the fake client throw ConduitSourceError(403) for this
+ * spreadsheet — a valid grant without access to this file, unlike
+ * simulateFakeAuthFailure.
+ */
+export function simulateFakeForbidden(sourceKey: string): void {
+  fakeForbiddenFailures.add(sourceKey)
+}
+
 /** Test-only: clear all fake spreadsheet state between tests. */
 export function resetFakeSheets(): void {
   fakeStore.clear()
   fakeAuthFailures.clear()
+  fakeForbiddenFailures.clear()
   fakeSchemas.clear()
 }
 

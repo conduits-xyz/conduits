@@ -6,7 +6,7 @@ These are hard requirements for every widget accepted into the public library.
 - [ ] No external runtime dependencies.
 - [ ] Unique custom-element name.
 - [ ] README with installation, configuration, and conduit contract.
-- [ ] Runnable detail-page demo included; add a separate showcase example when
+- [ ] Runnable detail-page demo included; add a separate showcase page when
 	  the widget needs a page-level integration example.
 - [ ] Valid JSON metadata uses only the contributor fields documented in
 	  [`CONTRIBUTING.md`](CONTRIBUTING.md).
@@ -35,10 +35,11 @@ under that license.
 
 ## FAQ
 
-### Can I submit an example by itself?
+### Can I submit a page by itself?
 
-API references and QA tools are maintained in `library/examples`. A community
-submission should include a separate example only when the widget detail page
+Integration tutorials are maintained in `library/pages` (`kind: "page"` in
+its `page.json`, mirroring a widget's own `widget.json`). A community
+submission should include a separate page only when the widget detail page
 does not adequately demonstrate its page-level integration.
 
 ### Can I use React, Vue, or another framework?

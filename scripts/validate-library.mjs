@@ -16,7 +16,7 @@ const maxNameLength = 80;
 const maxDescriptionLength = 280;
 const allowedFields = {
   widget: new Set(["slug", "name", "kind", "description", "tags", "author", "demo"]),
-  example: new Set(["slug", "name", "kind", "description", "tags", "author", "widgets"]),
+  page: new Set(["slug", "name", "kind", "description", "tags", "author", "widgets"]),
 };
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const customElementPattern = /^[a-z][a-z0-9]*-[a-z0-9-]+$/;
@@ -27,7 +27,7 @@ async function walk(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
     if (entry.isDirectory()) await walk(path);
-    if (entry.isFile() && (entry.name === "widget.json" || entry.name === "example.json")) {
+    if (entry.isFile() && (entry.name === "widget.json" || entry.name === "page.json")) {
       metadata.push({ path, value: JSON.parse(await readFile(path, "utf8")) });
     }
   }
@@ -99,7 +99,7 @@ for (const { path, value } of metadata) {
   const label = relative(process.cwd(), path);
   const fields = allowedFields[value.kind];
   if (!fields) {
-    errors.push(`${label}: kind must be widget or example`);
+    errors.push(`${label}: kind must be widget or page`);
     continue;
   }
   for (const field of Object.keys(value)) {
@@ -132,14 +132,14 @@ for (const { path, value } of metadata) {
 
 const slugs = new Set();
 const widgets = new Map();
-const examples = new Map();
+const pages = new Map();
 for (const { path, value } of metadata) {
   const label = relative(process.cwd(), path);
   if (slugs.has(value.slug)) errors.push(`${label}: duplicate slug ${value.slug}`);
   slugs.add(value.slug);
-  const expectedPath = join(root, value.kind === "widget" ? "widgets" : "examples", value.slug, `${value.kind}.json`);
+  const expectedPath = join(root, value.kind === "widget" ? "widgets" : "pages", value.slug, `${value.kind}.json`);
   if (path !== expectedPath) errors.push(`${label}: metadata path does not match kind and slug`);
-  (value.kind === "widget" ? widgets : examples).set(value.slug, value);
+  (value.kind === "widget" ? widgets : pages).set(value.slug, value);
 }
 
 for (const { path, value } of metadata) {

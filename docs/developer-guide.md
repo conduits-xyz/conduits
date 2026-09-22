@@ -94,10 +94,11 @@ if (!response.ok && response.status < 500) {
 }
 ```
 
-That's the whole loop `library/examples/basic-form/` and
-`library/examples/basic-ajax-form/` demonstrate. `library/examples/contact-validation-flow/`
-extends it to update-in-place and to three conduits with different
-access levels against the same sheet.
+That's the whole loop `library/pages/progressive-enhancement-form/`
+demonstrates, both its plain and fetch-enhanced submission paths.
+`library/pages/contact-validation-flow/` extends it to update-in-place
+and to three conduits with different access levels against the same
+sheet.
 
 ## How-to guides
 
@@ -122,7 +123,7 @@ Testing against your own locally running gateway (`npm run gateway` in
 
 ### Accept a bare curi, not just a full URL
 
-Reuse the resolution pattern in `library/examples/conduit-url-input.js` rather
+Reuse the resolution pattern in `library/widgets/conduit-url-input.js` rather
 than re-deriving it — it also handles a page opened via `file://` (no
 origin to resolve a bare curi against) and an optional
 `localStorage`-backed "remember the last working value" behavior.
@@ -186,12 +187,12 @@ Omit it (or submit via `fetch`) to handle the JSON response yourself.
 
 ### Test before you go live
 
-Run through `library/examples/widget-gallery/` against a scratch sheet before
-pointing real traffic at a conduit: submit a field the sheet doesn't
-have yet (confirm you get the `400` from the how-to above, not a
-silent auto-add), and fire a quick burst of requests to confirm the
-`429`/`Retry-After` path actually triggers rather than assuming the
-default throttle is on.
+Run through any widget or tutorial page in `library/` against a
+scratch sheet before pointing real traffic at a conduit: submit a
+field the sheet doesn't have yet (confirm you get the `400` from the
+how-to above, not a silent auto-add), and fire a quick burst of
+requests to confirm the `429`/`Retry-After` path actually triggers
+rather than assuming the default throttle is on.
 
 ## Authentication
 

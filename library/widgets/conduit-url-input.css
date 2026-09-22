@@ -1,9 +1,7 @@
 /*
  * Shared styling for the "Conduit URL" control (see conduit-url-input.js
- * for the behavior) used by this directory's own demo pages —
- * xyz-waitlist/index.html, xyz-reactions/index.html. A second,
- * identical copy lives in library/examples/ for that directory's own demo
- * pages — see conduit-url-input.js's own comment for why.
+ * for the behavior), used by every widget demo page here and, by direct
+ * relative reference, library/pages/'s own tutorials.
  */
 .conduit-url-control {
   display: flex;

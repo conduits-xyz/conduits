@@ -419,7 +419,7 @@ own gateway keeps a static token as a plain `env:NAME` reference resolved
 from the process environment (see `packages/config/sources/fastmail.ts`)
 or, for an OAuth-style grant shared across conduits, in its own local
 credential store keyed by an opaque `credentialRef` (see
-`services/gateway/google-credential-store.ts`). A different
+`services/gateway/runtime.ts`). A different
 `GatewayRuntime` implementation might instead keep that same kind of
 shared grant in a real database table. Either way,
 `@conduits/gateway` and `packages/conduit` never see or care which —

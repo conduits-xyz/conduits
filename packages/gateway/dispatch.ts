@@ -161,8 +161,10 @@ export function createGatewayDispatcher(deps: GatewayDeps): (context: GatewayCon
 
     try {
       await deps.runtime.recordObservation(observation)
-    } catch {
+    } catch (err) {
       // Best-effort — see GatewayRuntime.recordObservation's own doc.
+      // Logged, never rethrown or surfaced to the caller.
+      console.error('[gateway] recordObservation failed:', err)
     }
 
     return response

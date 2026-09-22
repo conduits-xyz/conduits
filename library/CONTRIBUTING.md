@@ -1,7 +1,7 @@
 # Contributing to the library
 
 The library accepts copy-ready, MIT-compatible widgets through pull requests.
-The detail page is the default showcase, so a separate example is only needed
+The detail page is the default showcase, so a separate page is only needed
 when the widget requires a page-level integration example.
 
 ## Submission steps

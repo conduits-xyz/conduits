@@ -1,9 +1,0 @@
-{
-  "slug": "basic-ajax-form",
-  "name": "Basic AJAX form",
-  "kind": "example",
-  "tags": ["contact-information"],
-  "description": "A progressive-enhancement form that submits with fetch and reports its result inline.",
-  "author": { "name": "Conduits", "social": { "github": "conduits-xyz" } },
-  "widgets": []
-}

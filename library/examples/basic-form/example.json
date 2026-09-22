@@ -1,9 +1,0 @@
-{
-  "slug": "basic-form",
-  "name": "Basic form",
-  "kind": "example",
-  "tags": ["contact-information"],
-  "description": "The smallest possible HTML form that posts fields to a conduit.",
-  "author": { "name": "Conduits", "social": { "github": "conduits-xyz" } },
-  "widgets": []
-}

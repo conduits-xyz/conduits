@@ -1,0 +1,9 @@
+{
+  "slug": "progressive-enhancement-form",
+  "name": "Progressive enhancement form",
+  "kind": "page",
+  "tags": ["contact-information"],
+  "description": "One real form, submitted two ways — plain HTML with zero JavaScript, or the same markup enhanced with fetch() for an inline result. Toggle it live against a real conduit to see the difference.",
+  "author": { "name": "Conduits", "social": { "github": "conduits-xyz" } },
+  "widgets": []
+}

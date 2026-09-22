@@ -21,7 +21,7 @@ and `conduits.yaml` uses a different syntax for each.
 | In `conduits.yaml` | The actual secret lives in | Created by |
 |:--|:--|:--|
 | `credential: env:SOME_NAME` (Fastmail), `bearerToken.value: env:SOME_NAME` | `.env`, as `SOME_NAME=...` | you, typing it in |
-| `credential: google:<name>` (Sheets, Gmail) | `~/.conduits/credentials.json` (a separate file this CLI manages) | `conduits auth google`, a command you run once per name+purpose |
+| `credential: google:<name>` (Sheets, Gmail) | `~/.conduits/credentials.json` (a separate file this CLI manages) | `npm run auth:google`, a command you run once per name+purpose |
 
 `.env` is read once, at process start (`--env-file-if-exists=.env` in
 every script below), into `process.env`. From there:
@@ -31,7 +31,7 @@ every script below), into `process.env`. From there:
   request that needs it;
 - `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are the odd one out: the
   **running gateway never reads them at all.** They exist in `.env`
-  purely so the one-time `conduits auth google` command has something
+  purely so the one-time `npm run auth:google` command has something
   to register a Google OAuth client with. Once that command has run,
   the resulting grant — including the client id/secret it used —
   is saved into `credentials.json`, and the gateway reads *that* file
@@ -290,11 +290,11 @@ route reference.
 - **`fastmail`** — `credential: env:VAR_NAME`, `identityId`,
   `recipients`, `subject`, optional `mailbox`.
 - **`googleSheets`** — `credential: google:<name>`, `spreadsheetId`
-  (from `conduits sheets create` only), optional `sheet` (tab name)
+  (from `npm run sheets:create` only), optional `sheet` (tab name)
   and `fieldMap`.
 - **`gmail`** — `credential: google:<name>`, `recipients`, `subject`.
 
-`conduits auth google` and `conduits sheets create` are the only CLI
+`npm run auth:google` and `npm run sheets:create` are the only CLI
 surfaces here — there's no general conduit-editing command; conduits
 are still authored directly in `conduits.yaml`.
 

@@ -1,9 +1,9 @@
-// Shared "Conduit URL" input control for this directory's own demo
-// pages (library/widgets/xyz-waitlist/index.html, library/widgets/xyz-reactions/
-// index.html) — not part of any widget itself. Each widget's own .js
-// file (xyz-waitlist.js, xyz-reactions.js) stays fully self-contained
-// and copyable on its own; this file is demo-only tooling for trying
-// them out.
+// Shared "Conduit URL" input control for every widget's own demo page
+// (xyz-waitlist, xyz-reactions, xyz-contact-form, xyz-feedback,
+// xyz-rsvp) and, by direct relative reference, library/pages/'s own
+// tutorials — not part of any widget itself. Each widget's own .js
+// file stays fully self-contained and copyable on its own; this file
+// is demo-only tooling for trying them out.
 //
 // Not `type="module"`: Chromium blocks a module script on a file://
 // page. Load this before the page's own inline <script type="module">;

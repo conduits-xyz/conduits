@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Runnable tutorials for integrating with a conduit — read the source, copy the pattern." />
+    <title>Pages | conduits.xyz</title>
+    <link rel="stylesheet" href="../style.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#pages">Skip to pages</a>
+    <header class="site-header">
+      <a class="brand" href="../../">conduits<span>.xyz</span></a>
+      <nav aria-label="Primary navigation">
+        <a href="../">Widgets</a>
+        <a href="../CONTRIBUTING.md">Contribute</a>
+        <a href="https://github.com/conduits-xyz/conduits/blob/main/docs/gateway-api.md" target="_blank" rel="noopener noreferrer">API</a>
+      </nav>
+    </header>
+
+    <main id="pages">
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow">READ THE SOURCE</p>
+        <h1 id="page-title">Build on the API<br /><em>by reading real code.</em></h1>
+        <p class="intro-copy">Plain HTML, CSS, and JavaScript — no framework, no build step. Source you're meant to read and adapt, not embed as-is — for drop-in widgets, see the <a class="text-link" href="../">widget library</a> instead.</p>
+      </section>
+
+      <section class="catalog-shell" aria-labelledby="pages-title">
+        <div class="catalog-heading">
+          <div>
+            <p class="eyebrow">TUTORIALS</p>
+            <h2 id="pages-title">Learn the pattern, then build your own.</h2>
+          </div>
+          <p class="catalog-count" id="pages-count" aria-live="polite"></p>
+        </div>
+        <div class="catalog-grid" id="pages-grid" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>conduits.xyz / library / pages</span>
+      <span>MIT-licensed tutorials for connected sites</span>
+    </footer>
+    <script src="./pages.js"></script>
+  </body>
+</html>

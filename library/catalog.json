@@ -1,45 +1,29 @@
 [
   {
-    "slug": "basic-ajax-form",
-    "name": "Basic AJAX form",
-    "kind": "example",
-    "tags": [
-      "contact-information"
-    ],
-    "description": "A progressive-enhancement form that submits with fetch and reports its result inline.",
-    "author": {
-      "name": "Conduits",
-      "social": {
-        "github": "conduits-xyz"
-      }
-    },
-    "widgets": []
-  },
-  {
-    "slug": "basic-form",
-    "name": "Basic form",
-    "kind": "example",
-    "tags": [
-      "contact-information"
-    ],
-    "description": "The smallest possible HTML form that posts fields to a conduit.",
-    "author": {
-      "name": "Conduits",
-      "social": {
-        "github": "conduits-xyz"
-      }
-    },
-    "widgets": []
-  },
-  {
     "slug": "contact-validation-flow",
     "name": "Contact validation flow",
-    "kind": "example",
+    "kind": "page",
     "tags": [
       "contact-information",
       "validation"
     ],
-    "description": "A browser QA harness for exercising write, review, update, and read conduits together.",
+    "description": "A walkthrough of composing three conduits with different access levels — write-only, review-and-update, and read-only — into one moderated submission flow, charted live as entries move through it.",
+    "author": {
+      "name": "Conduits",
+      "social": {
+        "github": "conduits-xyz"
+      }
+    },
+    "widgets": []
+  },
+  {
+    "slug": "progressive-enhancement-form",
+    "name": "Progressive enhancement form",
+    "kind": "page",
+    "tags": [
+      "contact-information"
+    ],
+    "description": "One real form, submitted two ways — plain HTML with zero JavaScript, or the same markup enhanced with fetch() for an inline result. Toggle it live against a real conduit to see the difference.",
     "author": {
       "name": "Conduits",
       "social": {

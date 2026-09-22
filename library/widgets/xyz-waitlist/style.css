@@ -1,10 +1,11 @@
 /*
  * Theming hook: every visual property a host page might want to override
  * is a --xyz-* custom property, with a sane default — the same --xyz-*
- * vocabulary every widget/form in this repo shares (library/examples/basic-form,
- * library/examples/basic-ajax-form, library/widgets/xyz-reactions). Set these once, on
- * :root or any ancestor common to everything you embed, and every one of
- * them picks up your brand at once, not just this widget.
+ * vocabulary every widget/form in this repo shares
+ * (library/pages/progressive-enhancement-form, library/widgets/xyz-reactions).
+ * Set these once, on :root or any ancestor common to everything you
+ * embed, and every one of them picks up your brand at once, not just
+ * this widget.
  *
  * Deliberately NOT declared with a default value on `xyz-waitlist` itself
  * (`xyz-waitlist { --xyz-font: system-ui; }`) — a custom property with any

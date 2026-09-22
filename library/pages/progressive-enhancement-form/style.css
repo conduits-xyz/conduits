@@ -1,24 +1,55 @@
+/* Page-level layout, plus the Conduit URL field's own wrapper (outside
+ * the <form>). Not shared with .xyz-form below, the actual copy-ready
+ * pattern this tutorial teaches. */
+body {
+  font-family: system-ui, sans-serif;
+  color: #1a1a1a;
+  max-width: 28rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Same treatment as library/detail.css's .library-signup, duplicated
+   since this page doesn't load detail.css. */
+.library-signup {
+  margin-top: -0.75rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.85rem;
+  color: #6b6b6b;
+}
+
+.library-signup a {
+  color: #6b6b6b;
+  font-weight: 700;
+  text-underline-offset: 0.2em;
+}
+
+.library-signup a:hover {
+  color: #1a1a1a;
+}
+
+.enhance-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+
 /*
- * Theming hook: every visual property a host page might want to override
- * is a --xyz-* custom property, with a sane default — the same vocabulary
- * library/widgets/xyz-waitlist and library/widgets/xyz-reactions share, so setting these
- * once (on :root or any common ancestor) brands every form and widget
- * from this repo at once. An embedding site themes the form by setting
- * these on the element (or an ancestor) rather than editing this file.
- *
- * Deliberately NOT declared with a default value on `.xyz-form` itself —
- * a custom property declared anywhere on this class, at any specificity,
- * always wins over one merely inherited from an ancestor, which would
- * make a :root override silently do nothing (verified directly).
- * Every default
- * instead lives as the fallback argument to var() at each actual use
- * site below.
- *
- * Byte-identical to ../basic-ajax-form/style.css, deliberately — each
- * example folder here is meant to be copied on its own as a
- * self-contained artifact (see library/examples/README.md), so this can't
- * reference the other directory's copy without breaking that promise.
- * Keep both in sync by hand if you change one.
+ * Theming hook: every visual property is a --xyz-* custom property with
+ * a fallback default — the same vocabulary xyz-waitlist and
+ * xyz-reactions share. Set on :root or a common ancestor to theme every
+ * form/widget at once. No default declared on `.xyz-form` itself — that
+ * would always win over a :root override, so defaults live only as
+ * var() fallbacks below.
  */
 .xyz-form {
   font-family: var(--xyz-font, system-ui, sans-serif);
@@ -40,8 +71,7 @@
 }
 
 .xyz-form input[type='text'],
-.xyz-form input[type='email'],
-.xyz-form input[type='url'] {
+.xyz-form input[type='email'] {
   height: 2.5rem;
   padding: 0.375rem 0.625rem;
   font-family: inherit;

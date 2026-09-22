@@ -1,8 +1,9 @@
-# Examples
+# Pages
 
-Runnable demos of integrating with a conduit — buildless HTML/CSS/JS,
-no framework, no build step. These pages are repository references for
-API integrations and manual QA.
+Runnable tutorials in integrating with a conduit — buildless HTML/CSS/JS,
+no framework, no build step. These pages are source you're meant to read
+and adapt, not embed as-is — for the drop-in, embeddable widgets, see
+`../widgets/`.
 
 ## For marketers — use a widget as-is
 
@@ -13,12 +14,14 @@ theming vocabulary.
 
 ## For developers — build on the API
 
-- [`basic-form/`](basic-form/README.md) /
-  [`basic-ajax-form/`](basic-ajax-form/README.md) — the simplest
-  possible reference, no framework, no build step. Copy the pattern.
+- [`progressive-enhancement-form/`](progressive-enhancement-form/README.md)
+  — the simplest possible reference: one real form, submitted with
+  zero JavaScript or enhanced with `fetch()`, toggleable live against
+  a real conduit. Copy the pattern.
 - [`contact-validation-flow/`](contact-validation-flow/README.md) — the
-  fuller QA harness: write, read, update, and RACM (per-method access
-  control) end to end.
+  fuller tutorial: composing write, read, and update conduits with
+  different RACM (per-method access control) settings into one
+  moderated submission flow.
 - **Automation recipe**: point a Zapier/n8n/Make webhook step directly
   at your conduit's own URL (`https://conduits.xyz/XXXXXXXX`), same
   as any other webhook target — no code, this already works. `POST`
@@ -43,13 +46,14 @@ theming vocabulary.
 
 ## Everything in this directory
 
-- [`basic-form/`](basic-form/README.md) — a plain HTML form embed, no
-  JavaScript required.
-- [`basic-ajax-form/`](basic-ajax-form/README.md) — the same form,
-  enhanced to submit via `fetch()` with inline status.
+- [`progressive-enhancement-form/`](progressive-enhancement-form/README.md)
+  — one real form, submitted either as a plain HTML `<form>` with no
+  JavaScript, or enhanced with `fetch()` for an inline result — toggle
+  it live to see the same markup behave both ways.
 - [`contact-validation-flow/`](contact-validation-flow/README.md) — a
-  fuller manual QA harness: write, update, and read through 3 conduits
-  with different RACM settings, charted at the end.
+  fuller tutorial: write, update, and read through 3 conduits with
+  different RACM settings, composed into a moderated submission flow
+  and charted at the end.
 
 The actual embeddable widgets live in [`../widgets/`](../widgets/README.md).
 Their detail pages are the interactive showcase and demo entry points.

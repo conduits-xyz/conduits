@@ -2,7 +2,7 @@
 
 Real, brand-agnostic widgets meant to be copied onto someone else's
 site as-is — not reference code to read and adapt (that's
-[`library/examples/`](../examples/README.md)). Buildless HTML/CSS/JS, no
+[`library/pages/`](../pages/README.md)). Buildless HTML/CSS/JS, no
 framework, no build step, zero dependencies. Nothing here is deployed
 as its own service, but it isn't GitHub-only either: this whole
 directory is also served live at `https://conduits.xyz`, under a
@@ -10,9 +10,8 @@ stable `/library/` URL prefix, so every widget below is a real, linkable
 URL — e.g. `https://conduits.xyz/library/widgets/xyz-waitlist/`.
 
 Every widget uses the `xyz-` custom-element prefix, and every one of
-them — along with `library/examples/basic-form` and
-`library/examples/basic-ajax-form`
-— shares one `--xyz-*` CSS custom-property vocabulary (font, colors,
+them — along with `library/pages/progressive-enhancement-form` —
+shares one `--xyz-*` CSS custom-property vocabulary (font, colors,
 radius, spacing). Set those once, on `:root` or any ancestor common to
 everything you embed, and your whole brand applies across every widget
 and form at once, not just one at a time. See [THEME.md](THEME.md) for

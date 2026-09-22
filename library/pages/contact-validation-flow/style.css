@@ -1,8 +1,6 @@
 :root {
   color-scheme: light dark;
-  /* Matches the rest of library/examples/ —
-     a page in this directory should read as one family, not four
-     differently-themed demos. */
+  /* Matches the rest of library/pages/ — one visual family. */
   --accent: #2563eb;
   --accent-ink: #ffffff;
   --border: #e0e0e0;
