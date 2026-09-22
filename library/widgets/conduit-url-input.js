@@ -20,7 +20,9 @@
 // separate host from wherever this page itself is served (a managed
 // hosting arrangement with a split dashboard/data-plane, say) — paste
 // the full cross-origin URL directly in that case instead of a bare
-// curi.
+// curi, unless this page itself is being served from a *.conduits.xyz
+// marketing host, in which case knownOrigin() below already knows the
+// right sibling host to use.
 
 const CURI_PATTERN = /^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/
 
@@ -28,6 +30,22 @@ function knownOrigin() {
   if (location.protocol !== 'http:' && location.protocol !== 'https:') return null
   if ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') && location.port === '8080') {
     return `${location.protocol}//${location.hostname}:8787`
+  }
+  // This library's own managed deployment (its home, not just a
+  // self-hoster's copy of it) runs marketing, control-plane, and
+  // data-plane as three real, separate hosts, always the pattern
+  // <thing>, app.<thing>, run.<thing> — dev.conduits.xyz/
+  // staging.conduits.xyz/conduits.xyz for <thing>. This page is only
+  // ever served from the bare marketing host, never app.*/run.*
+  // themselves, so the data-plane host conduit traffic actually lives
+  // on is always exactly "run." prepended to whatever host served this
+  // page — never location.origin itself, which is the marketing host
+  // and has no conduit-routing code at all. A genuinely self-hosted,
+  // single-process deployment on any other
+  // domain keeps using location.origin below, since there its own bare
+  // origin really is the Gateway's.
+  if (location.hostname === 'conduits.xyz' || location.hostname.endsWith('.conduits.xyz')) {
+    return `${location.protocol}//run.${location.hostname}`
   }
   return location.origin
 }

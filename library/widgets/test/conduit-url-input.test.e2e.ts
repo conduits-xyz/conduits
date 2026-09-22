@@ -138,4 +138,36 @@ describe('conduit-url-input.js — bare curi resolved against the current origin
     // no-known-origin one.
     await page.getByText('Enter a valid conduit path.').waitFor()
   })
+
+  // This product's own managed deployment (dev/staging/production) is
+  // exactly the split-origin case this file's own top comment warns
+  // about: this demo page is served from the bare marketing host
+  // (dev.conduits.xyz, say), never the same origin as the Gateway
+  // (run.dev.conduits.xyz). Proves knownOrigin() actually detects that
+  // and prefixes "run." rather than falling through to location.origin
+  // (which, since the origin split, has no conduit-routing code at
+  // all — a bare curi resolved against it would always 404).
+  it('on a *.conduits.xyz marketing host, prefixes with the sibling run.* data-plane host, never this same origin', async (t) => {
+    const gatewayRouter = buildGatewayRouter(uniqueSubject('conduit-url-input run-prefix'))
+    const server = await createTestServer(createCombinedServer(gatewayRouter))
+    const page = await t.serve(server)
+
+    // Fakes serving this exact demo page from dev.conduits.xyz —
+    // Playwright intercepts the navigation itself, before any real DNS
+    // lookup, so this needs no real network access to dev.conduits.xyz.
+    // The real local combined server (static files + a real
+    // gatewayRouter) is the actual content behind it either way.
+    await page.route('https://dev.conduits.xyz/**', async (route) => {
+      const url = new URL(route.request().url())
+      const response = await fetch(server.baseUrl + url.pathname + url.search, { method: route.request().method() })
+      await route.fulfill({
+        status: response.status,
+        headers: Object.fromEntries(response.headers),
+        body: Buffer.from(await response.arrayBuffer()),
+      })
+    })
+
+    await page.goto('https://dev.conduits.xyz/xyz-waitlist/')
+    await page.locator('#curi-prefix', { hasText: 'https://run.dev.conduits.xyz/' }).waitFor()
+  })
 })
