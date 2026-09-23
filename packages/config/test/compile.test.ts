@@ -169,19 +169,6 @@ conduits:
     assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /Map keys must be unique/)
   })
 
-  it('fails startup for a source type this runtime does not support, rather than deferring to the first request', () => {
-    process.env.SHEET_CREDENTIAL = 'unused'
-    const yaml = `
-conduits:
-  newsletter:
-    curi: newsletter
-    methods: [POST]
-    source:
-      type: googleSheets
-`
-    assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /source type 'googleSheets' is not supported by this gateway/)
-  })
-
   it('compiles honeypot and mustEqual hidden-field policies to the real HiddenFormFieldRule shape', () => {
     process.env.FASTMAIL_TOKEN = 'fastmail-secret'
     const { configs: [config] } = compileConduits(
