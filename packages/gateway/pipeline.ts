@@ -1,7 +1,7 @@
 import { resolveConduitConfig } from './middleware/conduit-config.ts'
 import { enforceRacm } from './middleware/racm.ts'
 import { enforceAllowlist } from './middleware/allowlist.ts'
-import { enforceBearerToken, requireBearerToken } from './middleware/bearer-token.ts'
+import { enforceBearerToken, enforceBearerTokenForBareGet, requireBearerToken } from './middleware/bearer-token.ts'
 import { enforceThrottle } from './middleware/throttle.ts'
 import { loadConduitTable } from './middleware/source-client.ts'
 import { handleSourceErrors } from './middleware/source-errors.ts'
@@ -39,6 +39,24 @@ export function createGatewayMiddleware(deps: GatewayDeps) {
     enforceAllowlist(),
     enforceRacm(),
     enforceBearerToken(),
+    enforceThrottle(),
+    handleSourceErrors(deps.runtime),
+    loadConduitTable(deps.runtime),
+  ] as const
+}
+
+// Hosted pages — the bare-GET-only pipeline dispatch.ts uses for both the
+// existing JSON list response and a hosted page render: identical to
+// createGatewayMiddleware above except for the bearer-token step, which
+// is the one place the two representations need different rules (see
+// enforceBearerTokenForBareGet's own doc). Never used for item/PATCH/
+// PUT/POST/DELETE — those keep the unconditional check unchanged.
+export function createBareGetGatewayMiddleware(deps: GatewayDeps) {
+  return [
+    resolveConduitConfig(deps.resolveConfig),
+    enforceAllowlist(),
+    enforceRacm(),
+    enforceBearerTokenForBareGet(),
     enforceThrottle(),
     handleSourceErrors(deps.runtime),
     loadConduitTable(deps.runtime),

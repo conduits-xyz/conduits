@@ -1,13 +1,18 @@
+import { renderHostedFailurePage } from '@conduits/presentation'
+
 import type { GatewayContext } from './context.ts'
 import type { GatewayDeps } from './pipeline.ts'
-import { createGatewayMiddleware, createSchemaGatewayMiddleware, createReadyzGatewayMiddleware } from './pipeline.ts'
+import { createGatewayMiddleware, createBareGetGatewayMiddleware, createSchemaGatewayMiddleware, createReadyzGatewayMiddleware } from './pipeline.ts'
 import { runMiddleware } from './run-middleware.ts'
 import { classifyConduitAction } from './route-binding.ts'
 import { createGatewayActions } from './controller.ts'
 import { createGatewayItemActions } from './item-controller.ts'
+import { createGatewayPageActions } from './page-controller.ts'
 import { gatewaySchemaAction } from './schema-controller.ts'
 import { gatewayReadyzAction } from './readyz-controller.ts'
-import { jsonResponse } from './response.ts'
+import { jsonResponse, htmlResponse } from './response.ts'
+import { wantsHtml } from './content-negotiation.ts'
+import { requireConduitConfig } from './require-context.ts'
 import { conduitConfigContext } from './middleware/conduit-config.ts'
 import { providerBytesContext, honeypotDropCountContext, classifyStatus, type RouteKind, type GatewayObservation } from './observation.ts'
 
@@ -44,11 +49,43 @@ function methodNotAllowed(allowed: readonly string[]): Response {
 // schema-controller.ts, readyz-controller.ts) completely unchanged.
 export function createGatewayDispatcher(deps: GatewayDeps): (context: GatewayContext) => Promise<Response> {
   const gatewayMiddleware = createGatewayMiddleware(deps)
+  const bareGetMiddleware = createBareGetGatewayMiddleware(deps)
   const schemaMiddleware = createSchemaGatewayMiddleware(deps)
   const readyzMiddleware = createReadyzGatewayMiddleware(deps)
 
   const actions = createGatewayActions(deps)
   const itemActions = createGatewayItemActions()
+  const pageActions = createGatewayPageActions()
+
+  // Hosted pages — the bare-GET representation decision: HTML only when
+  // the caller explicitly prefers it (content-negotiation.ts) AND a
+  // page is actually configured for this conduit. Either condition
+  // failing preserves today's JSON list response exactly, unchanged.
+  async function renderableList(context: GatewayContext): Promise<Response> {
+    const config = requireConduitConfig(context)
+    if (config.presentation && wantsHtml(context.headers.get('accept'))) return pageActions.renderPage(context)
+    return actions.list(context)
+  }
+
+  // A hosted-page visitor must never land on raw API JSON because a
+  // submission failed — a >=400 response from the real write() is
+  // swapped for a generic HTML failure page, but only when the caller
+  // prefers HTML and this conduit's page is actually an xyz-form (an
+  // xyz-table page has nothing to submit to in the first place). A
+  // successful write's own existing _redirect/PRG handling
+  // (controller.ts) is untouched — the rendered form's own hidden
+  // _redirect field is what makes that work, not anything here.
+  async function renderableWrite(context: GatewayContext): Promise<Response> {
+    const response = await actions.write(context)
+    if (response.status < 400) return response
+
+    const config = requireConduitConfig(context)
+    const page = config.presentation
+    const widget = page?.blocks[0]?.widgets[0]
+    if (!page || widget?.type !== 'xyz-form' || !wantsHtml(context.headers.get('accept'))) return response
+
+    return htmlResponse(renderHostedFailurePage(page, { curi: config.curi }), response.status)
+  }
 
   // The actual routing/pipeline logic, unchanged from before observations
   // existed — `routeKind` is a plain out-parameter (a one-element box, not
@@ -73,9 +110,9 @@ export function createGatewayDispatcher(deps: GatewayDeps): (context: GatewayCon
       case 'bare':
         switch (context.method) {
           case 'GET':
-            return runMiddleware(gatewayMiddleware, context, actions.list)
+            return runMiddleware(bareGetMiddleware, context, renderableList)
           case 'POST':
-            return runMiddleware(gatewayMiddleware, context, actions.write)
+            return runMiddleware(gatewayMiddleware, context, renderableWrite)
           case 'PATCH':
             return runMiddleware(gatewayMiddleware, context, actions.bulkUpdate)
           case 'PUT':

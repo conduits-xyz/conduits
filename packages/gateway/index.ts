@@ -7,6 +7,7 @@ export type {
   GatewayObservation,
   RouteKind,
   StatusClass,
+  PageSpec,
 } from './types.ts'
 export type { GatewayDeps } from './pipeline.ts'
 export type { GatewayContext } from './context.ts'

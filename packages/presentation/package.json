@@ -1,5 +1,5 @@
 {
-  "name": "@conduits/gateway",
+  "name": "@conduits/presentation",
   "version": "0.5.0",
   "private": true,
   "license": "MIT",
@@ -14,9 +14,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@conduits/conduit": "*",
-    "@conduits/presentation": "*",
-    "remix": "^3.0.0-rc.1"
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

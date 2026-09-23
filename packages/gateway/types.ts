@@ -48,10 +48,22 @@ export interface ConduitConfig {
   // e.g. a "kind:id" string naming a row in that host's own credential
   // store (see services/gateway's own convention).
   credentialRef: string | null
+  // A hosted page for this same curi, resolved by
+  // whichever host produced this config exactly like every other field
+  // above (a DB row's own JSON column for Cloud's managed Gateway, or
+  // simply absent for self-hosted YAML, which doesn't author pages in
+  // v1). Optional/nullable, never a separate lookup: dispatch.ts only
+  // ever needs `config.presentation`, already sitting alongside
+  // suriConfig/hiddenFormField by the time an action runs — no new
+  // runtime seam, no database access from this package. Null/undefined
+  // both mean "no hosted page" — see content-negotiation.ts.
+  presentation?: PageSpec | null
 }
 
 export type { GatewayObservation, RouteKind, StatusClass } from './observation.ts'
 import type { GatewayObservation } from './observation.ts'
+import type { PageSpec } from '@conduits/presentation'
+export type { PageSpec } from '@conduits/presentation'
 
 // The one seam this package uses to reach outside itself, implemented
 // by whichever host resolved the ConduitConfig it's called with. Every
