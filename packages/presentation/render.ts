@@ -16,7 +16,6 @@ export function escapeHtml(value: unknown): string {
 
 export interface TableRenderData {
   rows: Record<string, unknown>[]
-  cursor?: string
   nextCursor?: string | null
 }
 
@@ -169,8 +168,8 @@ export function renderHostedPage(page: PageSpec, ctx: RenderPageContext): string
 // prefers HTML) — a generic failure state: no field-level error
 // protocol, no echoed field values.
 export function renderHostedFailurePage(page: PageSpec, ctx: { curi: string }): string {
-  const block = page.blocks[0]
-  const title = escapeHtml(block?.title || ctx.curi)
+  const block = page.blocks[0]!
+  const title = escapeHtml(block.title || ctx.curi)
   const body = `<div class="xyz-error" role="alert">
 <h1>Something went wrong</h1>
 <p>We couldn't process your submission. Please check your entries and try again.</p>

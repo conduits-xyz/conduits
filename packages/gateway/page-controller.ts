@@ -33,7 +33,7 @@ export function createGatewayPageActions(): GatewayPageActions {
         const { fieldMap } = config.suriConfig
         const { records, nextCursor } = await table.listRecords({ cursor, limit: widget.props.pageSize })
         const rows = records.map((record) => toWidgetFields(record.fields, fieldMap))
-        return htmlResponse(renderHostedPage(page, { curi: config.curi, submitted, table: { rows, cursor, nextCursor } }))
+        return htmlResponse(renderHostedPage(page, { curi: config.curi, submitted, table: { rows, nextCursor } }))
       }
 
       return htmlResponse(renderHostedPage(page, { curi: config.curi, submitted }))

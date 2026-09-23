@@ -73,9 +73,9 @@ describe('WidgetSpecSchema', () => {
 
   it('rejects a named future widget before it is actually implemented', () => {
     // xyz-picker/xyz-uploader/xyz-calendar/xyz-payment are the named
-    // long-term catalog direction (see README.md) but are explicitly
-    // out of scope for this version — the union must not accept them
-    // just because the name is known.
+    // long-term catalog direction but are explicitly out of scope for
+    // this version — the union must not accept them just because the
+    // name is known.
     for (const type of ['xyz-picker', 'xyz-uploader', 'xyz-calendar', 'xyz-payment']) {
       assert.equal(WidgetSpecSchema.safeParse({ type, props: {} }).success, false)
     }
