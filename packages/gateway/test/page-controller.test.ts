@@ -3,10 +3,8 @@ import { describe, it, beforeEach } from 'remix/test'
 import { resetFakeSheets, seedFakeSheet } from '@conduits/conduit'
 import type { PageSpec } from '@conduits/presentation'
 
-import { createGatewayRouter } from '../router.ts'
 import { resetThrottle } from '../middleware/throttle.ts'
-import type { ConduitConfig, GatewayRuntime } from '../types.ts'
-import { createStaticRouteResolver, type RouteBinding } from '../route-binding.ts'
+import { createFakeGateway } from './fake-gateway.ts'
 
 // Hosted pages — dispatch.ts's bare-GET content negotiation and hosted
 // page/failure rendering, end to end against createGatewayRouter with
@@ -19,7 +17,6 @@ import { createStaticRouteResolver, type RouteBinding } from '../route-binding.t
 // dashboard produces a PageSpec, outside this package's own scope.
 
 const CURI = 'page-smoke'
-const SOURCE_KEY = 'page-smoke-sheet'
 
 const formPage: PageSpec = {
   version: 1,
@@ -31,40 +28,7 @@ const tablePage: PageSpec = {
   blocks: [{ widgets: [{ type: 'xyz-table', props: { columns: [{ field: 'name' }] } }] }],
 }
 
-function baseConfig(overrides: Partial<ConduitConfig> = {}): ConduitConfig {
-  return {
-    curi: CURI,
-    allowlist: [],
-    racm: ['GET', 'POST'],
-    throttle: false,
-    tokenRequiredMethods: [],
-    bearerTokenHash: null,
-    suriType: 'googleSheets',
-    suriObjectKey: SOURCE_KEY,
-    suriConfig: {},
-    hiddenFormField: [],
-    credentialRef: null,
-    presentation: null,
-    ...overrides,
-  }
-}
-
-const bindings: RouteBinding[] = [{ path: `/${CURI}`, curi: CURI }]
-
-const runtime: GatewayRuntime = {
-  async getCredential() {
-    return 'fake-credential'
-  },
-  async invalidateCredential() {},
-}
-
-function makeRouter(config: ConduitConfig) {
-  return createGatewayRouter({
-    resolveConfig: async (curi) => (curi === CURI ? config : null),
-    resolveRoute: createStaticRouteResolver(bindings),
-    runtime,
-  })
-}
+const { suriObjectKey: SOURCE_KEY, baseConfig, makeRouter } = createFakeGateway(CURI)
 
 describe('Hosted page dispatch', () => {
   beforeEach(() => {

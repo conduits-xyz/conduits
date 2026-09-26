@@ -12,6 +12,7 @@ import {
   type ConduitFields,
   toSourceFields,
   toWidgetFields,
+  checkKnownFields,
   wrapRecord,
   isBulkBody,
   extractFields,
@@ -69,6 +70,7 @@ function recordHoneypotDrops(context: GatewayContext, count: number): void {
 async function runBulkWrite(
   table: ConduitTable,
   fieldMap: Record<string, string> | undefined,
+  source: string,
   body: unknown,
   mode: 'update' | 'replace',
 ): Promise<Response> {
@@ -78,10 +80,10 @@ async function runBulkWrite(
   if (!entries) return jsonResponse({ error: 'Bad Request' }, 400)
   if (hasDuplicateIds(entries.map((entry) => entry.id))) return jsonResponse({ error: 'Bad Request' }, 400)
 
-  const toWrite: ConduitRecord[] = entries.map((entry) => ({
-    id: entry.id,
-    fields: toSourceFields(entry.fields, fieldMap),
-  }))
+  const toWrite: ConduitRecord[] = entries.map((entry) => {
+    checkKnownFields(entry.fields, fieldMap, source)
+    return { id: entry.id, fields: toSourceFields(entry.fields, fieldMap) }
+  })
 
   const written = mode === 'update' ? await table.updateRecords(toWrite) : await table.replaceRecords(toWrite)
   if (written === null) return jsonResponse({ error: 'Not Found' }, 404)
@@ -165,6 +167,7 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
         const toAppend: ConduitFields[] = []
         for (const outcome of outcomes) {
           if (outcome.outcome === 'ok') {
+            checkKnownFields(outcome.fields, fieldMap, config.suriType)
             toAppend.push(toSourceFields(outcome.fields, fieldMap))
           }
         }
@@ -205,6 +208,7 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
         return jsonResponse(wrapRecord({ id: randomRowId(), fields: outcome.fields }), 201)
       }
 
+      checkKnownFields(outcome.fields, fieldMap, config.suriType)
       const record = await table.createRecord(toSourceFields(outcome.fields, fieldMap))
       if (redirectTarget) return Response.redirect(redirectTarget, 303)
       return jsonResponse(wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) }), 201)
@@ -215,7 +219,7 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
       const table = requireConduitTable(context)
       const body = context.get(jsonBodyContext)
       const { fieldMap } = config.suriConfig
-      return runBulkWrite(table, fieldMap, body, 'update')
+      return runBulkWrite(table, fieldMap, config.suriType, body, 'update')
     },
 
     async bulkReplace(context) {
@@ -223,7 +227,7 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
       const table = requireConduitTable(context)
       const body = context.get(jsonBodyContext)
       const { fieldMap } = config.suriConfig
-      return runBulkWrite(table, fieldMap, body, 'replace')
+      return runBulkWrite(table, fieldMap, config.suriType, body, 'replace')
     },
 
     async bulkDestroy(context) {

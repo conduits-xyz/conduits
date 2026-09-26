@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { randomRowId } from './row-id.ts'
+import { ConduitUnknownFieldError } from './field-map.ts'
 
 export { randomRowId } from './row-id.ts'
 
@@ -61,17 +62,7 @@ export class ConduitSourceError extends Error {
   }
 }
 
-// Thrown when a write submits a field name that isn't already a column in
-// a source that already has other field columns — see ensureColumnsForWrite
-// for why this rejects instead of silently adding the column.
-export class ConduitUnknownFieldError extends Error {
-  constructor(
-    public readonly source: string,
-    public readonly fieldName: string,
-  ) {
-    super(`Unknown field: '${fieldName}'`)
-  }
-}
+// ConduitUnknownFieldError is defined in field-map.ts (imported above).
 
 // --- The contract (see packages/conduit/INTEGRATIONS.md for the full
 // rationale behind this shape) ---

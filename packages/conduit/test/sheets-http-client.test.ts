@@ -1,7 +1,8 @@
 import * as assert from 'remix/assert'
 import { describe, it, afterEach } from 'remix/test'
 
-import { createHttpSheetsClient, ConduitAuthError, ConduitSourceError, ConduitUnknownFieldError } from '../sheets.ts'
+import { createHttpSheetsClient, ConduitAuthError, ConduitSourceError } from '../sheets.ts'
+import { ConduitUnknownFieldError } from '../field-map.ts'
 import { jsonResponse } from './helpers.ts'
 
 // createHttpSheetsClient() always hits the real Sheets API —

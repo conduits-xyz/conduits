@@ -3,13 +3,14 @@ import { jsonResponse } from './response.ts'
 import { jsonBodyContext } from './middleware/body.ts'
 import { requireConduitConfig, requireConduitTable } from './require-context.ts'
 import type { ConduitTable } from '@conduits/conduit'
-import { toSourceFields, toWidgetFields, wrapRecord, extractFields, hasBodyId } from '@conduits/conduit'
+import { toSourceFields, toWidgetFields, checkKnownFields, wrapRecord, extractFields, hasBodyId } from '@conduits/conduit'
 
 // Single-record counterpart to controller.ts's runBulkWrite — replace
 // and update differ only in which ConduitTable method actually writes.
 async function runSingleWrite(
   table: ConduitTable,
   fieldMap: Record<string, string> | undefined,
+  source: string,
   id: string,
   body: unknown,
   mode: 'update' | 'replace',
@@ -19,6 +20,7 @@ async function runSingleWrite(
   const fields = extractFields(body)
   if (!fields) return jsonResponse({ error: 'Bad Request' }, 400)
 
+  checkKnownFields(fields, fieldMap, source)
   const sourceFields = toSourceFields(fields, fieldMap)
   const record =
     mode === 'update'
@@ -58,7 +60,7 @@ export function createGatewayItemActions(): GatewayItemActions {
       const table = requireConduitTable(context)
       const body = context.get(jsonBodyContext)
       const { fieldMap } = config.suriConfig
-      return runSingleWrite(table, fieldMap, context.params.id, body, 'replace')
+      return runSingleWrite(table, fieldMap, config.suriType, context.params.id, body, 'replace')
     },
 
     async update(context) {
@@ -66,7 +68,7 @@ export function createGatewayItemActions(): GatewayItemActions {
       const table = requireConduitTable(context)
       const body = context.get(jsonBodyContext)
       const { fieldMap } = config.suriConfig
-      return runSingleWrite(table, fieldMap, context.params.id, body, 'update')
+      return runSingleWrite(table, fieldMap, config.suriType, context.params.id, body, 'update')
     },
 
     async destroy(context) {
