@@ -132,6 +132,12 @@ function openTable(credential: string, config: GmailConfig, fetchImpl: typeof fe
     async createFields() {
       throw new ConduitSourceError(SOURCE, "Gmail conduits have a fixed schema — there's no field to add", 500)
     },
+    async deleteField() {
+      throw new ConduitSourceError(SOURCE, "Gmail conduits have a fixed schema — there's no field to remove", 500)
+    },
+    async deleteFields() {
+      throw new ConduitSourceError(SOURCE, "Gmail conduits have a fixed schema — there's no field to remove", 500)
+    },
 
     async createRecord(fields) {
       return send(fields)
@@ -266,6 +272,12 @@ function createMailpitGmailClient(): ConduitSourceClient {
             },
             async createFields() {
               throw new ConduitSourceError(SOURCE, "Gmail conduits have a fixed schema — there's no field to add", 500)
+            },
+            async deleteField() {
+              throw new ConduitSourceError(SOURCE, "Gmail conduits have a fixed schema — there's no field to remove", 500)
+            },
+            async deleteFields() {
+              throw new ConduitSourceError(SOURCE, "Gmail conduits have a fixed schema — there's no field to remove", 500)
             },
             async createRecord(fields) {
               return send(fields)

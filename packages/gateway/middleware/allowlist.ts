@@ -3,12 +3,17 @@ import type { Middleware, RequestContext } from 'remix/router'
 import { jsonResponse } from '../response.ts'
 import { conduitConfigContext } from './conduit-config.ts'
 
-// The app sits behind a reverse proxy, so the real client address is only
-// ever available via X-Forwarded-For, not the raw socket.
+// The gateway runs behind one reverse proxy, so the client address comes
+// from X-Forwarded-For, not the raw socket. The rightmost entry is the
+// one that proxy wrote; anything to its left was sent by the caller and
+// can be forged. Taking the rightmost is correct whether the proxy
+// replaces the header or appends to it (see docs/gateway-api.md's
+// allowlist section).
 function clientIp(context: RequestContext<any, any>): string | null {
   const forwardedFor = context.headers.get('x-forwarded-for')
   if (!forwardedFor) return null
-  return forwardedFor.split(',')[0]?.trim() || null
+  const entries = forwardedFor.split(',').map((entry) => entry.trim()).filter(Boolean)
+  return entries[entries.length - 1] ?? null
 }
 
 export function enforceAllowlist(): Middleware {

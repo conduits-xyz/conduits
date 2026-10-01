@@ -46,7 +46,7 @@ function conduitConfig(overrides: Partial<ConduitConfig> = {}): ConduitConfig {
     racm: ['POST'],
     throttle: false,
     tokenRequiredMethods: [],
-    bearerTokenHash: null,
+    apiKeys: [],
     suriType: 'googleSheets',
     suriObjectKey: '1AbC',
     suriConfig: {},

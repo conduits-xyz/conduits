@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "remix": "^3.0.0-rc.1",
+    "remix": "^3.0.0-rc.3",
     "typescript": "^7.0.2"
   }
 }

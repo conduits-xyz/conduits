@@ -3,6 +3,15 @@
 All notable changes to the Conduits gateway, provider integrations,
 config tooling, and widgets are documented here.
 
+## Unreleased
+
+### Security
+
+- The IP allowlist now uses the rightmost `X-Forwarded-For` entry, the
+  one your reverse proxy adds. Before, it trusted the first entry, so a
+  caller could get past the allowlist by sending its own header. Run
+  the gateway behind exactly one proxy that sets `X-Forwarded-For`.
+
 ## 0.5.0 - 2026-09-12
 
 Rebuilt from the ground up on Remix 3. The gateway REST API,

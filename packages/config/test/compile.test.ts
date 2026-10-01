@@ -35,7 +35,7 @@ describe('compileConduits', () => {
     assert.equal(config?.throttle, true)
     assert.deepEqual(config?.allowlist, [])
     assert.deepEqual(config?.tokenRequiredMethods, [])
-    assert.equal(config?.bearerTokenHash, null)
+    assert.deepEqual(config?.apiKeys, [])
     assert.deepEqual(config?.hiddenFormField, [])
     assert.equal(config?.suriType, 'fastmail')
     assert.equal(config?.suriObjectKey, 'ident-1')
@@ -79,7 +79,8 @@ describe('compileConduits', () => {
 
     // What *should* be there instead: the opaque reference, and the hash.
     assert.ok(serialized.includes('env:FASTMAIL_TOKEN'), 'credentialRef itself (the reference, not the value) should still be present')
-    assert.ok(config!.bearerTokenHash && serialized.includes(config!.bearerTokenHash), 'bearerTokenHash should still be present')
+    const keyHash = config!.apiKeys[0]?.tokenHash
+    assert.ok(keyHash && serialized.includes(keyHash), 'the compiled key\'s tokenHash should still be present')
   })
 
   it('fails startup if the credential env var is not set', () => {
@@ -98,9 +99,11 @@ describe('compileConduits', () => {
 `),
       FASTMAIL_ONLY,
     )
-    assert.ok(config?.bearerTokenHash)
-    assert.notEqual(config?.bearerTokenHash, 'bearer-plaintext')
-    assert.ok(verifyBearerToken('bearer-plaintext', config!.bearerTokenHash!))
+    assert.equal(config?.apiKeys.length, 1)
+    const keyHash = config!.apiKeys[0]!.tokenHash
+    assert.notEqual(keyHash, 'bearer-plaintext')
+    assert.ok(verifyBearerToken('bearer-plaintext', keyHash))
+    assert.deepEqual(config!.apiKeys[0]!.scopes, ['POST'])
     assert.deepEqual(config?.tokenRequiredMethods, ['POST'])
   })
 

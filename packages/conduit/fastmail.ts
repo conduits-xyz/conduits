@@ -308,6 +308,12 @@ function openTable(
     async createFields() {
       throw new ConduitSourceError(SOURCE, "Fastmail conduits have a fixed schema — there's no field to add", 500)
     },
+    async deleteField() {
+      throw new ConduitSourceError(SOURCE, "Fastmail conduits have a fixed schema — there's no field to remove", 500)
+    },
+    async deleteFields() {
+      throw new ConduitSourceError(SOURCE, "Fastmail conduits have a fixed schema — there's no field to remove", 500)
+    },
 
     async createRecord(fields) {
       return send(fields)
@@ -471,6 +477,12 @@ function createMailpitFastmailClient(): ConduitSourceClient {
             },
             async createFields() {
               throw new ConduitSourceError(SOURCE, "Fastmail conduits have a fixed schema — there's no field to add", 500)
+            },
+            async deleteField() {
+              throw new ConduitSourceError(SOURCE, "Fastmail conduits have a fixed schema — there's no field to remove", 500)
+            },
+            async deleteFields() {
+              throw new ConduitSourceError(SOURCE, "Fastmail conduits have a fixed schema — there's no field to remove", 500)
             },
             async createRecord(fields) {
               return send(fields)

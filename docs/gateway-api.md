@@ -34,6 +34,14 @@ bearer token, not by relying on a CURI being hard to guess.
 An allowlist consisting only of inactive entries allows any IP, same
 as no allowlist at all.
 
+The caller's IP is read from `X-Forwarded-For`, so the gateway must run
+behind exactly one reverse proxy that sets that header. The gateway
+uses the header's rightmost entry, the one that proxy adds; entries to
+its left come from the caller and are never trusted. A proxy that
+replaces the header and one that appends to it both work. Don't expose
+the gateway directly to the internet with an allowlist configured: a
+caller could then send any `X-Forwarded-For` it likes.
+
 ### Bearer token
 
 A second, orthogonal gate on top of curi/racm/allowlist, for specific

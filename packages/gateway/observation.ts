@@ -36,6 +36,9 @@ export interface GatewayObservation {
   // case, including a curi that resolves to no live conduit, still has
   // a real curi to attribute to.
   curi: string | undefined
+  // Present when this request authenticated with a configured API key.
+  // The key id is metadata for the host's usage ledger, never a secret.
+  apiKeyId?: number
   routeKind: RouteKind
   host: string | undefined
   method: string
@@ -71,3 +74,7 @@ export const providerBytesContext = createContextKey<{
 // trips the honeypot — replaces the old per-drop recordEvent loop with
 // one number the outer wrapper reads back once.
 export const honeypotDropCountContext = createContextKey<number>()
+
+// Set by bearer-token middleware after a presented token matches an API key;
+// read by dispatch when it builds the physical-request observation.
+export const apiKeyIdContext = createContextKey<number>()

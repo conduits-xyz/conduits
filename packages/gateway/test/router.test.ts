@@ -19,7 +19,7 @@ const config: ConduitConfig = {
   racm: ['GET'],
   throttle: false,
   tokenRequiredMethods: [],
-  bearerTokenHash: null,
+  apiKeys: [],
   suriType: 'fake',
   suriObjectKey: 'unused',
   suriConfig: {},

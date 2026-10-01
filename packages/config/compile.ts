@@ -1,6 +1,6 @@
 import { parse as parseYaml } from 'yaml'
 import { hashBearerToken, normalizeHost, normalizeRoutePath, type RouteBinding } from '@conduits/gateway'
-import type { AllowlistEntry, ConduitConfig, HiddenFormFieldRule } from '@conduits/gateway'
+import type { AllowlistEntry, ConduitConfig, HiddenFormFieldRule, ApiKeyRef } from '@conduits/gateway'
 
 import type { RawAllowlistEntry, RawConduitsFile, RawHiddenField, RawRouteEntry } from './types.ts'
 import { resolveEnvRef } from './env.ts'
@@ -129,7 +129,7 @@ function compileConduitEntry(label: string, rawEntry: unknown, options: CompileO
   const throttle = (entry.throttle as boolean | undefined) ?? true
 
   const allowlist = compileAllowlist(entry.allowlist, context)
-  const { tokenRequiredMethods, bearerTokenHash } = compileBearerToken(entry.bearerToken, racm, context)
+  const { tokenRequiredMethods, apiKeys } = compileBearerToken(entry.bearerToken, racm, context)
   const hiddenFormField = compileHiddenFields(entry.hiddenFields, context)
   const bindings = compileRoutes(entry.routes, curi, context)
 
@@ -153,7 +153,7 @@ function compileConduitEntry(label: string, rawEntry: unknown, options: CompileO
       racm,
       throttle,
       tokenRequiredMethods,
-      bearerTokenHash,
+      apiKeys,
       suriType,
       suriObjectKey,
       suriConfig,
@@ -212,12 +212,16 @@ function compileAllowlist(raw: unknown, context: string): AllowlistEntry[] {
   })
 }
 
+// A YAML config declares at most one bearer token per conduit. It
+// compiles to a one-element apiKeys array scoped to requiredFor, the
+// same ApiKeyRef[] shape middleware/bearer-token.ts enforces for any
+// number of keys.
 function compileBearerToken(
   raw: unknown,
   racm: string[],
   context: string,
-): { tokenRequiredMethods: string[]; bearerTokenHash: string | null } {
-  if (raw === undefined) return { tokenRequiredMethods: [], bearerTokenHash: null }
+): { tokenRequiredMethods: string[]; apiKeys: ApiKeyRef[] } {
+  if (raw === undefined) return { tokenRequiredMethods: [], apiKeys: [] }
   if (typeof raw !== 'object' || raw === null) throw new Error(`${context}: bearerToken must be a map`)
 
   const { value, requiredFor } = raw as { value?: unknown; requiredFor?: unknown }
@@ -236,10 +240,12 @@ function compileBearerToken(
   }
 
   // Resolved and hashed immediately — only the hash reaches
-  // ConduitConfig. See bearerTokenHash's own doc in
-  // packages/gateway/types.ts: never the plaintext.
+  // ConduitConfig, never the plaintext.
   const plaintext = resolveEnvRef(value)
-  return { tokenRequiredMethods: requiredFor as string[], bearerTokenHash: hashBearerToken(plaintext) }
+  return {
+    tokenRequiredMethods: requiredFor as string[],
+    apiKeys: [{ tokenHash: hashBearerToken(plaintext), scopes: requiredFor as string[] }],
+  }
 }
 
 function compileHiddenFields(raw: unknown, context: string): HiddenFormFieldRule[] {

@@ -23,13 +23,12 @@ export function createFakeGateway(curi: string) {
       racm: ['GET', 'POST'],
       throttle: false,
       tokenRequiredMethods: [],
-      bearerTokenHash: null,
+      apiKeys: [],
       suriType: 'googleSheets',
       suriObjectKey,
       suriConfig: {},
       hiddenFormField: [],
       credentialRef: null,
-      presentation: null,
       ...overrides,
     }
   }

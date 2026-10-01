@@ -162,6 +162,17 @@ export interface ConduitTable {
   createField(name: string, type?: ConduitFieldType): Promise<void>
   createFields(fields: Array<{ name: string; type?: ConduitFieldType }>): Promise<void>
 
+  // The structural counterpart to createField/createFields — an
+  // explicit, authenticated owner action (deleting a real column, not
+  // a declared field; see the Sync reconciliation documentation for why these are
+  // never the same thing). A no-op for a name that isn't a real column
+  // — same idempotent shape createField already has for the reverse
+  // case. A source with no real, deletable columns of its own (Gmail,
+  // Fastmail) throws ConduitSourceError, same documented-deviation
+  // shape createField already uses there.
+  deleteField(name: string): Promise<void>
+  deleteFields(names: string[]): Promise<void>
+
   createRecord(fields: ConduitFields): Promise<ConduitRecord>
   createRecords(fieldsList: ConduitFields[]): Promise<ConduitRecord[]>
 
@@ -774,6 +785,50 @@ async function deleteRows(
   return true
 }
 
+// The column analogue of deleteRows above — same reasoning throughout:
+// one shared header read to resolve every name's column index, one
+// batchUpdate carrying one deleteDimension request per column, indexes
+// sorted highest-first (within one batchUpdate, an earlier
+// deleteDimension shifts every column *after* it left by one, so
+// processing right-to-left keeps every later request's index valid —
+// the exact mirror of deleteRows' own top-down row ordering). A name
+// that isn't a real column is silently skipped, not an error — the
+// same idempotent shape createFieldsOnSheet already gives the reverse
+// case.
+async function deleteFieldsOnSheet(
+  sourceKey: string,
+  tableName: string | undefined,
+  credential: string,
+  names: string[],
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  const grid = await getGrid(sourceKey, tableName, credential, fetchImpl)
+  const header = grid[0] ?? []
+  const columnIndexes = names
+    .map((name) => header.indexOf(name))
+    .filter((index) => index !== -1)
+  if (columnIndexes.length === 0) return
+
+  const sheetId = await getSheetId(sourceKey, tableName, credential, fetchImpl)
+  const requests = [...columnIndexes]
+    .sort((a, b) => b - a)
+    .map((columnIndex) => ({
+      deleteDimension: { range: { sheetId, dimension: 'COLUMNS', startIndex: columnIndex, endIndex: columnIndex + 1 } },
+    }))
+
+  const response = await sheetsFetch(
+    `${sourceKey}:batchUpdate`,
+    credential,
+    { method: 'POST', body: JSON.stringify({ requests }) },
+    fetchImpl,
+  )
+  await throwForStatus(response, 'delete columns')
+
+  // Same reasoning createFieldsOnSheet's own cache-bust gives: the
+  // column is gone *now*, not eventually.
+  sheetMetadataCache.delete(`fields\0${sourceKey}\0${tableName ?? ''}\0${tokenDigest(credential)}`)
+}
+
 function bulkReplaceRows(
   sourceKey: string,
   tableName: string | undefined,
@@ -831,6 +886,12 @@ function openHttpTable(
     },
     async createFields(fields) {
       return createFieldsOnSheet(sourceKey, tableName, credential, fields, fetchImpl)
+    },
+    async deleteField(name) {
+      return deleteFieldsOnSheet(sourceKey, tableName, credential, [name], fetchImpl)
+    },
+    async deleteFields(names) {
+      return deleteFieldsOnSheet(sourceKey, tableName, credential, names, fetchImpl)
     },
 
     async listRecords(page) {
@@ -985,6 +1046,23 @@ function createFakeFields(sourceKey: string, tableName: string | undefined, name
   fakeSchemas.set(key, known)
 }
 
+// Mirrors deleteFieldsOnSheet's own real logic — removes the name from
+// the known-schema set *and* strips it from every already-stored fake
+// row's own fields, the same way a real structural column delete would
+// leave no trace of the old data behind. Silently skips a name that
+// isn't known, matching createFakeFields' own idempotent shape.
+function deleteFakeFields(sourceKey: string, tableName: string | undefined, names: string[]): void {
+  checkFakeAccess(sourceKey)
+  const key = fakeKey(sourceKey, tableName)
+  const known = fakeSchemas.get(key)
+  if (known) for (const name of names) known.delete(name)
+  const rows = fakeStore.get(key)
+  if (!rows) return
+  for (const row of rows) {
+    for (const name of names) delete row.fields[name]
+  }
+}
+
 // Checked/established once per whole batch (fieldsList.length may be > 1),
 // same as the real client's ensureColumnsForWrite taking
 // unionFieldNames(...).
@@ -1083,6 +1161,12 @@ function openFakeTable(sourceKey: string, tableName: string | undefined): Condui
         tableName,
         fields.map((field) => field.name),
       )
+    },
+    async deleteField(name) {
+      deleteFakeFields(sourceKey, tableName, [name])
+    },
+    async deleteFields(names) {
+      deleteFakeFields(sourceKey, tableName, names)
     },
 
     async listRecords(page) {

@@ -7,7 +7,7 @@ import { createFakeGateway } from './fake-gateway.ts'
 
 // Exercises checkKnownFields (packages/conduit/field-map.ts) through
 // the real dispatch path, via the same createGatewayRouter/fake-sheets
-// setup page-controller.test.ts uses. Sheets, not Gmail/Fastmail, since
+// setup uses. Sheets, not Gmail/Fastmail, since
 // it's the one suri_type with a network-free fake client — the check
 // itself runs identically for every suri_type (see controller.ts/
 // item-controller.ts).
