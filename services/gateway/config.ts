@@ -3,10 +3,9 @@ import * as fs from 'node:fs'
 import { compileConduits } from '@conduits/config'
 import type { ConduitConfig, RouteBinding } from '@conduits/gateway'
 
-// Every suriType this runtime actually knows how to operate (see
-// runtime.ts) — listed here, not in @conduits/config, because that
-// package may learn other suriTypes' YAML shapes before this specific
-// runtime can operate them.
+// The suriTypes this runtime can operate (runtime.ts). Kept here, not in
+// @conduits/config, which may know more YAML shapes than this runtime
+// runs.
 const SUPPORTED_SOURCE_TYPES = ['fastmail', 'googleSheets', 'gmail'] as const
 
 export interface LoadedConduits {
@@ -14,10 +13,8 @@ export interface LoadedConduits {
   bindings: RouteBinding[]
 }
 
-// Restart-to-reload: this reads the file once, at process start. No
-// watcher, no hot reload — see @conduits/config's own compileConduits
-// doc on why a bad config fails the whole process rather than serving
-// with a partial or stale set of conduits.
+// Read once at startup; edit and restart to reload. A bad config stops
+// the process (see compileConduits in @conduits/config).
 export function loadConduitConfigs(path: string): LoadedConduits {
   let yamlText: string
   try {

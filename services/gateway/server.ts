@@ -8,8 +8,8 @@ import { gatewayServiceRuntime } from './runtime.ts'
 const configPath = process.env.CONDUITS_CONFIG_PATH ?? './conduits.yaml'
 const port = process.env.PORT ? Number.parseInt(process.env.PORT, 10) : 8787
 
-// Whole-file, fail-fast: a bad conduits.yaml must not start the process
-// at all — see @conduits/config's own compileConduits doc.
+// A bad conduits.yaml stops the process (see compileConduits in
+// @conduits/config).
 const { configs, bindings } = loadConduitConfigs(configPath)
 console.log(`[gateway-service] loaded ${configs.size} conduit(s) from ${configPath}`)
 

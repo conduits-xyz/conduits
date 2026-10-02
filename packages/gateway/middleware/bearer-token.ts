@@ -15,12 +15,8 @@ function presentedToken(context: { headers: Headers }): string | null {
   return token === '' ? null : token
 }
 
-// The first key (if any) whose hash matches the presented token AND
-// whose own scopes cover the requested method — a key that matches the
-// token but doesn't cover this method is the same as no match, never a
-// partial pass. Multiple keys can each independently authorize the
-// same method (see scoped-api-keys.md's CoveringKeys(method)); this
-// only needs to find one.
+// The first key whose hash matches the token and whose scopes include
+// the method. A matching key without the method doesn't count.
 function matchingKeyFor(token: string, method: string, apiKeys: ApiKeyRef[]): ApiKeyRef | null {
   for (const key of apiKeys) {
     if (key.scopes.includes(method) && verifyBearerToken(token, key.tokenHash)) return key
@@ -33,9 +29,8 @@ function matchingKeyForContext(context: { headers: Headers }, method: string, ap
   return token !== null ? matchingKeyFor(token, method, apiKeys) : null
 }
 
-// Gates a method that's already RACM-allowed but additionally marked
-// token-required. "The one shared token" is gone — this now accepts
-// any of the conduit's own active keys whose scopes cover the method.
+// For a method RACM allows and marks token-required: accepts any active
+// key whose scopes include it.
 export function enforceBearerToken(): Middleware {
   return async (context, next) => {
     const config = context.get(conduitConfigContext)
@@ -50,12 +45,9 @@ export function enforceBearerToken(): Middleware {
   }
 }
 
-// Unconditional, unlike enforceBearerToken() above — a conduit's
-// `<base>/.conduits/schema` action always requires a bearer token,
-// regardless of tokenRequiredMethods. Any currently-valid key
-// satisfies this, regardless of its own scopes: this isn't gated by a
-// specific method's scope, only by "does the caller hold some key for
-// this conduit at all." Used by createSchemaGatewayMiddleware
+// For `<base>/.conduits/schema`, which always needs a token whatever
+// tokenRequiredMethods says. Any valid key for the conduit passes,
+// whatever its scopes. Used by createSchemaGatewayMiddleware
 // (pipeline.ts).
 export function requireBearerToken(): Middleware {
   return async (context, next) => {

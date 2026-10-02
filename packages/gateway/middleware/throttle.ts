@@ -31,7 +31,7 @@ export function enforceThrottle(): Middleware {
   }
 }
 
-/** Test-only: clear throttle state between tests. */
+/** For tests: clears throttle state. */
 export function resetThrottle(): void {
   hits.clear()
 }

@@ -8,16 +8,10 @@ import { getFreshGoogleAccessToken } from '../google-token.ts'
 import { saveGoogleGrant, loadGoogleGrant } from '../google-credential-store.ts'
 import type { StoredGoogleGrant } from '../google-credential-store.ts'
 
-// The four other GoogleTokenResult statuses (ok-after-refresh, missing,
-// revoked, refresh-failed) are already exercised in depth via
-// services/gateway's own runtime-google.test.ts (gatewayServiceRuntime.
-// getCredential), which goes through this exact function — no need to
-// duplicate those here. This file covers what only calling
-// getFreshGoogleAccessToken() directly can: its own public contract
-// (usable with a bare name/purpose, no ConduitConfig required), the one
-// status runtime-google.test.ts never exercises (a grant that's
-// expiring with no refresh token at all to renew it with), and the
-// onRevoked hook a generation-tracking caller relies on.
+// getFreshGoogleAccessToken() called directly: without a ConduitConfig,
+// an expiring grant with no refresh token, and the onRevoked hook. The
+// other statuses are tested through the runtime in
+// services/gateway/test/runtime-google.test.ts.
 
 function tempStorePath(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'conduits-google-token-test-'))

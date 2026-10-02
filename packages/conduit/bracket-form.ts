@@ -1,13 +1,9 @@
-// Expands bracket-notation form field names into a nested object — the
-// same convention `qs`/body-parser's `urlencoded({extended: true})` uses,
-// so a plain HTML form (or any x-www-form-urlencoded / multipart client)
-// can express the same `{fields: {...}}` / `{records: [{fields: {...}}]}`
-// shape as a JSON body: `fields[name]=Ada` -> `{fields: {name: 'Ada'}}`,
+// Expands bracket-notation field names into nested objects, as `qs`
+// does, so form-encoded bodies can express the JSON shapes:
+// `fields[name]=Ada` -> `{fields: {name: 'Ada'}}`,
 // `records[0][fields][name]=Ada` -> `{records: [{fields: {name: 'Ada'}}]}`.
-//
-// A key with no brackets at all (`name=Ada`) is treated as if written
-// `fields[name]=Ada` — a bare HTML form's fields are the record's fields;
-// nobody hand-writing a <form> should have to know the envelope exists.
+// A key without brackets (`name=Ada`) is read as `fields[name]`, so a
+// plain HTML form works without knowing the envelope.
 
 function parseKeyPath(rawKey: string): string[] {
   const match = rawKey.match(/^([^[\]]+)((?:\[[^[\]]*])*)$/)
@@ -40,9 +36,7 @@ export function expandBracketForm(rawEntries: Iterable<[string, string]>): Recor
 
   for (const [rawKey, value] of entries) {
     if (!hasBracketedKey) {
-      // A bare HTML form with no bracket notation at all — treat every
-      // field as belonging under `fields`, so a plain <form> never needs
-      // to know the envelope exists.
+      // No bracket notation: every field goes under `fields`.
       setAtPath(result, ['fields', rawKey], value)
       continue
     }

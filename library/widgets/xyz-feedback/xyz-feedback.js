@@ -1,11 +1,8 @@
-// <xyz-feedback> — a scored-rating feedback widget backed by a real
-// conduit. Zero dependencies, no build step: drop this file next to
-// your page, add the element, done.
+// <xyz-feedback>: a rating, with an optional comment, stored in a
+// conduit. No dependencies or build step.
 //
-// Not `type="module"`: Chromium blocks a module script on a file://
-// page, and this file has no import/export of its own — a classic
-// <script> works identically and actually runs when opened directly
-// from disk.
+// A classic script, not a module: Chromium blocks module scripts on
+// file:// pages.
 //
 //   <script src="./xyz-feedback.js"></script>
 //   <xyz-feedback
@@ -15,55 +12,29 @@
 //     caption="How did we do?"
 //   ></xyz-feedback>
 //
-// See `static configFields` below for the full, authoritative list of
-// optional attributes — also what any config UI could read
-// to build a form for this widget.
+// `static configFields` below lists the attributes.
 //
-// `scale` is `"5"` (default — star rating, 1 to 5) or `"10"`
-// (NPS-style, 0 to 10, "how likely are you to recommend this?"
-// framing). One widget, one attribute — not two separate elements,
-// since the two scales share everything but the label and the number
-// of choices.
+// `scale` is "5" (the default: stars, 1 to 5) or "10" (0 to 10, "how
+// likely are you to recommend this?").
 //
-// `caption` — when set, the widget renders it itself and gives its
-// own <form> an aria-labelledby pointing at it. Not a real heading by
-// default: the widget can't know what heading level is correct
-// wherever it lands. Set `heading-level` alongside it to opt in.
+// `caption` is rendered by the widget and labels its <form>
+// (aria-labelledby). It is a heading only when `heading-level` is set:
+// only the host page knows its outline.
 //
-// Wire format: `POST {fields: {subject, rating, comment}}` to
-// conduit-url — the same envelope every conduit accepts (see
-// docs/gateway-api.md). `subject` is optional, same multi-post-per-
-// conduit pattern <xyz-reactions> uses; `comment` is an optional
-// free-text follow-up. `rating` is submitted as the raw number chosen
-// — this widget never computes an NPS score (promoter/detractor/
-// passive) or any other aggregate client-side; that's for whoever
-// reads the conduit back via GET. Matches this project's own "we don't
-// hold your data, no local copy" philosophy rather than inventing a
-// client-side analytics feature.
+// Submits `POST {fields: {subject, rating, comment}}`
+// (docs/gateway-api.md). `subject` and `comment` are optional. `rating`
+// is the number chosen; the widget computes no score or aggregate.
 
-// Everything below is wrapped in an IIFE deliberately — this is a
-// classic (non-module) script by design (see the top of this file),
-// and classic scripts share ONE global lexical scope across every
-// <script> tag on the page. A host embedding more than one xyz-*
-// widget loads more than one of these files together — without this
-// wrapper, a top-level `let`/`const`/`class` declared here with the
-// same name as one in another widget's file throws a SyntaxError the
-// moment the second script parses, silently killing that widget
-// (customElements.define never runs, connectedCallback never fires)
-// with no visible error unless something happens to already be
-// listening for uncaught exceptions. The IIFE gives this file's own
-// top-level names a real, isolated scope, so nothing here can ever
-// collide with another widget's file again, regardless of what either
-// file declares at its own top level in the future.
+// Wrapped in an IIFE: classic scripts share one global scope, so a
+// top-level name also declared by another xyz-* widget would be a
+// SyntaxError that stops the second widget from loading.
 ;(function () {
-  // Unique per instance, not per class — a page can embed more than one
-  // <xyz-feedback>, and each needs its own id for aria-labelledby to
-  // resolve correctly.
+  // Per instance, so captions get unique ids on a page with several
+  // <xyz-feedback> elements.
   let nextCaptionId = 0
 
-  // Any string interpolated into innerHTML that isn't a fixed literal in
-  // this file's own template needs this first — see xyz-waitlist.js's
-  // identical helper for why.
+  // Escapes attribute-supplied text (caption, messages, button text)
+  // before it goes into innerHTML.
   function escapeHtml(value) {
     return String(value).replace(
       /[&<>"']/g,
@@ -71,8 +42,8 @@
     )
   }
 
-  // A 4xx response's own message is shown as-is (e.g. a missing sheet
-  // column); a 5xx or network failure shows a generic message instead.
+  // A 4xx response's message is shown as is (e.g. a missing sheet
+  // column); a 5xx or network failure gets a generic message.
   async function describeSubmitFailure(response) {
     if (response.status >= 400 && response.status < 500) {
       try {
@@ -86,8 +57,7 @@
   }
 
   class XyzFeedback extends HTMLElement {
-    // See xyz-waitlist.js's identical static property for what this is
-    // and how it's meant to be read.
+    // The element's attributes, for a config UI (see xyz-waitlist.js).
     static configFields = [
       {
         attribute: 'conduit-url',
@@ -158,18 +128,8 @@
     ]
 
     connectedCallback() {
-      // An unknown/undefined custom element defaults to `display: inline`
-      // in the UA stylesheet — without this, the very first paint renders
-      // this element (and its not-yet-laid-out contents) inline, then
-      // visibly snaps to the real block layout once style.css finishes
-      // loading. Setting it inline here, first thing, makes this widget
-      // correct on its own — a host page's stylesheet must never need to
-      // know or care that this element needs `display: block`. An inline
-      // style always wins over any stylesheet (loaded or not), no
-      // `!important` needed, and this runs synchronously before first
-      // paint: this <script> tag is a classic, blocking script placed
-      // before this element in the host's markup, so the parser has
-      // already defined this class by the time it reaches the tag.
+      // Custom elements default to display: inline. Setting block here,
+      // before first paint, keeps the layout from depending on style.css.
       this.style.display ||= 'block'
       this._status = 'idle' // 'idle' | 'pending' | 'success' | 'error'
       this._errorText = null
@@ -189,9 +149,7 @@
       return this.getAttribute('subject') || ''
     }
 
-    // Anything other than exactly "10" is the 5-point star default —
-    // an unrecognized value degrades to the common case rather than
-    // rendering nothing.
+    // Any value but "10" gives the 5-point scale.
     get scale() {
       return this.getAttribute('scale') === '10' ? 10 : 5
     }
@@ -298,8 +256,7 @@
     }
 
     _render() {
-      // No conduit-url set yet (or not yet validated, in this file's own
-      // demo page).
+      // No conduit-url yet, or, on the demo page, not yet checked.
       if (!this.conduitUrl && !this.demo) {
         this.innerHTML = `
           <article class="xyz-feedback-widget">

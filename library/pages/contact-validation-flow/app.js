@@ -1,33 +1,26 @@
-// A moderated submission flow built from three conduits with different
-// access levels: write via a write-only conduit, read + update via a
-// read/update conduit, then read again via a read-only conduit and
-// visualize validity.
+// A moderated submission flow over three conduits with different
+// access: submit through a write-only conduit, read and update through a
+// read/update conduit, then read through a read-only conduit and chart
+// validity.
 //
-// Wire format: the gateway's request/response shape matches Airtable's
-// own — a record is always `{fields: {...}}`, a list response is
-// `{records: [{id, fields, createdTime}, ...]}`. This file flattens each
-// record to a plain `{id, name, email, valid}` object immediately after
-// fetching (see flattenRecord below) so the rest of the app's logic
-// doesn't need to know about the envelope at all.
+// Records are `{fields: {...}}` and lists are `{records: [{id, fields,
+// createdTime}, ...]}`, as in Airtable's API. flattenRecord turns each
+// into `{id, name, email, valid}` right after fetching.
 
 const STORAGE_KEY = 'conduit-validation-flow.conduitUrls'
 
-// A real conduit is throttled to 5 requests/second by default — the
-// fake-data and update-validity loops below space their own requests out
-// by this much so a normal run doesn't trip that limit and 429 itself.
-// Comfortably under 5/sec (200ms would be exactly 5/sec; some margin for
-// real network latency on top).
+// Conduits are throttled to 5 requests a second by default, so the
+// fake-data and validity loops wait this long between requests (200ms
+// would be exactly 5 a second).
 const REQUEST_SPACING_MS = 220
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-// kind drives the log line's color (see style.css's .console-line--*) —
-// 'ok'/'error' for a request's own outcome, 'info' (default) for
-// anything else. Each step's requests log to that step's own panel
-// (targetId), not one shared firehose — see the per-step <details> in
-// index.html.
+// `kind` sets the line's colour (style.css .console-line--*): 'ok' or
+// 'error' for a request's outcome, 'info' otherwise. Each step logs to
+// its own panel (targetId).
 function log(targetId, message, kind = 'info') {
   const target = document.getElementById(targetId)
   const line = document.createElement('div')
@@ -63,12 +56,9 @@ function isValidUrl(value) {
   }
 }
 
-// .conduits/readyz confirms a curi resolves to an active conduit — no RACM or
-// bearer-token gate, no data-source access — before this page ever
-// tries a real read/write against it. Without this check up front, an
-// inactive conduit (or a typo'd URL) surfaces as a wall of confusing
-// 404s once step 2 starts firing real requests, with nothing pointing
-// back at "step 1 was the actual problem."
+// .conduits/readyz confirms a curi is an active conduit, without RACM,
+// a token or source access, so a wrong URL or inactive conduit is caught
+// in step 1 rather than as 404s in step 2.
 async function checkReady(url) {
   try {
     const response = await fetch(`${url.replace(/\/$/, '')}/.conduits/readyz`)
@@ -86,11 +76,8 @@ function showStep(step) {
     'See it come together',
   ]
   document.getElementById('step-title').textContent = `Step ${step} of 4 — ${titles[step - 1]}`
-  // A real step-switcher, not an accumulating scroll: exactly one step
-  // is visible at a time, same as any wizard/tab UI — the previous
-  // steps' own state (URLs, submitted count, table) is preserved
-  // underneath, just not shown, so stepping back via the progress bar
-  // (below) picks up right where it left off.
+  // One step is shown at a time; the others keep their state, so going
+  // back with the progress bar returns to it.
   for (let i = 1; i <= 4; i++) {
     document.getElementById(`step-${i}`).hidden = i !== step
   }
@@ -99,23 +86,17 @@ function showStep(step) {
     const done = n < step
     el.classList.toggle('is-current', n === step)
     el.classList.toggle('is-done', done)
-    // Only a completed step is real navigation — tabIndex/role reflect
-    // that rather than making every dot look interactive.
+    // Only completed steps are focusable and act as buttons.
     el.tabIndex = done ? 0 : -1
     el.setAttribute('role', done ? 'button' : 'listitem')
-    // Replaces the number with a checkmark — a CSS ::before layered on
-    // top of the number instead of replacing it (an earlier version of
-    // this) just rendered both stacked illegibly in the same small
-    // circle.
+    // The checkmark replaces the number; drawing it over the number left
+    // both unreadable.
     el.querySelector('.progress-dot').textContent = done ? '✓' : String(n)
   }
   if (step >= 2) updateActiveConduitLabels()
 }
 
-// Every step past 1 names which specific conduit its own requests use —
-// otherwise, once a step's own content is the only thing on screen, a
-// wall of requests against "some conduit" (which one, again?) is exactly
-// the kind of orientation the pileup layout used to paper over for free.
+// Each step after the first names the conduit its requests use.
 function updateActiveConduitLabels() {
   const labels = { 'conduit-1-label': conduitUrls['conduit-1'], 'conduit-2-label': conduitUrls['conduit-2'], 'conduit-3-label': conduitUrls['conduit-3'] }
   for (const [id, url] of Object.entries(labels)) {
@@ -124,9 +105,8 @@ function updateActiveConduitLabels() {
   }
 }
 
-// Clicking (or Enter/Space-ing) a completed step's own dot jumps back to
-// it — the progress bar is real navigation, not just a read-only
-// tracker.
+// Clicking a completed step's dot, or pressing Enter or Space on it,
+// goes back to that step.
 for (const el of document.querySelectorAll('.progress-step')) {
   const goToStep = () => {
     if (el.classList.contains('is-done')) showStep(Number(el.dataset.step))
@@ -142,11 +122,8 @@ for (const el of document.querySelectorAll('.progress-step')) {
 
 // --- Step 1: conduit URLs ---
 //
-// Discipline over convenience: each conduit must be explicitly checked
-// (its own button, its own .conduits/readyz round-trip) before "Proceed to step
-// 2" ever enables — not one combined check fired at submit time. Typing
-// into a field after it's been checked un-checks it again; a URL that's
-// merely *typed* has never actually been confirmed reachable.
+// Each URL must pass its own Check (.conduits/readyz) before "Proceed to
+// step 2" is enabled. Editing a checked URL unchecks it.
 
 const conduitForm = document.getElementById('conduit-form')
 const conduitSubmitButton = conduitForm.querySelector('button[type="submit"]')
@@ -163,9 +140,8 @@ for (const name of CONDUIT_NAMES) {
   const errorEl = document.querySelector(`.field-error[data-for="${name}"]`)
   input.value = conduitUrls[name] ?? ''
 
-  // A previously-saved URL (from localStorage) is not re-verified on
-  // load — the conduit could have been deactivated since. It always
-  // has to be checked again this session.
+  // A URL restored from localStorage must be checked again; the conduit
+  // may have been deactivated since.
   input.addEventListener('input', () => {
     checkedState[name] = false
     errorEl.textContent = ''
@@ -206,13 +182,12 @@ conduitForm.addEventListener('submit', (event) => {
   showStep(2)
 })
 
-// --- Schema errors: a field the gateway doesn't recognize on an
-// already-established sheet. This demo's own bootstrap (see pushRecord
-// below) can only register a field on a genuinely blank sheet — a sheet
-// that already has other columns from an earlier run needs the missing
-// one added by hand, directly in the sheet. Surfaced as
-// its own actionable banner, not just a line in the collapsed request
-// log most visitors never open.
+// --- Schema errors ---
+//
+// A field the gateway doesn't recognize on a sheet that already has
+// columns. pushRecord can add `valid` only to a blank sheet; on a sheet
+// from an earlier run it must be added by hand. Shown as a banner,
+// since few visitors open the request log.
 const SCHEMA_ERROR_PATTERN = /^Unknown field: '(.+)'$/
 
 function escapeHtml(str) {
@@ -228,9 +203,8 @@ function showSchemaErrorBanner(bannerId, fieldName) {
   banner.hidden = false
 }
 
-// Returns true (and shows the banner) if this specific, recoverable
-// case applies — callers still fall through to their own generic
-// error handling/logging either way.
+// Shows the banner and returns true when this is the error; callers
+// still run their own error handling.
 async function checkSchemaError(response, bannerId) {
   if (response.status !== 400) return false
   let body
@@ -253,24 +227,17 @@ function flattenRecord(record) {
 
 async function pushRecord(data) {
   try {
-    // `valid: ''` rides along on every create, not just the ones from
-    // "Fake N" — this is what actually establishes `valid` as a real
-    // sheet column from the very first write. A conduit's write path
-    // only ever auto-creates columns while bootstrapping a genuinely
-    // blank sheet (see docs/gateway-api.md); step 3's later PATCH can't
-    // introduce a brand-new field name at all — that's a deliberate
-    // security rule (an anonymous conduit can't grow its owner's real
-    // spreadsheet), not a bug to work around, so this file has to be
-    // the one place `valid` gets registered.
+    // Every create sends `valid: ''` so the first write adds a `valid`
+    // column. Writes add columns only to a blank sheet
+    // (docs/gateway-api.md), and step 3's PATCH can't add one: an
+    // anonymous caller can't change the owner's sheet.
     const fields = { ...data, valid: '' }
     const response = await fetch(conduitUrls['conduit-1'], {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields }),
     })
-    // Logs the *actual* body sent, `valid` included — the whole point
-    // of this log is showing real requests; quietly hiding part of the
-    // payload would undercut that.
+    // Logs the body as sent, `valid` included.
     log('log-step2', `POST ${JSON.stringify(fields)} → ${response.status}`, response.ok ? 'ok' : 'error')
     if (response.ok) {
       document.getElementById('schema-error-step2').hidden = true
@@ -336,11 +303,8 @@ document.getElementById('to-step-3').addEventListener('click', async () => {
 
 // --- Step 3: read + update validity ---
 
-// A field genuinely never validated yet is either missing entirely (the
-// fake test client's seeded rows) or '' (a real sheet cell that's never
-// had a value written to it — see rowToFields in sheets.ts, which reads
-// a blank cell back as '' rather than null/undefined). Both count as
-// "not yet validated" here.
+// Not yet validated: `valid` is missing (rows seeded by the test fake)
+// or '' (a blank cell; see rowToFields in sheets.ts).
 function isUnvalidated(row) {
   return row.valid == null || row.valid === ''
 }

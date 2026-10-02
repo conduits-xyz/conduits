@@ -1,7 +1,6 @@
 /*
- * Shared styling for the "Conduit URL" control (see conduit-url-input.js
- * for the behavior), used by every widget demo page here and, by direct
- * relative reference, library/pages/'s own tutorials.
+ * Styles for the "Conduit URL" field (conduit-url-input.js) on the
+ * widget demo pages and the library/pages tutorials.
  */
 .conduit-url-control {
   display: flex;

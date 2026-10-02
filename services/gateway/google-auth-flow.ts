@@ -31,10 +31,10 @@ export interface GoogleAuthorizeResult {
   email?: string
 }
 
-// Waits for exactly one /callback request on the given loopback
-// server, validating `state`, then resolves with the authorization
-// code (or rejects on a mismatch, an error= param, or the timeout).
-// The server is always closed before this settles, one way or another.
+// Waits for one /callback request on the loopback server, checks
+// `state`, and resolves with the authorization code; rejects on a
+// mismatch, an error= parameter or the timeout. Closes the server
+// either way.
 function waitForCallback(server: http.Server, expectedState: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
@@ -89,18 +89,11 @@ async function fetchEmailBestEffort(accessToken: string): Promise<string | undef
   }
 }
 
-// The whole "installed app" OAuth 2.0 dance, hand-rolled: remix/auth's
-// public API (startExternalAuth/finishExternalAuth) needs a live
-// RequestContext with session storage for its own PKCE/state
-// transaction — shaped for a web app, not a bare CLI process — and its
-// lower-level building blocks (exchangeAuthorizationCode et al.,
-// @remix-run/auth's provider.ts) aren't part of that package's public
-// exports. This instead talks to Google's own documented, stable
-// authorization-code + PKCE endpoints directly — the same protocol
-// contract those internals wrap. Refreshing an already-authorized
-// grant does NOT need this — see runtime.ts, which reuses
-// createGoogleAuthProvider + refreshExternalAuth directly, since that
-// part of remix/auth's API needs no session.
+// The installed-app OAuth flow (authorization code with PKCE) against
+// Google's endpoints directly. remix/auth's startExternalAuth and
+// finishExternalAuth need a request context with sessions, and its
+// lower-level functions aren't exported. Refreshing doesn't need this:
+// runtime.ts uses createGoogleAuthProvider and refreshExternalAuth.
 export async function authorizeGoogle(options: GoogleAuthorizeOptions): Promise<GoogleAuthorizeResult> {
   const { verifier, challenge } = generatePkce()
   const state = base64url(randomBytes(16))

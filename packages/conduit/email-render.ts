@@ -1,8 +1,7 @@
 import type { ConduitFields } from './sheets.ts'
 
-// Shared by every email-shaped source (fastmail.ts, gmail.ts) — the
-// whole message body, one line per submitted field, in submission
-// order.
+// The message body for the email sources (fastmail.ts, gmail.ts): one
+// line per submitted field, in order.
 export function renderEmailBody(fields: ConduitFields): string {
   return Object.entries(fields)
     .map(([name, value]) => `${name}: ${value ?? ''}`)

@@ -10,22 +10,17 @@ import {
 import { renderEmailBody as renderBody } from './email-render.ts'
 import { sendViaSmtp } from './mailpit-test-client.ts'
 
-// Gmail, over the Gmail REST API — send-only. Deliberately narrower
-// than Fastmail's own email conduit: no read/archive support (would
-// need gmail.readonly/gmail.modify, whose verification tier isn't
-// confirmed from public sources), and no "send as" alias picker
-// (always the connected account's own primary address, which needs no
-// extra scope — Gmail's API sends as the authenticated user by
-// default).
+// Gmail over its REST API, send-only. No reading or archiving (those
+// need the gmail.readonly or gmail.modify scopes) and no alias picker:
+// Gmail sends as the account's primary address, which needs no extra
+// scope.
 const SOURCE = 'gmail'
 
 const SEND_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send'
 
-// The whole message template for `POST` — owner-configured in
-// suri_config, never taken from a submission's own fields (a public,
-// anonymous POST must never control its own destination). See
-// ConduitSource.open()'s own doc in sheets.ts: `config` is the
-// conduit's whole suri_config, JSON-encoded.
+// The message template for POST, set by the owner in suri_config and
+// never taken from a submission. `config` is the suri_config JSON (see
+// ConduitSource.open() in sheets.ts).
 type GmailConfig = {
   recipients?: string[]
   subject?: string
@@ -41,10 +36,8 @@ function configFrom(config: string | undefined): GmailConfig {
   }
 }
 
-// Same fixed shape Fastmail's own email conduit describes — real
-// documentation value via the /schema endpoint (reachable regardless
-// of RACM, see schema-controller.ts) even though `listRecords` itself
-// always throws.
+// The fixed fields, as for Fastmail, shown by /schema (which ignores
+// RACM; see schema-controller.ts) though listRecords always throws.
 const FIXED_FIELDS: Array<{ name: string; type: ConduitFieldType; nullable: boolean }> = [
   { name: 'from', type: 'string', nullable: true },
   { name: 'to', type: 'string', nullable: true },
@@ -53,12 +46,8 @@ const FIXED_FIELDS: Array<{ name: string; type: ConduitFieldType; nullable: bool
   { name: 'date', type: 'date', nullable: true },
 ]
 
-// A raw RFC 2822 message, base64url-encoded per the Gmail API's own
-// `users.messages.send` contract. No explicit `From` header — Gmail
-// always sends as the authenticated account's own primary address
-// regardless of what a message claims, the same "overwritten server-
-// side" behavior Fastmail's JMAP send already has for its own
-// identity.
+// An RFC 2822 message, base64url-encoded for users.messages.send. No
+// From header: Gmail always sends as the account's primary address.
 function buildRawMessage(to: string[], subject: string, body: string): string {
   const message = [
     `To: ${to.join(', ')}`,
@@ -70,13 +59,10 @@ function buildRawMessage(to: string[], subject: string, body: string): string {
   return Buffer.from(message, 'utf8').toString('base64url')
 }
 
-// Gmail's own error body (`{ error: { message, status, errors: [...] } }`)
-// carries the actual reason a request failed — insufficient scope, the
-// Gmail API not enabled for the project, a quota ceiling, etc. Losing
-// that behind a bare status code makes a real failure undiagnosable
-// from the server log alone (see packages/gateway/middleware/source-errors.ts,
-// which logs `ConduitSourceError.message` and nothing else). Best-
-// effort: a body that isn't the expected JSON shape just yields ''.
+// The reason from Gmail's error body ({ error: { message, status,
+// errors } }), such as a missing scope or quota, since
+// source-errors.ts logs only the error message. '' when the body isn't
+// that shape.
 async function gmailErrorDetail(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as { error?: { message?: string } }
@@ -117,15 +103,14 @@ function openTable(credential: string, config: GmailConfig, fetchImpl: typeof fe
       return FIXED_FIELDS
     },
 
-    // Not supported — would need gmail.readonly/gmail.modify scope.
-    // Unreachable via RACM (capabilities().methods never offers GET) —
-    // this is defense in depth, same reasoning Fastmail's own
-    // never-offered methods throw rather than silently no-op.
+    // Reading needs gmail.readonly or gmail.modify.
+    // capabilities().methods doesn't offer GET; this throws in case it is
+    // called anyway.
     async listRecords() {
       throw new ConduitSourceError(SOURCE, 'Gmail conduits only support sending, this phase', 500)
     },
 
-    // Fixed schema — nothing for an owner to add.
+    // Fixed schema: nothing for an owner to add.
     async createField() {
       throw new ConduitSourceError(SOURCE, "Gmail conduits have a fixed schema — there's no field to add", 500)
     },
@@ -143,10 +128,8 @@ function openTable(credential: string, config: GmailConfig, fetchImpl: typeof fe
       return send(fields)
     },
     async createRecords(fieldsList) {
-      // No atomic multi-message send — each send is its own independent
-      // API call, same reasoning Fastmail's own createRecords has. Same
-      // consequence too: capabilities().bulkCreate is false below, so
-      // the gateway never actually calls this with more than one entry.
+      // Each send is a separate API call, as in Fastmail, so
+      // capabilities().bulkCreate is false.
       const records: ConduitRecord[] = []
       for (const fields of fieldsList) records.push(await send(fields))
       return records
@@ -165,9 +148,7 @@ function openTable(credential: string, config: GmailConfig, fetchImpl: typeof fe
       throw new ConduitSourceError(SOURCE, 'Gmail conduits do not support update', 500)
     },
 
-    // Not supported — would need gmail.modify scope. Unreachable via
-    // RACM (capabilities().methods never offers DELETE) — same defense-
-    // in-depth reasoning as listRecords above.
+    // Needs gmail.modify. capabilities().methods doesn't offer DELETE.
     async deleteRecord() {
       throw new ConduitSourceError(SOURCE, 'Gmail conduits do not support delete, this phase', 500)
     },
@@ -177,25 +158,16 @@ function openTable(credential: string, config: GmailConfig, fetchImpl: typeof fe
   }
 }
 
-// Exported for its own unit test (mocked fetch, real request/response
-// shapes) — NODE_ENV=test always resolves gmailClient itself to the
-// Mailpit-backed client below, so this is otherwise unreachable in the
-// test environment.
+// Exported for its unit test; under NODE_ENV=test gmailClient is the
+// Mailpit-backed client below.
 export function createGmailApiClient(): ConduitSourceClient {
   return {
     async connect(_sourceKey, credential, fetchImpl = fetch) {
-      // No account-level session/discovery call needed — the Gmail
-      // REST API addresses the authenticated user via the fixed `me`
-      // alias, unlike JMAP's own session-discovery handshake. sourceKey
-      // is unused (no identity to choose — always the connected
-      // account's own primary address). A bad/expired token surfaces
-      // as a 401 on the send call itself; no separate validation call
-      // to make redundantly here.
+      // No session call: the API addresses the user as `me`. sourceKey
+      // is unused. A bad token shows up as a 401 on send.
       return {
         async listTables() {
-          // No tables to choose between (send-only, no read/mailbox
-          // concept exposed) — never actually called, since there's
-          // no tab/table-selection UI for a send-only source.
+          // Send-only: there are no tables.
           return []
         },
         open(config) {
@@ -203,39 +175,29 @@ export function createGmailApiClient(): ConduitSourceClient {
         },
       }
     },
-    // Nothing to tear down — plain per-request HTTPS calls, same as
-    // Sheets'/Fastmail's own no-op disconnect().
+    // Nothing to close: each call is a separate HTTPS request.
     async disconnect() {},
     capabilities: () => ({ methods: ['POST'], bulkCreate: false }),
   }
 }
 
-// Test-only: make the Mailpit-backed client throw ConduitAuthError for
-// this credential, simulating a revoked Gmail grant — same role
-// sheets.ts's own simulateFakeAuthFailure plays, keyed by credential
-// rather than by sourceKey since Gmail's connect() has no sourceKey
-// concept (see its own comment above) for a test to address by.
+// For tests: makes the Mailpit-backed client throw ConduitAuthError for
+// this credential, as for a revoked grant. Keyed by credential, since
+// Gmail has no sourceKey.
 const fakeAuthFailures = new Set<string>()
 
 export function simulateGmailAuthFailure(credential: string): void {
   fakeAuthFailures.add(credential)
 }
 
-/** Test-only: clear between tests. */
+/** For tests: clears the simulated failures. */
 export function resetGmailAuthFailures(): void {
   fakeAuthFailures.clear()
 }
 
-// Test-only: a real Gmail account doesn't exist in tests, and there's
-// no Mailpit-equivalent way to fake the Gmail REST API's own shape (see
-// gmail.test.ts for that — mocked fetch, same style as fastmail.ts's
-// own JMAP-shape test). What Mailpit CAN test for real is the message
-// construction/delivery itself: this builds the identical MIME message
-// the real path would, then hands it to Mailpit over SMTP — the same
-// hand-rolled SMTP client fastmail.ts's own test client uses, shared
-// via mailpit-test-client.ts. No REST reads here (unlike Fastmail's
-// test client) — Gmail's own read/delete aren't supported, so there's
-// nothing to list/remove from Mailpit either.
+// For tests: builds the same MIME message as the real client and sends
+// it to Mailpit over SMTP (mailpit-test-client.ts). The Gmail API calls
+// themselves are tested with a mocked fetch in gmail.test.ts.
 function createMailpitGmailClient(): ConduitSourceClient {
   return {
     async connect(_sourceKey, credential) {
@@ -254,9 +216,7 @@ function createMailpitGmailClient(): ConduitSourceClient {
               throw new ConduitSourceError(SOURCE, 'This conduit has no recipients/subject configured', 502)
             }
             await sendViaSmtp(parsed.recipients[0]!, parsed.recipients, parsed.subject, renderBody(fields))
-            // Mailpit assigns the real id; a synthetic placeholder here
-            // is corrected the moment a caller actually lists/reads —
-            // same shape fastmail.ts's own test client uses.
+            // Mailpit assigns the id; this placeholder stands in.
             return { id: '', fields }
           }
 

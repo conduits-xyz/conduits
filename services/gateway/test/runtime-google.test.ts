@@ -9,10 +9,9 @@ import { gatewayServiceRuntime } from '../runtime.ts'
 import { loadGoogleGrant, saveGoogleGrant } from '@conduits/credential-store'
 import type { StoredGoogleGrant } from '@conduits/credential-store'
 
-// Mock the token endpoint, drive the real refresh path — proving this
-// runtime's getCredential()/invalidateCredential() go through the
-// exact same createGoogleAuthProvider + refreshExternalAuth call,
-// persisting to a local file instead of a database row.
+// The runtime's getCredential() and invalidateCredential() against a
+// mocked token endpoint, using createGoogleAuthProvider and
+// refreshExternalAuth and a local file.
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
 
 function mockTokenEndpoint(handler: () => Response): () => void {
@@ -20,9 +19,8 @@ function mockTokenEndpoint(handler: () => Response): () => void {
   globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     if (url === TOKEN_ENDPOINT) return handler()
-    // The userinfo best-effort fetch (google-auth-flow.ts) isn't
-    // exercised via getCredential()/invalidateCredential() at all —
-    // any other URL here is a real test bug, not a legitimate call.
+    // Nothing else should be called (userinfo is only in
+    // google-auth-flow.ts).
     throw new Error(`unexpected fetch in runtime-google.test.ts: ${url}`)
   }) as typeof fetch
   return () => {
@@ -84,10 +82,8 @@ describe('gatewayServiceRuntime.getCredential — googleSheets/gmail', () => {
     process.env.CONDUITS_CREDENTIAL_STORE_PATH = storePath
     saveGoogleGrant(storePath, expiredGrant({ tokens: { accessToken: 'fresh-token', expiresAt: new Date(Date.now() + 3_600_000) } }))
 
-    // No mockTokenEndpoint installed — any fetch call at all throws,
-    // via the real, unmocked global fetch hitting a real network call
-    // this test never wants to make. If getCredential() wrongly
-    // refreshed, this test would hang/fail on a real network attempt.
+    // No mock installed, so any fetch goes to the network and fails the
+    // test; getCredential() must not refresh.
     const token = await gatewayServiceRuntime.getCredential(conduitConfig())
     assert.equal(token, 'fresh-token')
   })

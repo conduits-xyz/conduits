@@ -12,28 +12,22 @@ describe('sheets id column', () => {
   })
 
   it('does not mistake a user\'s own "id" column for ours', () => {
-    // The whole point of the conduit-id name: a generic "id" or "ID"
-    // column the user already has for their own purposes must never be
-    // treated as ours, or we'd either add a confusing duplicate or, worse,
-    // overwrite data that isn't ours.
+    // A user's own "id" or "ID" column is never taken for the id column.
     assert.equal(idColumnIndex(['id', 'name', 'email']), -1)
     assert.equal(idColumnIndex(['ID', 'name', 'email']), -1)
   })
 
   it('translates the conduit-id column to `id` and never leaves the raw column name as a stray key', () => {
-    // Regression test: skipping this translation and building the row
-    // object directly from a raw grid row leaks a literal "conduit-id"
-    // key into `fields` alongside the correctly-translated `id` — only
-    // ever visible against a real spreadsheet, since the test suite's
-    // fake client has no separate bookkeeping-column concept to get wrong.
+    // rowToFields renames the column, so no "conduit-id" key appears in
+    // `fields`. Only a real sheet has that column; the fake client
+    // doesn't.
     const fields = rowToFields(['conduit-id', 'name', 'email'], ['452qweqkf222', 'Ada', 'ada@example.com'])
     assert.deepEqual(fields, { id: '452qweqkf222', name: 'Ada', email: 'ada@example.com' })
     assert.equal((fields as Record<string, unknown>)['conduit-id'], undefined)
   })
 
   it('excludes rows with no usable id — a blank id cell, or the id column missing entirely', () => {
-    // A blank id cell (Sheets never actually leaves one blank once a row
-    // is written via the API, but a user could clear a cell by hand).
+    // A blank id cell, as when a user clears one by hand.
     assert.deepEqual(
       rowsFromGrid([
         ['conduit-id', 'name'],
@@ -43,11 +37,8 @@ describe('sheets id column', () => {
       [{ id: 'real-id-1', name: 'Ada' }],
     )
 
-    // The id column missing from the header entirely (someone deleted
-    // the conduit-id column directly in the sheet, or a pre-existing
-    // sheet with real data was never bootstrapped through the API at
-    // all) — every row here has to be excluded, not just one with an
-    // actually-blank cell.
+    // No id column (deleted by hand, or a sheet never written through
+    // the API): every row is excluded.
     assert.deepEqual(
       rowsFromGrid([
         ['name', 'email'],

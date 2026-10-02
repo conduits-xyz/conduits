@@ -5,13 +5,9 @@ import { createGatewayRouter } from '../router.ts'
 import type { ConduitConfig, GatewayRuntime } from '../types.ts'
 import { createStaticRouteResolver, type RouteBinding } from '../route-binding.ts'
 
-// This package's own behavior is exercised in depth by every consumer's
-// test suite (services/gateway/test/, here in this repo) rather than
-// duplicated here — but the package itself, in isolation, still needs
-// at least one real smoke test: this is the one place that proves
-// createGatewayRouter() works end to end against nothing but a plain
-// ConduitConfig, a RouteBinding, and a fake GatewayRuntime, with zero
-// DB, zero filesystem, zero real network.
+// A smoke test of createGatewayRouter() alone: a ConduitConfig, a
+// RouteBinding and a fake GatewayRuntime, with no database, files or
+// network. services/gateway/test covers the behaviour in depth.
 
 const config: ConduitConfig = {
   curi: 'smoke-test',
@@ -29,9 +25,8 @@ const config: ConduitConfig = {
 
 const bindings: RouteBinding[] = [{ path: '/smoke-test', curi: 'smoke-test' }]
 
-// recordObservation/instrumentFetch both omitted on purpose — this
-// exercises the "no runtime support" path, where dispatch() skips all
-// observation measurement outright.
+// No recordObservation or instrumentFetch, so dispatch() measures
+// nothing.
 const runtime: GatewayRuntime = {
   async getCredential() {
     return null
@@ -83,9 +78,8 @@ describe('createGatewayRouter (package smoke test)', () => {
       resolveRoute: createStaticRouteResolver(bindings),
       runtime,
     })
-    // Reaching the same "unsupported source" 500 bare GET hits proves
-    // item-path resolution correctly reached loadConduitTable too, not
-    // just that the path itself matched something.
+    // The same "unsupported source" 500 as the bare GET shows the item
+    // path reached loadConduitTable.
     const response = await router.fetch(new Request('http://localhost/smoke-test/42'))
     assert.equal(response.status, 500)
   })

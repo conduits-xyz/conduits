@@ -1,6 +1,6 @@
 :root {
   color-scheme: light dark;
-  /* Matches the rest of library/pages/ — one visual family. */
+  /* Shared with the other library/pages. */
   --accent: #2563eb;
   --accent-ink: #ffffff;
   --border: #e0e0e0;
@@ -169,9 +169,7 @@ body {
   line-height: 1.55;
 }
 
-/* Names which conduit a step's own requests use — once only the
-   current step is on screen, this is the only place that context
-   shows up at all. */
+/* Names the conduit a step's requests use. */
 .active-conduit {
   margin: 0 0 1rem;
   padding: 0.5rem 0.75rem;
@@ -239,11 +237,8 @@ body {
   color: var(--ink-muted);
 }
 
-/* Shown only when the gateway rejects a write because a field name
-   isn't a real column yet — a specific, actionable case (add the
-   column directly in the sheet), not a generic error, so it gets its
-   own distinct (amber, not red) treatment rather than just another
-   line in the request log most visitors never open. */
+/* Shown when a write is rejected because a field has no column yet:
+   amber, with the fix (add the column in the sheet). */
 .schema-error {
   margin: 0 0 1rem;
   padding: 0.875rem 1rem;
@@ -485,9 +480,7 @@ th {
   margin-top: 0;
 }
 
-/* --- Request log (collapsed by default, inside the step that made
-       the requests — not a permanent sidebar dumping every request
-       from every step in one growing, disconnected firehose). --- */
+/* --- Request log (collapsed, inside the step that made the requests) --- */
 
 .request-log {
   margin-top: 1.5rem;

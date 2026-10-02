@@ -1,24 +1,19 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
-// Best-effort permission tightening — some filesystems (notably on
-// Windows) don't support POSIX mode bits the same way; a failure here
-// must never block the actual write, only the permission hardening.
+// Best effort: some filesystems (notably on Windows) lack POSIX modes,
+// and that mustn't stop the write.
 function chmodBestEffort(target: string, mode: number): void {
   try {
     fs.chmodSync(target, mode)
   } catch {
-    // Not supported on this filesystem — see doc above.
+    // Unsupported here; see above.
   }
 }
 
-// Atomic: write to a temp file in the same directory (so the rename
-// below is on the same filesystem, hence atomic), lock down its
-// permissions, then rename over the real path. A crash or concurrent
-// read mid-write can never observe a partially-written file — either
-// the old complete file or the new complete file, never neither/a
-// fragment. Shared by every local credential/state store a gateway
-// runtime (self-hosted or managed) keeps on disk.
+// Writes a temp file in the same directory, sets its permissions, and
+// renames it over the path, so a reader sees the old file or the new
+// one, never part of one.
 export function writeJsonFileAtomic(filePath: string, value: unknown): void {
   const dir = path.dirname(filePath)
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
@@ -30,8 +25,7 @@ export function writeJsonFileAtomic(filePath: string, value: unknown): void {
   fs.renameSync(tmpPath, filePath)
 }
 
-// A missing file reads as `fallback` — every store built on this
-// treats "never written yet" as empty, not an error.
+// A missing file reads as `fallback`.
 export function readJsonFileOrDefault<T>(filePath: string, fallback: T): T {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8')) as T

@@ -1,6 +1,5 @@
-// Not catalog.js: that's widget-specific (embed hrefs, search/tag
-// filtering, copy-snippet button). Reads the same catalog.json so this
-// list can't drift from each page.json.
+// Lists the pages from catalog.json, as catalog.js lists widgets
+// (catalog.js also has embed links, search and copy buttons).
 
 function tagLabel(tag) {
   return tag.split('-').map((word) => word[0].toUpperCase() + word.slice(1)).join(' ')
@@ -17,8 +16,7 @@ function card(item) {
   const detailHref = escapeAttribute(`${item.slug}/`)
   const tags = Array.isArray(item.tags) ? item.tags : []
   const tagChips = tags.map((tag) => `<span class="card-tag">${escapeHtml(tagLabel(tag))}</span>`).join('')
-  // Empty .card-socials kept (not omitted) so .card-footer's
-  // space-between layout still right-aligns "Read".
+  // The empty .card-socials keeps "Read" right-aligned in .card-footer.
   return `<article class="catalog-card">
     <div class="card-body">
       <h3>${escapeHtml(item.name)}</h3>

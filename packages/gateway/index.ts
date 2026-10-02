@@ -16,11 +16,8 @@ export { createGatewayRouter } from './router.ts'
 export { resetThrottle } from './middleware/throttle.ts'
 export { generateBearerToken, hashBearerToken, verifyBearerToken } from './bearer-token.ts'
 
-// Route bindings — see docs/data-model.md's "route binding". Exported
-// so both packages/config (compiling a route binding out of YAML) and
-// a host projecting one out of its own store share the identical type
-// and normalization/validation rules rather than each growing their
-// own.
+// Route bindings (docs/data-model.md "route binding"), exported so
+// packages/config and other hosts use the same type and validation.
 export type { RouteBinding, RouteMatch, ConduitAction } from './route-binding.ts'
 export {
   RESERVED_SEGMENT,

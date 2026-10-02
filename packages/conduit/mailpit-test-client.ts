@@ -1,13 +1,9 @@
 import { ConduitSourceError, type ConduitRecord } from './sheets.ts'
 
-// Shared test-only plumbing for every email-shaped source's own
-// NODE_ENV=test client (fastmail.ts, gmail.ts) — a real local SMTP
-// server + REST API (Mailpit), not a hand-rolled in-memory fake: faking
-// is fine for Sheets (a simple grid model), not for email (delivery is
-// the actual behavior under test). Not part of this package's public
-// ConduitSourceClient contract — purely internal to how each email
-// source's own test client is built, so it's never re-exported from
-// index.ts.
+// Test-only code for the NODE_ENV=test clients of the email sources
+// (fastmail.ts, gmail.ts): they send through Mailpit, a local SMTP
+// server with a REST API, because delivery is what's tested. Not
+// exported from index.ts.
 
 const MAILPIT_SMTP_HOST = process.env.MAILPIT_SMTP_HOST ?? 'localhost'
 const MAILPIT_SMTP_PORT = Number(process.env.MAILPIT_SMTP_PORT ?? 1025)
@@ -22,10 +18,7 @@ export type MailpitMessageSummary = {
   Snippet: string
 }
 
-// A minimal, hand-rolled SMTP client — this is test-only plumbing
-// talking to a local Mailpit instance, not a general-purpose mailer,
-// so it only ever needs the handful of commands a single plain-text
-// send requires.
+// A minimal SMTP client: the commands one plain-text message needs.
 export async function sendViaSmtp(from: string, to: string[], subject: string, body: string): Promise<void> {
   const { Socket } = await import('node:net')
   const socket = new Socket()
@@ -40,8 +33,7 @@ export async function sendViaSmtp(from: string, to: string[], subject: string, b
     return new Promise((resolve) => {
       function onData(chunk: Buffer) {
         buffer += chunk.toString('utf8')
-        // A multi-line SMTP response's final line starts "code " (space,
-        // not '-'); a single-line response is its own final line.
+        // The last line of a reply starts "code " (a space, not '-').
         const lines = buffer.split('\r\n').filter(Boolean)
         const last = lines.at(-1)
         if (last && /^\d{3} /.test(last)) {
@@ -66,9 +58,8 @@ export async function sendViaSmtp(from: string, to: string[], subject: string, b
     await command(`MAIL FROM:<${from}>`)
     for (const recipient of to) await command(`RCPT TO:<${recipient}>`)
     await command('DATA')
-    // Dot-stuffing (RFC 5321 §4.5.2): any body line that starts with a
-    // "." gets a second one prepended, so it's never mistaken for the
-    // lone "." that ends the DATA block below.
+    // Dot-stuffing (RFC 5321 §4.5.2): a body line starting with "." gets
+    // another, so it can't end the DATA block.
     const escapedBody = body.replace(/^\./gm, '..')
     const message = [`From: ${from}`, `To: ${to.join(', ')}`, `Subject: ${subject}`, '', escapedBody].join('\r\n')
     await command(`${message}\r\n.`)
@@ -78,9 +69,7 @@ export async function sendViaSmtp(from: string, to: string[], subject: string, b
   }
 }
 
-// `source` names whichever email source is calling (`'fastmail'` /
-// `'gmail'`) so a failure surfaces with the right source attribution —
-// this plumbing itself is provider-agnostic.
+// `source` ('fastmail' or 'gmail') is put on any error thrown.
 export async function mailpitFetch(source: string, path: string, init?: RequestInit): Promise<Response> {
   const response = await fetch(`${MAILPIT_API_URL}${path}`, init)
   if (!response.ok) throw new ConduitSourceError(source, `Mailpit request failed (${response.status})`, response.status)

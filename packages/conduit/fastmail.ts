@@ -10,10 +10,9 @@ import {
 import { sendViaSmtp, mailpitFetch, summaryToRecord, type MailpitMessageSummary } from './mailpit-test-client.ts'
 import { renderEmailBody as renderBody } from './email-render.ts'
 
-// Fastmail, over JMAP (RFC 8620/8621) — the real, shipped instance of
-// the mailbox-shaped-source mapping INTEGRATIONS.md describes
-// generally, with every deviation from that general mapping summarized
-// below (RACM never exposes update, delete means archive, etc).
+// Fastmail over JMAP (RFC 8620/8621): the mailbox mapping in
+// INTEGRATIONS.md, with the deviations noted below (no update; delete
+// archives).
 const SOURCE = 'fastmail'
 
 const SESSION_URL = 'https://api.fastmail.com/jmap/session'
@@ -21,11 +20,10 @@ const CORE = 'urn:ietf:params:jmap:core'
 const MAIL = 'urn:ietf:params:jmap:mail'
 const SUBMISSION = 'urn:ietf:params:jmap:submission'
 
-// The whole message template for `POST`, plus which mailbox `GET`
-// reads from — owner-configured in suri_config, never taken from a
-// submission's own fields (a public, anonymous POST must never
-// control its own destination). See ConduitSource.open()'s own doc in
-// sheets.ts: `config` is the conduit's whole suri_config, JSON-encoded.
+// The message template for POST and the mailbox GET reads, set by the
+// owner in suri_config and never taken from a submission, so an
+// anonymous POST can't choose where mail goes. `config` is the
+// suri_config JSON (see ConduitSource.open() in sheets.ts).
 type FastmailConfig = {
   table?: string // which mailbox GET reads — default 'Inbox'
   recipients?: string[]
@@ -73,13 +71,9 @@ async function jmapCall(
 
 type FastmailSession = { apiUrl: string; accountId: string; identityId: string | null }
 
-// A JMAP account can have more than one sending identity (aliases, or
-// additional addresses on a custom domain) — which one a conduit sends
-// as is a real, owner-facing choice (a "Send as" picker, wherever a
-// caller builds one), not something to silently guess. Resolved once at
-// connect time via `listFastmailIdentities` below; the account/session
-// lookup here is otherwise identical to that function's own, factored
-// out to avoid the two diverging.
+// An account can have several sending identities, and which one a
+// conduit sends as is the owner's choice, not guessed. Shared with
+// listFastmailIdentities so the session lookup is written once.
 async function fetchMailAccount(
   credential: string,
   fetchImpl: typeof fetch = fetch,
@@ -97,13 +91,9 @@ async function fetchMailAccount(
   return { apiUrl: session.apiUrl, accountId }
 }
 
-// sourceKey here is the identity id chosen at connect time (see
-// ConduitSourceClient.connect()'s own sourceKey doc: it's this
-// conduit's own suri_object_key, the same slot a spreadsheet id fills
-// for Sheets) — never re-derived here. A conduit connected before an
-// identity was ever chosen (or one somehow missing its own) has no
-// fallback: requireSendable() below fails clearly rather than silently
-// picking whichever identity JMAP happens to list first.
+// sourceKey is the identity id chosen when connecting (the conduit's
+// suri_object_key). Without one, requireSendable() fails rather than
+// sending as JMAP's first identity.
 async function fetchSession(
   credential: string,
   identityId: string | null,
@@ -115,15 +105,10 @@ async function fetchSession(
 
 export type FastmailIdentity = { id: string; email: string; name: string | null }
 
-// Real, live JMAP lookup — used to build a "Send as" picker, and to
-// verify a submitted identityId is actually one of this account's own
-// rather than trusting the client. NODE_ENV=test swaps in
-// listMailpitIdentities below — Mailpit has no JMAP/Identity concept at
-// all, so there's nothing real to fake here, only a fixed stand-in (see
-// that function's own comment). Exported directly (not just through
-// listFastmailIdentities) for its own unit test, same reasoning
-// createJmapFastmailClient() is — the swapped-in export is otherwise
-// unreachable under NODE_ENV=test.
+// The account's identities from JMAP, for a "Send as" picker and to
+// check a submitted identityId belongs to the account. Under
+// NODE_ENV=test, listFastmailIdentities uses listMailpitIdentities
+// instead; this is exported for its unit test.
 export async function listJmapIdentities(credential: string): Promise<FastmailIdentity[]> {
   const { apiUrl, accountId } = await fetchMailAccount(credential)
   const results = await jmapCall(apiUrl, credential, [CORE, SUBMISSION], [['Identity/get', { accountId, ids: null }, '0']])
@@ -137,11 +122,7 @@ export async function listJmapIdentities(credential: string): Promise<FastmailId
   }))
 }
 
-// Test-only stand-in — a single fixed identity, so a "Send as" picker
-// stays invisible in tests (one identity = no picker
-// shown, same as a real single-identity account) rather than every
-// existing test needing to interact with a picker UI that has no real
-// Mailpit equivalent to test against in the first place.
+// For tests: one fixed identity, so no "Send as" picker appears.
 async function listMailpitIdentities(): Promise<FastmailIdentity[]> {
   return [{ id: 'mailpit-test-identity', email: 'sender@mailpit.test', name: null }]
 }
@@ -258,10 +239,8 @@ function openTable(
 
     const submitted = (results.get('1')?.[1] as { created?: Record<string, unknown> } | undefined)?.created
     if (!submitted?.sendIt) {
-      // Created but never submitted — a real partial-failure case (see
-      // the investigation doc). The draft is left behind rather than
-      // silently retried; onSuccessDestroyEmail above never ran, so
-      // it's still sitting in Drafts, visibly not a sent message.
+      // Created but not submitted: the draft stays in Drafts rather than
+      // being retried (onSuccessDestroyEmail didn't run).
       throw new ConduitSourceError(SOURCE, 'Fastmail accepted the draft but did not submit it for sending', 502)
     }
 
@@ -300,8 +279,7 @@ function openTable(
       return { records: emails.map(toConduitRecord), nextCursor }
     },
 
-    // Fixed schema — nothing for an owner to add. Same deviation shape
-    // replaceRecord/replaceRecords use below.
+    // Fixed schema: nothing for an owner to add.
     async createField() {
       throw new ConduitSourceError(SOURCE, "Fastmail conduits have a fixed schema — there's no field to add", 500)
     },
@@ -319,24 +297,17 @@ function openTable(
       return send(fields)
     },
     async createRecords(fieldsList) {
-      // No atomic multi-message send in JMAP the way Sheets bulk-writes
-      // one grid call — each send is its own independent Email/set +
-      // EmailSubmission/set pair (see data-source-interface.md's
-      // original finding: bulk atomicity doesn't transfer for email). A
-      // failure partway through this loop leaves earlier messages
-      // already, really sent with no way to report that back — exactly
-      // why capabilities().bulkCreate is false below, so the gateway
-      // never actually calls this with more than one entry; this loop
-      // still exists for direct/future callers of the interface itself.
+      // JMAP can't send several messages atomically: each record is its
+      // own Email/set and EmailSubmission/set, so a failure partway
+      // leaves earlier messages sent. capabilities().bulkCreate is
+      // false, so the gateway passes one record at a time.
       const records: ConduitRecord[] = []
       for (const fields of fieldsList) records.push(await send(fields))
       return records
     },
 
-    // Never reachable via RACM (capabilities().methods below never
-    // offers PUT/PATCH) — throwing rather than implementing flags/labels
-    // logic nothing can call. See INTEGRATIONS.md's mailbox-mapping
-    // section.
+    // capabilities().methods doesn't offer PUT or PATCH; this throws in
+    // case it is called anyway. See INTEGRATIONS.md.
     async replaceRecord() {
       throw new ConduitSourceError(SOURCE, 'Fastmail conduits do not support replace', 500)
     },
@@ -350,9 +321,8 @@ function openTable(
       throw new ConduitSourceError(SOURCE, 'Fastmail conduits do not support update', 500)
     },
 
-    // "Delete" is archive, not permanent destruction — move to Trash,
-    // matching what's actually mutable for a message (folder
-    // membership), same reasoning the investigation doc gives.
+    // Delete moves the message to Trash; a message's folder is the only
+    // thing about it that can change.
     async deleteRecord(id) {
       const trashId = await findMailboxId(session.apiUrl, credential, session.accountId, 'trash', fetchImpl)
       const results = await jmapCall(
@@ -383,18 +353,13 @@ function openTable(
   }
 }
 
-// Exported for its own unit test (mocked fetch, real request/response
-// shapes) — NODE_ENV=test always resolves fastmailClient itself to
-// the Mailpit-backed client below, so this is otherwise unreachable
-// in the test environment.
+// Exported for its unit test; under NODE_ENV=test fastmailClient is the
+// Mailpit-backed client below.
 export function createJmapFastmailClient(): ConduitSourceClient {
   return {
     async connect(sourceKey, credential, fetchImpl = fetch) {
-      // sourceKey is the identity id chosen at connect time (see
-      // fetchSession's own comment) — the JMAP account itself is still
-      // fully identified by the credential alone, but *which identity
-      // to send as* is a real per-conduit choice, the same role a
-      // spreadsheet id plays for Sheets.
+      // sourceKey is the identity to send as; the credential alone
+      // identifies the JMAP account.
       const session = await fetchSession(credential, sourceKey || null, fetchImpl)
       return {
         async listTables() {
@@ -413,26 +378,16 @@ export function createJmapFastmailClient(): ConduitSourceClient {
         },
       }
     },
-    // Nothing to tear down — plain per-request HTTPS calls, no pooled
-    // connection, same as Sheets' own no-op disconnect().
+    // Nothing to close: each call is a separate HTTPS request.
     async disconnect() {},
     capabilities: () => ({ methods: ['GET', 'POST', 'DELETE'], bulkCreate: false }),
   }
 }
 
-// Test-only: a real Fastmail account/JMAP session doesn't exist in
-// tests, so NODE_ENV=test swaps this in — same shape sheets.ts uses
-// for its own fake client, but this one exercises a real protocol
-// (real SMTP, real REST reads) against Mailpit, a local mail-testing
-// server, rather than an in-memory simulation: faking is fine for
-// Sheets (a simple grid model), not for email (delivery is the actual
-// behavior under test). Mailpit itself has no JMAP endpoint (SMTP + a
-// REST API only), so this is a genuinely different implementation from
-// createJmapFastmailClient() above, not the same code pointed at a
-// different host — same relationship sheets.ts's own fake/real split
-// already has. The SMTP/REST plumbing itself lives in
-// mailpit-test-client.ts, shared with gmail.ts's own identical-shaped
-// test client.
+// For tests: sends real mail through Mailpit (SMTP, plus its REST API
+// for reads) instead of JMAP, which Mailpit lacks, because delivery is
+// what's being tested. The SMTP and REST code is in
+// mailpit-test-client.ts, shared with gmail.ts.
 function fastmailMailpitFetch(path: string, init?: RequestInit): Promise<Response> {
   return mailpitFetch(SOURCE, path, init)
 }
@@ -452,10 +407,8 @@ function createMailpitFastmailClient(): ConduitSourceClient {
               throw new ConduitSourceError(SOURCE, 'This conduit has no recipients/subject configured', 502)
             }
             await sendViaSmtp(parsed.recipients[0]!, parsed.recipients, parsed.subject, renderBody(fields))
-            // Mailpit assigns the real id; a synthetic placeholder here
-            // is corrected the moment a caller actually lists/reads —
-            // same "id known only after the real write" shape a
-            // network-addressed source always has.
+            // Mailpit assigns the id; this placeholder is replaced when
+            // the message is read back.
             return { id: '', fields }
           }
 

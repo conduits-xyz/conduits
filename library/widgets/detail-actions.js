@@ -17,17 +17,9 @@ function setupWidgetCopyButton({ buttonId, tag, slug, attributes = {} }) {
   })
 }
 
-// Same reasoning as conduit-url-input.js's own knownOrigin(): this page
-// is only ever served from the bare marketing host of whichever
-// environment it's actually running in (dev.conduits.xyz/
-// staging.conduits.xyz/conduits.xyz, always the pattern "<thing>,
-// app.<thing>, run.<thing>"), so the real signup page for *this*
-// environment is always "app." prepended to
-// this same host — never a config value that's the same no matter
-// which of the three it's loaded from. config.js's own signupUrl (if a
-// deployment sets one) still wins when present, for a genuinely
-// different/self-hosted signup destination — it's an override now, not
-// the only source.
+// On a conduits.xyz host the signup page is the app. subdomain of the
+// current host (as in knownOrigin() in conduit-url-input.js). A
+// configured signupUrl in config.js takes precedence.
 function defaultSignupUrl() {
   const { hostname, protocol } = location
   if (hostname === 'conduits.xyz' || hostname.endsWith('.conduits.xyz')) {

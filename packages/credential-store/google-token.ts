@@ -5,36 +5,26 @@ import { credentialStorePath, loadGoogleGrant, saveGoogleGrant, deleteGoogleGran
 
 export type GoogleTokenResult =
   | { status: 'ok'; accessToken: string }
-  // No grant at all under this name/purpose — never authorized, or a typo.
+  // No grant under this name and purpose.
   | { status: 'missing' }
-  // A grant exists but is expiring/expired with no refresh token to
-  // renew it (shouldn't happen for a real Google grant — access_type:
-  // 'offline' always issues one — kept distinct from 'missing' so a
-  // caller can tell "never authorized" from "authorized but broken"
-  // apart, even though both currently mean "can't proceed").
+  // The grant is expiring and has no refresh token. Google always issues
+  // one for access_type 'offline'; this is kept apart from 'missing' so
+  // a caller can tell the two cases apart.
   | { status: 'no-refresh-token' }
   | { status: 'revoked' }
   | { status: 'refresh-failed'; error: unknown }
 
 export interface GoogleTokenOptions {
-  // Called instead of the default deleteGoogleGrant when Google
-  // confirms a grant dead. The default (when omitted) deletes the
-  // grant outright — appropriate for a CLI-authorized, single-operator
-  // credential nothing else is tracking generations for. A caller that
-  // does track credential generations (see StoredGoogleGrant's own
-  // doc) should pass this instead, to tombstone the grant in place —
-  // preserving its generation so that same generation, seen again
-  // later, is recognizable as already-dead rather than reinstalled.
+  // Called instead of deleteGoogleGrant when Google rejects the grant.
+  // Callers that track generations pass markGoogleGrantInvalid here, to
+  // keep the grant (see StoredGoogleGrant).
   onRevoked?: (storePath: string, name: string, purpose: GooglePurpose) => void
 }
 
-// Resolves a stored Google grant (see google-credential-store.ts) to a
-// fresh, usable access token, refreshing it first if it's within 60s
-// of expiring. Shared by every runtime that operates a Google-backed
-// conduit — a self-hosted gateway process, a managed one, or the
-// one-time `conduits sheets create` CLI step — so all three take the
-// exact same refresh/revocation path rather than copies that could
-// drift.
+// A stored grant's access token, refreshed first if it expires within
+// 60s. Used by every runtime with Google-backed conduits and by
+// `conduits sheets create`, so all take the same refresh and revocation
+// path.
 export async function getFreshGoogleAccessToken(
   name: string,
   purpose: GooglePurpose,
@@ -50,15 +40,10 @@ export async function getFreshGoogleAccessToken(
 
   if (!tokens.refreshToken) return { status: 'no-refresh-token' }
 
-  // redirectUri is only consequential for the authorization/callback
-  // steps (see google-auth-flow.ts in services/gateway) — refreshExternalAuth's
-  // own token-refresh call never uses it, so a fixed placeholder here
-  // is harmless. clientSecret may be genuinely absent for a Desktop-type
-  // OAuth client (see StoredGoogleGrant's own doc); passed through as
-  // an empty string since createGoogleAuthProvider's own options
-  // require a string — if Google's refresh endpoint turns out to
-  // reject an empty client_secret for a given project, that surfaces
-  // as an ordinary 'refresh-failed', not a silent success.
+  // redirectUri isn't used when refreshing (only in
+  // google-auth-flow.ts's authorization steps), so a placeholder is
+  // fine. A Desktop client may have no secret; '' is passed because the
+  // option is a string, and a rejection would be a 'refresh-failed'.
   const provider = createGoogleAuthProvider({
     clientId: grant.clientId,
     clientSecret: grant.clientSecret ?? '',
@@ -68,9 +53,7 @@ export async function getFreshGoogleAccessToken(
 
   try {
     const refreshed = await refreshExternalAuth(provider, tokens)
-    // Spreads `...grant` first — an ordinary refresh only ever touches
-    // `tokens`, never `generation`/`status`, both of which (when
-    // present) carry forward unchanged.
+    // A refresh changes only `tokens`; generation and status carry over.
     saveGoogleGrant(storePath, { ...grant, tokens: refreshed.tokens })
     return { status: 'ok', accessToken: refreshed.tokens.accessToken }
   } catch (err) {

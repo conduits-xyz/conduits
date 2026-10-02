@@ -26,8 +26,7 @@ describe('field-map', () => {
 
   describe('checkKnownFields', () => {
     it('accepts anything when fieldMap is undefined or empty — no schema declared at all', () => {
-      // No throw is the assertion — a real one would fail this test on
-      // its own, same as any other unexpectedly-thrown error.
+      // Passes if nothing throws.
       checkKnownFields({ anything: 'x', goes: 'y' }, undefined, 'gmail')
       checkKnownFields({ anything: 'x' }, {}, 'gmail')
     })

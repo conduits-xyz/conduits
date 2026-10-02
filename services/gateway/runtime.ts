@@ -3,13 +3,10 @@ import type { ConduitConfig, GatewayObservation, GatewayRuntime } from '@conduit
 
 import { credentialStorePath, deleteGoogleGrant, getFreshGoogleAccessToken } from '@conduits/credential-store'
 
-// This repo's own `GatewayRuntime` implementation. Fastmail's own
-// static API token needs no refresh/revocation at all — an operator
-// rotates a dead one by editing their own environment and restarting
-// the process (see server.ts: restart-to-reload). Google is the
-// opposite: a real, live refresh/invalidation story, backed by
-// @conduits/credential-store's local flat-file store instead of a
-// database.
+// This service's GatewayRuntime. Fastmail tokens come from the
+// environment and are replaced by editing it and restarting (see
+// server.ts). Google grants are refreshed and invalidated through
+// @conduits/credential-store's local file.
 
 function purposeForSuriType(suriType: string): GooglePurpose {
   return suriType === 'gmail' ? 'gmail' : 'sheets'
@@ -25,10 +22,8 @@ async function getFastmailCredential(config: ConduitConfig): Promise<string | nu
   }
 }
 
-// Delegates the actual refresh/revocation path to
-// @conduits/credential-store (shared with the `conduits sheets create`
-// CLI step) — this function only adds the ConduitConfig-shaped,
-// per-conduit logging on top.
+// Refresh and revocation are @conduits/credential-store's (shared with
+// `conduits sheets create`); this adds per-conduit logging.
 async function getGoogleCredential(config: ConduitConfig): Promise<string | null> {
   if (config.credentialRef == null) return null
 
@@ -74,13 +69,10 @@ async function getCredential(config: ConduitConfig): Promise<string | null> {
   return getFastmailCredential(config)
 }
 
-// Fastmail: nothing to invalidate — an env-var-backed credential has
-// no live revocation call this process can make; logged so an operator
-// piping process logs somewhere still learns their token was rejected.
-// Google: a live API call rejected a token that looked fresh by our
-// own bookkeeping (a grant revoked out-of-band) — remove it from the
-// store so the next request fails fast with a clear message instead of
-// retrying a token already known to be dead.
+// Fastmail: a token from the environment can't be revoked from here, so
+// the rejection is logged. Google: a token that looked fresh was
+// rejected (a grant revoked elsewhere), so the grant is removed and the
+// next request fails with a clear message.
 async function invalidateCredential(config: ConduitConfig): Promise<void> {
   if (config.suriType !== 'googleSheets' && config.suriType !== 'gmail') {
     console.error(
@@ -101,14 +93,9 @@ async function invalidateCredential(config: ConduitConfig): Promise<void> {
   }
 }
 
-// No persistent counters here — there's no database to hold them
-// in. Logged instead, so an operator who wants these can pipe process
-// logs to whatever they already use for that (journald, a log
-// aggregator) — a real, if minimal, answer rather than silently
-// dropping them. No instrumentFetch either: this wrapper has no
-// byte-accounting relationship with anything, so provider-leg bytes
-// stay unmeasured here (recordObservation still gets everything else —
-// curi, status, latency, client-leg bytes).
+// Observations are logged, since there's no database; pipe the logs to
+// your log system to keep them. No instrumentFetch, so provider bytes
+// aren't measured; the rest (curi, status, latency, client bytes) is.
 function recordObservation(observation: GatewayObservation): void {
   console.log(`[gateway-service] ${observation.statusClass} curi=${observation.curi ?? '(unmatched)'}`)
 }

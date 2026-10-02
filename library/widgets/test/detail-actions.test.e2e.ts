@@ -5,13 +5,9 @@ import { createTestServer } from 'remix/node-fetch-server/test'
 import { createRouter } from 'remix/router'
 import { staticFiles } from 'remix/middleware/static'
 
-// detail-actions.js's own setupLibrarySignupLink() — shared demo-page
-// tooling, not part of any widget itself. Its one real behavioral
-// claim: this library is one set of static files served identically to
-// all three of this product's own environments (dev/staging/
-// production), so the "Sign up" link can't be a single value baked
-// into config.js the way it used to be; it has to be derived from
-// whichever marketing host actually served this exact page.
+// setupLibrarySignupLink() in detail-actions.js. The library's static
+// files are the same on every conduits.xyz host, so the "Sign up" link
+// is derived from the host that served the page.
 
 const WIDGETS_ROOT = path.resolve(import.meta.dirname, '..')
 
@@ -30,9 +26,8 @@ describe('detail-actions.js — library signup link (e2e)', () => {
     assert.equal(await link.getAttribute('href'), 'https://conduits.xyz')
   })
 
-  // Playwright intercepts the navigation itself, before any real DNS
-  // lookup — see conduit-url-input.test.e2e.ts's identical technique —
-  // so this needs no real network access to dev.conduits.xyz.
+  // Playwright answers the navigation itself, so no DNS lookup happens
+  // (as in conduit-url-input.test.e2e.ts).
   it('on a *.conduits.xyz marketing host, points at that same environment\'s own app.* control plane, never the bare production URL', async (t) => {
     const server = await createTestServer(createStaticServer().fetch)
     const page = await t.serve(server)

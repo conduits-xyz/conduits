@@ -8,21 +8,11 @@ import { staticFiles } from 'remix/middleware/static'
 import { createGatewayRouter, createStaticRouteResolver, type GatewayRuntime, type ConduitConfig } from '@conduits/gateway'
 import { compileConduits, resolveEnvRef } from '@conduits/config'
 
-// conduit-url-input.js (this directory) is shared demo-page tooling —
-// not part of any widget itself — whose one real behavioral claim is
-// in its own top comment: a self-hosted single-process deployment
-// serves its demo pages and its Gateway from the same origin, so a
-// bare curi (no scheme, no host) can be resolved against
-// `location.origin` and actually work. That claim had never been
-// exercised end to end, in a real browser, against a real running
-// Gateway — this file is what proves it.
-//
-// A real Fastmail-backed conduit (Mailpit, matching
-// services/gateway/test/gateway.test.ts's own convention), not a mock
-// — this file's own combined server plays the same role a self-hosted
-// operator's single `services/gateway` process plus their own static
-// hosting would in production, just serving both from one process
-// instead of two.
+// conduit-url-input.js resolves a bare curi against location.origin,
+// which works when the demo pages and the Gateway share an origin, as
+// in a self-hosted deployment. This checks that in a browser against a
+// running Gateway, with a Fastmail conduit delivering to Mailpit (as in
+// services/gateway/test/gateway.test.ts).
 
 const MAILPIT_API_URL = process.env.MAILPIT_API_URL ?? 'http://localhost:8025'
 type MailpitMessage = { To: Array<{ Address: string }>; Subject: string }
@@ -35,11 +25,9 @@ function uniqueSubject(label: string): string {
   return `${label} ${Math.random().toString(36).slice(2)}`
 }
 
-// Minimal, self-contained GatewayRuntime — just enough to send a real
-// email via Mailpit. Deliberately not imported from
-// services/gateway/runtime.ts: that's a deployable service, this is a
-// library package, and a library must not depend on a service that
-// depends on it (@conduits/gateway) the other way around.
+// A minimal GatewayRuntime that sends through Mailpit. Not imported from
+// services/gateway/runtime.ts: a library package can't depend on a
+// service.
 const testRuntime: GatewayRuntime = {
   async getCredential(config: ConduitConfig) {
     return config.credentialRef == null ? null : resolveEnvRef(config.credentialRef)
@@ -49,15 +37,9 @@ const testRuntime: GatewayRuntime = {
 
 const WIDGETS_ROOT = path.resolve(import.meta.dirname, '..')
 
-// Combines this directory's own static demo pages (xyz-waitlist/,
-// conduit-url-input.js/.css) with a real gatewayRouter on one origin —
-// static first, falling through to the Gateway on a 404 (staticFiles
-// always falls through rather than throwing — see its own doc), the
-// same shape a self-hosted operator's own reverse proxy would present
-// to a browser. This static router carries no session/csrf/form-data
-// middleware of its own, so a Gateway-shaped request always reaches
-// that clean 404 and falls through correctly — a page router with its
-// own such middleware would need to guard against it misfiring first.
+// Serves the demo files and the gateway on one origin, as a self-hosted
+// reverse proxy would: static files first, and the gateway when
+// staticFiles finds nothing.
 function createCombinedServer(gatewayRouter: { fetch: (request: Request) => Response | Promise<Response> }) {
   const staticRouter = createRouter({ middleware: [staticFiles(WIDGETS_ROOT, { index: true })] })
   return async (request: Request): Promise<Response> => {
@@ -104,9 +86,8 @@ describe('conduit-url-input.js — bare curi resolved against the current origin
 
     await page.goto(server.baseUrl + '/xyz-waitlist/')
 
-    // The whole premise this file exists to prove: with the demo page
-    // and the Gateway on one origin, the prefix shown is that same
-    // origin, not hidden as it would be for an unknown (file://) one.
+    // With the page and the Gateway on one origin, the field shows that
+    // origin as its prefix (an unknown origin, like file://, shows none).
     await page.locator('#curi-prefix', { hasText: `${server.baseUrl}/` }).waitFor()
 
     await page.getByLabel('Conduit URL').fill(CURI)
@@ -132,31 +113,22 @@ describe('conduit-url-input.js — bare curi resolved against the current origin
     await page.goto(server.baseUrl + '/xyz-waitlist/')
     await page.getByLabel('Conduit URL').fill('../invalid')
     await page.getByRole('button', { name: 'Check' }).click()
-    // "Enter a valid conduit path." (not "...URL.") is only ever shown
-    // once a prefix is known — see setupConduitUrlInput's own check().
-    // Confirms this rejection took the bare-curi branch, not the
-    // no-known-origin one.
+    // "Enter a valid conduit path." appears only when a prefix is known
+    // (see check() in setupConduitUrlInput), so this took the bare-curi
+    // branch.
     await page.getByText('Enter a valid conduit path.').waitFor()
   })
 
-  // This product's own managed deployment (dev/staging/production) is
-  // exactly the split-origin case this file's own top comment warns
-  // about: this demo page is served from the bare marketing host
-  // (dev.conduits.xyz, say), never the same origin as the Gateway
-  // (run.dev.conduits.xyz). Proves knownOrigin() actually detects that
-  // and prefixes "run." rather than falling through to location.origin
-  // (which, since the origin split, has no conduit-routing code at
-  // all — a bare curi resolved against it would always 404).
+  // On a conduits.xyz host the page and the Gateway are on different
+  // origins; knownOrigin() prefixes "run." instead of using
+  // location.origin, where a bare curi would 404.
   it('on a *.conduits.xyz marketing host, prefixes with the sibling run.* data-plane host, never this same origin', async (t) => {
     const gatewayRouter = buildGatewayRouter(uniqueSubject('conduit-url-input run-prefix'))
     const server = await createTestServer(createCombinedServer(gatewayRouter))
     const page = await t.serve(server)
 
-    // Fakes serving this exact demo page from dev.conduits.xyz —
-    // Playwright intercepts the navigation itself, before any real DNS
-    // lookup, so this needs no real network access to dev.conduits.xyz.
-    // The real local combined server (static files + a real
-    // gatewayRouter) is the actual content behind it either way.
+    // Playwright answers the navigation itself, so no DNS lookup
+    // happens; the local server provides the content.
     await page.route('https://dev.conduits.xyz/**', async (route) => {
       const url = new URL(route.request().url())
       const response = await fetch(server.baseUrl + url.pathname + url.search, { method: route.request().method() })

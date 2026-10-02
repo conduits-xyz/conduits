@@ -4,14 +4,11 @@ import { conduitTableContext } from './middleware/source-client.ts'
 import type { ConduitConfig } from './types.ts'
 import type { ConduitTable } from '@conduits/conduit'
 
-// Every action in controller.ts/item-controller.ts/schema-controller.ts
-// only ever runs behind a middleware chain that has already set these
-// (resolveConduitConfig, loadConduitTable — see pipeline.ts) — true by
-// construction (dispatch.ts always runs the right pipeline first), but
-// not something the type system can see across the module boundary
-// now that actions are plain functions rather than a remix controller
-// whose own generic tied the two together. Same fail-loud pattern
-// every middleware/*.ts already uses for the same reason.
+// Actions in controller.ts, item-controller.ts and schema-controller.ts
+// run only after the middleware that sets these values
+// (resolveConduitConfig, loadConduitTable; see pipeline.ts), but the
+// types can't express that across modules. Throws if a value is
+// missing, as middleware/*.ts do.
 export function requireConduitConfig(context: GatewayContext): ConduitConfig {
   const config = context.get(conduitConfigContext)
   if (!config) throw new Error('requires resolveConduitConfig() middleware to run first')

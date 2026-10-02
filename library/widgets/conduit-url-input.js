@@ -1,28 +1,14 @@
-// Shared "Conduit URL" input control for every widget's own demo page
-// (xyz-waitlist, xyz-reactions, xyz-contact-form, xyz-feedback,
-// xyz-rsvp) and, by direct relative reference, library/pages/'s own
-// tutorials — not part of any widget itself. Each widget's own .js
-// file stays fully self-contained and copyable on its own; this file
-// is demo-only tooling for trying them out.
+// The "Conduit URL" field on each widget's demo page and in the
+// library/pages tutorials. Demo tooling only; the widgets don't use it.
 //
-// Not `type="module"`: Chromium blocks a module script on a file://
-// page. Load this before the page's own inline <script type="module">;
-// a global function declared by a classic script is still reachable
-// from a module's own scope, it's just not an import.
+// A classic script, since Chromium blocks module scripts on file://
+// pages. Load it before the page's module script, which can call its
+// global functions.
 //
-// A self-hosted Gateway's default conduit URL has the shape
-// {origin}/{curi}, no path prefix (see the Gateway README's own
-// routing section) — and a conduit is commonly identified by its curi
-// alone, not the full URL, so this control accepts a bare curi as the
-// common case. This assumes the demo page and the Gateway share one
-// origin, true for a self-hosted single-process deployment; it is not
-// a safe assumption for a deployment where conduit traffic lives on a
-// separate host from wherever this page itself is served (a managed
-// hosting arrangement with a split dashboard/data-plane, say) — paste
-// the full cross-origin URL directly in that case instead of a bare
-// curi, unless this page itself is being served from a *.conduits.xyz
-// marketing host, in which case knownOrigin() below already knows the
-// right sibling host to use.
+// Accepts a bare curi, resolved against the Gateway's origin (see
+// knownOrigin), or a full URL. A self-hosted Gateway serves conduits at
+// {origin}/{curi}; when the page and the Gateway are on different
+// origins, paste the full URL.
 
 const CURI_PATTERN = /^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/
 
@@ -31,32 +17,16 @@ function knownOrigin() {
   if ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') && location.port === '8080') {
     return `${location.protocol}//${location.hostname}:8787`
   }
-  // This library's own managed deployment (its home, not just a
-  // self-hoster's copy of it) runs marketing, control-plane, and
-  // data-plane as three real, separate hosts, always the pattern
-  // <thing>, app.<thing>, run.<thing> — dev.conduits.xyz/
-  // staging.conduits.xyz/conduits.xyz for <thing>. This page is only
-  // ever served from the bare marketing host, never app.*/run.*
-  // themselves, so the data-plane host conduit traffic actually lives
-  // on is always exactly "run." prepended to whatever host served this
-  // page — never location.origin itself, which is the marketing host
-  // and has no conduit-routing code at all. A genuinely self-hosted,
-  // single-process deployment on any other
-  // domain keeps using location.origin below, since there its own bare
-  // origin really is the Gateway's.
+  // On conduits.xyz hosts the page comes from the marketing host, and
+  // conduits are served from its run. subdomain.
   if (location.hostname === 'conduits.xyz' || location.hostname.endsWith('.conduits.xyz')) {
     return `${location.protocol}//run.${location.hostname}`
   }
   return location.origin
 }
 
-// Accepts a bare curi (built against this page's own origin) or a
-// full http(s) URL, used exactly as given — including one on a
-// different origin entirely (a managed deployment's conduit traffic
-// commonly lives on a separate data-plane host from wherever this
-// page itself is served; see this file's own top comment). A bare value
-// is treated as a conduit path; anything that already parses as a URL
-// is trusted as one, on whatever origin it names.
+// A bare curi is resolved against knownOrigin(); a value that parses as
+// a URL is used as given, on whatever origin it names.
 function resolveConduitUrl(rawValue, prefix) {
   const value = rawValue.trim().replace(/^\/+|\/+$/g, '')
   if (!value) return null
@@ -73,23 +43,18 @@ function resolveConduitUrl(rawValue, prefix) {
 }
 
 // options:
-//   inputId, prefixId, statusId — element ids already in the page's
-//     own static markup (see any of the three demo pages for the shape).
-//   checkButtonId — optional. When given, clicking the button runs the
-//     reachability check. Pressing Enter in the input always does the same.
-//   onChange(url | null) — wire up widgets/iframes here. Called with a
-//     real URL only once the explicit health check confirms it's reachable,
-//     never with a URL that's merely well-formed. Called with `null` before
-//     each check and when the check fails.
-//   resetButtonId — optional. When given, clicking the button clears the
-//     conduit, forgets the stored value, and calls onChange(null).
-//   storageKey — optional. When given, the last value that passed its
-//     health check is remembered in localStorage under this key and
-//     restored (and re-validated) on the next visit to any page on this
-//     origin that sets up an input with the same key. Best-effort only
-//     (private browsing, disabled site data just skip it silently);
-//     pick a key unique to what that input configures (e.g.
-//     'waitlist', 'reactions').
+//   inputId, prefixId, statusId: ids of elements in the page's markup.
+//   checkButtonId: optional; clicking it runs the reachability check,
+//     as Enter in the input always does.
+//   onChange(url | null): called with the URL once the check confirms
+//     it is reachable, and with null before each check and when one
+//     fails.
+//   resetButtonId: optional; clicking it clears the input, forgets the
+//     stored value and calls onChange(null).
+//   storageKey: optional; the last value that passed its check is kept
+//     in localStorage under this key and restored, and checked again,
+//     on the next visit. Skipped where storage is unavailable. Use one
+//     key per input (e.g. 'waitlist').
 function setupConduitUrlInput({ inputId, prefixId, statusId, checkButtonId, resetButtonId, onChange, storageKey }) {
   const input = document.getElementById(inputId)
   const prefixEl = document.getElementById(prefixId)
@@ -133,7 +98,7 @@ function setupConduitUrlInput({ inputId, prefixId, statusId, checkButtonId, rese
       if (value) localStorage.setItem(storageStateKey, value)
       else localStorage.removeItem(storageStateKey)
     } catch {
-      // Best-effort only — same as readStoredValue above.
+      // As in readStoredValue.
     }
   }
 

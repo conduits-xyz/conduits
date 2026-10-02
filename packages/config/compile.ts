@@ -11,33 +11,22 @@ import { compileGmailSource } from './sources/gmail.ts'
 
 type SourceCompiler = (raw: unknown, context: string) => SourceCompileResult
 
-// Add an entry here (and a sibling sources/<name>.ts) as each new
-// integration's human-facing YAML shape is designed. Same
-// registration-point pattern packages/conduit's own sourceClients
-// uses — this map is independent of a given runtime's
-// supportedSourceTypes (see CompileOptions below): this package may
-// know a source's YAML shape while a particular runtime still can't
-// operate it.
+// The YAML compiler for each source type, with its file in sources/. A
+// source can be listed here while a given runtime can't operate it yet
+// (see supportedSourceTypes).
 const sourceCompilers: Record<string, SourceCompiler> = {
   fastmail: compileFastmailSource,
   googleSheets: compileGoogleSheetsSource,
   gmail: compileGmailSource,
 }
 
-// Deliberately independent of route-path syntax (which allows the same
-// characters plus '/') — a curi is one opaque segment, self-hosted and
-// unnamespaced. See @conduits/gateway's normalizeRoutePath for the
-// (different, path-shaped) validation a routes: entry gets.
+// A curi is one segment; route paths, which may contain '/', are
+// validated by normalizeRoutePath in @conduits/gateway.
 const CURI_PATTERN = /^[a-zA-Z0-9_-]+$/
 
 export interface CompileOptions {
-  // Which suriTypes THIS runtime can actually operate — checked per
-  // conduit before any source-shape compiling happens, so a config
-  // naming a source type this runtime can't run fails the whole load,
-  // not the first live request. Independent of sourceCompilers above:
-  // this package may know a source's YAML shape while a particular
-  // runtime (e.g. this gateway, before it grows Google OAuth refresh
-  // support for a given purpose) still can't operate it.
+  // The suriTypes this runtime can operate. A conduit with any other
+  // type fails the whole load rather than its first request.
   supportedSourceTypes: readonly string[]
 }
 
@@ -46,24 +35,19 @@ export interface CompiledConduits {
   bindings: RouteBinding[]
 }
 
-// Parses and validates a whole conduits.yaml, returning one
-// ConduitConfig plus its RouteBinding(s) per entry, or throwing on the
-// first problem found — deliberately whole-file, fail-fast: an
-// operator needs to know their config is wrong before it's serving
-// traffic, not discover it as an intermittent, hard-to-place failure
-// later.
+// Parses and validates a conduits.yaml into a ConduitConfig and its
+// RouteBindings per entry. Throws on the first problem, so a bad config
+// fails before serving traffic.
 //
-// The YAML map key (`contact-form` below) is only ever a local
-// configuration label, used in error messages — it is never the curi.
-// Every conduit must name its own public curi explicitly:
+// The YAML key (`contact-form` below) is a label for error messages,
+// not the curi. Each conduit names its curi explicitly:
 //
 //   conduits:
 //     contact-form:
 //       curi: contact
 //       ...
 //
-// See docs/data-model.md's "Vocabulary" (curi vs. YAML label) and
-// @conduits/gateway's RouteBinding.
+// See docs/data-model.md "Vocabulary".
 export function compileConduits(yamlText: string, options: CompileOptions): CompiledConduits {
   const doc = parseYaml(yamlText, { uniqueKeys: true }) as unknown
 
@@ -164,10 +148,8 @@ function compileConduitEntry(label: string, rawEntry: unknown, options: CompileO
   }
 }
 
-// No `routes:` at all -> the default self-hosted route, `/<curi>` (see
-// docs/data-model.md and README.md's "self-hosted default route").
-// `routes:` present -> exactly what the operator wrote, each path
-// normalized/validated the same way the Gateway itself would.
+// Without `routes:`, the default route `/<curi>`. With it, the paths
+// given, normalized and validated as the Gateway does.
 function compileRoutes(raw: unknown, curi: string, context: string): RouteBinding[] {
   if (raw === undefined) return [{ path: normalizeRoutePath(`/${curi}`), curi }]
 
@@ -190,10 +172,8 @@ function compileRoutes(raw: unknown, curi: string, context: string): RouteBindin
       throw new Error(`${context}: routes[${index}] ${err instanceof Error ? err.message : String(err)}`)
     }
 
-    // Omit `host` entirely rather than setting it to `undefined` —
-    // keeps every host-less binding shaped identically whether it came
-    // from an explicit `routes:` entry or the default-route branch
-    // above.
+    // `host` is omitted rather than set to undefined, so every host-less
+    // binding has the same shape.
     return route.host === undefined ? { path, curi } : { host: route.host, path, curi }
   })
 }
@@ -212,10 +192,8 @@ function compileAllowlist(raw: unknown, context: string): AllowlistEntry[] {
   })
 }
 
-// A YAML config declares at most one bearer token per conduit. It
-// compiles to a one-element apiKeys array scoped to requiredFor, the
-// same ApiKeyRef[] shape middleware/bearer-token.ts enforces for any
-// number of keys.
+// YAML allows one bearer token per conduit; it becomes a one-element
+// apiKeys array scoped to requiredFor.
 function compileBearerToken(
   raw: unknown,
   racm: string[],
@@ -239,8 +217,7 @@ function compileBearerToken(
     )
   }
 
-  // Resolved and hashed immediately — only the hash reaches
-  // ConduitConfig, never the plaintext.
+  // Hashed here; the plaintext never reaches ConduitConfig.
   const plaintext = resolveEnvRef(value)
   return {
     tokenRequiredMethods: requiredFor as string[],

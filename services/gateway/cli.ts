@@ -5,13 +5,9 @@ import { credentialStorePath, saveGoogleGrant, getFreshGoogleAccessToken, type G
 import { createGoogleSheet } from './sheets-create.ts'
 import { parseFlags, isGooglePurpose } from './cli-flags.ts'
 
-// Deliberately tiny — this understands exactly three things:
-// authorizing Google (the one-time setup step), creating a new Google
-// Sheet a `drive.file` grant can actually use (see sheets-create.ts's
-// own comment on why that's a separate step, not just "paste an id"),
-// and starting the gateway (normal operation). No general-purpose
-// conduit-editing commands — conduits are still authored directly in
-// conduits.yaml.
+// Three commands: authorize Google (once), create a Google Sheet a
+// drive.file grant can use (see sheets-create.ts), and start the
+// gateway. Conduits are edited in conduits.yaml.
 
 async function runAuthGoogle(args: string[]): Promise<void> {
   const flags = parseFlags(args, ['purpose', 'name'])
@@ -20,9 +16,8 @@ async function runAuthGoogle(args: string[]): Promise<void> {
   }
   const name = flags.name ?? 'default'
 
-  // Only needed for this one-time step — the running gateway never
-  // reads these env vars again (see runtime.ts), since the credential
-  // store keeps its own clientId/clientSecret alongside each grant.
+  // Needed only here; the store keeps clientId and clientSecret with
+  // each grant (see runtime.ts).
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
   if (!clientId) {
@@ -46,11 +41,8 @@ async function runAuthGoogle(args: string[]): Promise<void> {
   console.log(`\nUse this in conduits.yaml:\n\n  credential: google:${name}\n`)
 }
 
-// Shared with runtime.ts's own getGoogleCredential — same
-// GoogleTokenResult, same set of failure reasons, just CLI-styled
-// messages (a thrown Error the top-level catch below prints) instead
-// of a `[gateway-service]` log line a still-running gateway leaves for
-// an operator to notice later.
+// The same GoogleTokenResult handling as getGoogleCredential in
+// runtime.ts, with errors for the command line instead of log lines.
 function accessTokenOrThrow(result: GoogleTokenResult, name: string, purpose: GooglePurpose): string {
   switch (result.status) {
     case 'ok':

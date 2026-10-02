@@ -5,17 +5,13 @@ import { expandBracketForm } from '@conduits/conduit'
 
 export const jsonBodyContext = createContextKey<Record<string, unknown>>({})
 
-// DELETE is not bodyless: a bulk destroy sends its ids as a JSON body
-// ({ids: [...]}) — see controller.ts's bulkDestroy. A single-item DELETE
-// (no body) still parses fine: an empty body falls through to the
-// empty-object default below.
+// DELETE may have a body: a bulk delete sends {ids: [...]}. A single
+// DELETE has none, which parses as an empty object.
 const BODYLESS_METHODS = new Set(['GET', 'HEAD'])
 
-// Accepts application/json, application/x-www-form-urlencoded, and
-// multipart/form-data (fields only, no file uploads), normalizing all
-// three into the same `{fields: {...}}` / `{records: [...]}` shape — so a
-// plain HTML <form> (no JS, no fetch) can POST directly to a conduit
-// exactly like a JSON client can.
+// Accepts JSON, x-www-form-urlencoded and multipart/form-data (fields,
+// not files) and normalizes all three to `{fields: {...}}` or
+// `{records: [...]}`, so a plain HTML <form> can POST to a conduit.
 export function parseJsonBody(): Middleware<{ key: typeof jsonBodyContext; value: Record<string, unknown> }> {
   return async (context, next) => {
     if (BODYLESS_METHODS.has(context.method)) return next()
@@ -34,8 +30,7 @@ export function parseJsonBody(): Middleware<{ key: typeof jsonBodyContext; value
         const entries: [string, string][] = []
         for (const [key, value] of formData) {
           if (typeof value === 'string') entries.push([key, value])
-          // File values are silently dropped — this endpoint accepts
-          // fields, not uploads.
+          // Files are ignored.
         }
         context.set(jsonBodyContext, expandBracketForm(entries))
         return next()

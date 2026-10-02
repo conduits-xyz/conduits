@@ -1,12 +1,11 @@
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto'
 
-// Base31: excludes characters visually confusable with each other or
-// with digits (0/1/i/l/o). 32 chars from a 31-symbol alphabet is about
-// 158 bits of entropy.
+// Base31 leaves out 0, 1, i, l and o, which are easily confused. 32
+// symbols is about 158 bits.
 const ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz'
 const TOKEN_LENGTH = 32
-// Largest multiple of 31 that fits in a byte. Bytes at or above it are
-// discarded so every symbol is equally likely (no modulo bias).
+// The largest multiple of 31 in a byte; higher bytes are redrawn so
+// every symbol is equally likely.
 const BYTE_ACCEPT_LIMIT = 248
 
 export function generateBearerToken(): string {

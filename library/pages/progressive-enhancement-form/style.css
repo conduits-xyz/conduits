@@ -1,6 +1,5 @@
-/* Page-level layout, plus the Conduit URL field's own wrapper (outside
- * the <form>). Not shared with .xyz-form below, the actual copy-ready
- * pattern this tutorial teaches. */
+/* Page layout and the Conduit URL field's wrapper (outside the <form>).
+ * Separate from .xyz-form below, the pattern this tutorial teaches. */
 body {
   font-family: system-ui, sans-serif;
   color: #1a1a1a;
@@ -16,8 +15,8 @@ body {
   margin-bottom: 1.5rem;
 }
 
-/* Same treatment as library/detail.css's .library-signup, duplicated
-   since this page doesn't load detail.css. */
+/* Copied from .library-signup in library/detail.css, which this page
+   doesn't load. */
 .library-signup {
   margin-top: -0.75rem;
   margin-bottom: 1.5rem;
@@ -44,12 +43,10 @@ body {
 }
 
 /*
- * Theming hook: every visual property is a --xyz-* custom property with
- * a fallback default — the same vocabulary xyz-waitlist and
- * xyz-reactions share. Set on :root or a common ancestor to theme every
- * form/widget at once. No default declared on `.xyz-form` itself — that
- * would always win over a :root override, so defaults live only as
- * var() fallbacks below.
+ * Theming: --xyz-* custom properties with var() fallbacks, the same
+ * names the widgets use. Set them on :root or a common ancestor. No
+ * defaults are declared on `.xyz-form`, since those would beat a :root
+ * override.
  */
 .xyz-form {
   font-family: var(--xyz-font, system-ui, sans-serif);

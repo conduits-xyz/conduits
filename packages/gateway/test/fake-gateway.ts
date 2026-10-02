@@ -2,10 +2,8 @@ import { createGatewayRouter } from '../router.ts'
 import type { ConduitConfig, GatewayRuntime } from '../types.ts'
 import { createStaticRouteResolver, type RouteBinding } from '../route-binding.ts'
 
-// Shared "plain ConduitConfig, real googleSheets fake client, no DB, no
-// filesystem, no real network" test harness — used by any test file that
-// needs a real createGatewayRouter to dispatch against, not just a unit
-// under test in isolation.
+// A test harness: createGatewayRouter over a plain ConduitConfig and the
+// fake googleSheets client, with no database, files or network.
 export function createFakeGateway(curi: string) {
   const suriObjectKey = `${curi}-sheet`
   const bindings: RouteBinding[] = [{ path: `/${curi}`, curi }]

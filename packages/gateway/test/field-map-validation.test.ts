@@ -5,12 +5,9 @@ import { resetFakeSheets } from '@conduits/conduit'
 import { resetThrottle } from '../middleware/throttle.ts'
 import { createFakeGateway } from './fake-gateway.ts'
 
-// Exercises checkKnownFields (packages/conduit/field-map.ts) through
-// the real dispatch path, via the same createGatewayRouter/fake-sheets
-// setup uses. Sheets, not Gmail/Fastmail, since
-// it's the one suri_type with a network-free fake client — the check
-// itself runs identically for every suri_type (see controller.ts/
-// item-controller.ts).
+// checkKnownFields (packages/conduit/field-map.ts) through dispatch,
+// using the fake Sheets client, the only network-free one. The check is
+// the same for every suri_type.
 const CURI = 'field-map-smoke'
 
 const { baseConfig, makeRouter } = createFakeGateway(CURI)
@@ -32,11 +29,8 @@ describe('gateway-wide field schema enforcement (checkKnownFields, wired)', () =
   })
 
   it('rejects a field outside a declared, non-empty schema — even on a genuinely blank source with no columns of its own yet', async () => {
-    // Deliberately never seeded (resetFakeSheets, no seedFakeSheet call)
-    // — a genuinely blank sheet, the one case ensureColumnsForWrite
-    // would not reject on its own (it bootstraps instead). Rejecting
-    // here proves checkKnownFields itself does the work, independent of
-    // Sheets' own live-header check.
+    // A blank sheet, which ensureColumnsForWrite would accept (it adds
+    // the columns), so the rejection comes from checkKnownFields.
     const router = makeRouter(baseConfig({ suriConfig: { fieldMap: { name: 'name' } } }))
     const response = await postFields(router, { phone: '555-0100' })
     assert.equal(response.status, 400)

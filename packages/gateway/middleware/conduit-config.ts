@@ -5,10 +5,8 @@ import type { ConduitConfig } from '../types.ts'
 
 export const conduitConfigContext = createContextKey<ConduitConfig>()
 
-// Same response ("Not Found") whether the curi doesn't resolve to
-// anything or resolves to something inactive — resolveConfig() itself
-// decides that (an app-side DB lookup today); this middleware only
-// ever sees "a config" or "nothing".
+// "Not Found" whether the curi resolves to nothing or to an inactive
+// conduit; resolveConfig() decides, and returns a config or nothing.
 export function resolveConduitConfig(
   resolveConfig: (curi: string) => Promise<ConduitConfig | null>,
 ): Middleware<{ key: typeof conduitConfigContext; value: ConduitConfig }> {

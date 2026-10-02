@@ -6,10 +6,8 @@ import { verifyBearerToken } from '@conduits/gateway'
 
 const FASTMAIL_ONLY = { supportedSourceTypes: ['fastmail'] }
 
-// The YAML label ('contact-form') and the curi ('contact') are
-// deliberately different values throughout this file — the whole
-// point of decoupling them (see compile.ts's own doc) is that nothing
-// should quietly still depend on them matching.
+// The YAML labels and curis differ throughout, so nothing can depend on
+// them matching.
 function baseYaml(overrides = ''): string {
   return `
 conduits:
@@ -69,15 +67,14 @@ describe('compileConduits', () => {
     )
     assert.ok(config)
 
-    // Simulates the real risk: this config being logged, persisted, or
-    // otherwise serialized somewhere — neither secret's plaintext may
-    // survive that round trip.
+    // Serialized, as if logged or stored: neither secret's plaintext
+    // appears.
     const serialized = JSON.stringify(config)
 
     assert.ok(!serialized.includes('super-secret-fastmail-value-xyz123'), 'resolved provider credential must not appear in serialized ConduitConfig')
     assert.ok(!serialized.includes('super-secret-bearer-plaintext-abc789'), 'bearer plaintext must not appear in serialized ConduitConfig')
 
-    // What *should* be there instead: the opaque reference, and the hash.
+    // Instead: the reference and the hash.
     assert.ok(serialized.includes('env:FASTMAIL_TOKEN'), 'credentialRef itself (the reference, not the value) should still be present')
     const keyHash = config!.apiKeys[0]?.tokenHash
     assert.ok(keyHash && serialized.includes(keyHash), 'the compiled key\'s tokenHash should still be present')
@@ -362,10 +359,8 @@ conduits:
       recipients: [owner@example.com]
       subject: Another submission
 `
-    // If this returned a partial array (e.g. just good-conduit), the
-    // call below would succeed and this assertion would fail — the
-    // only way it can throw is if the whole file was rejected as one
-    // unit, discarding good-conduit's otherwise-valid compilation too.
+    // A partial result would let the call below succeed; it throws only
+    // when the whole file is rejected.
     assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /conduit 'bad-conduit': methods is required/)
   })
 })

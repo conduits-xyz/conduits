@@ -5,8 +5,8 @@ import { requireConduitConfig, requireConduitTable } from './require-context.ts'
 import type { ConduitTable } from '@conduits/conduit'
 import { toSourceFields, toWidgetFields, checkKnownFields, wrapRecord, extractFields, hasBodyId } from '@conduits/conduit'
 
-// Single-record counterpart to controller.ts's runBulkWrite — replace
-// and update differ only in which ConduitTable method actually writes.
+// The single-record runBulkWrite (controller.ts): replace and update
+// differ only in the ConduitTable method that writes.
 async function runSingleWrite(
   table: ConduitTable,
   fieldMap: Record<string, string> | undefined,
@@ -30,10 +30,8 @@ async function runSingleWrite(
   return jsonResponse(wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) }))
 }
 
-// A conduit-path's `/<id>` actions (see dispatch.ts) — dispatch.ts sets
-// context.params.id itself (there is no more `:id` router param to
-// populate it automatically) before calling any of these. No
-// hidden-form-field handling — only create goes through that.
+// The actions on a conduit's `/<id>` path (see dispatch.ts, which sets
+// context.params.id). Hidden form fields apply only to create.
 export interface GatewayItemActions {
   read(context: GatewayContext): Promise<Response>
   replace(context: GatewayContext): Promise<Response>
@@ -47,8 +45,8 @@ export function createGatewayItemActions(): GatewayItemActions {
       const config = requireConduitConfig(context)
       const table = requireConduitTable(context)
       const { fieldMap } = config.suriConfig
-      // No dedicated get-by-id method — listRecords() with no page
-      // params returns everything.
+      // There is no get-by-id; listRecords() without paging returns
+      // every record.
       const { records } = await table.listRecords()
       const record = records.find((r) => r.id === context.params.id)
       if (!record) return jsonResponse({ error: 'Not Found' }, 404)

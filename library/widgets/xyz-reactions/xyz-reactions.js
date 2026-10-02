@@ -1,11 +1,8 @@
-// <xyz-reactions> — a thumbs-up/thumbs-down reactions widget backed
-// by a real conduit. Zero dependencies, no build step: drop this file
-// next to your page, add the element, done.
+// <xyz-reactions>: thumbs-up and thumbs-down reactions stored in a
+// conduit. No dependencies or build step.
 //
-// Not `type="module"`: Chromium blocks a module script on a file://
-// page, and this file has no import/export of its own — a classic
-// <script> works identically and actually runs when opened directly
-// from disk.
+// A classic script, not a module: Chromium blocks module scripts on
+// file:// pages.
 //
 //   <script src="./xyz-reactions.js"></script>
 //   <xyz-reactions
@@ -14,57 +11,31 @@
 //     caption="Was this post helpful?"
 //   ></xyz-reactions>
 //
-// See `static configFields` below for the full, authoritative list of
-// optional attributes — also what any config UI could read
-// to build a form for this widget.
+// `static configFields` below lists the attributes.
 //
-// `caption` is optional — when set, the widget renders it itself and
-// uses it as the button group's own accessible name (aria-labelledby),
-// replacing the generic "Was this helpful?" default below. Set
-// `heading-level` alongside it to also render it as an accessible
-// heading of that level — the widget has no way to know what level is
-// correct wherever it lands, so it never guesses; only the host page,
-// which knows its own outline, sets this.
+// `caption` is rendered by the widget and names the button group
+// (aria-labelledby) in place of "Was this helpful?". With
+// `heading-level` it is also a heading of that level.
 //
-// Wire format: a vote is `POST {fields: {subject, reaction, votedAt}}`
-// to conduit-url — the same envelope every conduit accepts (see
-// docs/gateway-api.md). `subject` lets one conduit back reactions for
-// many different pages/posts at once; a single-post site can omit it
-// (every vote then shares one tally).
+// A vote is `POST {fields: {subject, reaction, votedAt}}`
+// (docs/gateway-api.md). `subject` lets one conduit hold reactions for
+// many pages; without it, every vote shares one tally. Counts are
+// tallied in the browser from `GET conduit-url`.
 //
-// Counts are computed client-side from a `GET conduit-url`, tallied by
-// `reaction` for matching `subject` values — no server-side aggregation
-// endpoint.
-//
-// One vote per browser per subject: recorded in localStorage (keyed on
-// conduit-url + subject) so reloading the page shows "you already voted"
-// instead of offering a second vote. This is a deterrent against casual
-// re-voting, not a security boundary — clearing storage or switching
-// browsers resets it.
+// One vote per browser per subject, remembered in localStorage by
+// conduit-url and subject. This discourages repeat votes; it doesn't
+// prevent them.
 
-// Everything below is wrapped in an IIFE deliberately — this is a
-// classic (non-module) script by design (see the top of this file),
-// and classic scripts share ONE global lexical scope across every
-// <script> tag on the page. A host embedding more than one xyz-*
-// widget loads more than one of these files together — without this
-// wrapper, a top-level `let`/`const`/`class` declared here with the
-// same name as one in another widget's file throws a SyntaxError the
-// moment the second script parses, silently killing that widget
-// (customElements.define never runs, connectedCallback never fires)
-// with no visible error unless something happens to already be
-// listening for uncaught exceptions. The IIFE gives this file's own
-// top-level names a real, isolated scope, so nothing here can ever
-// collide with another widget's file again, regardless of what either
-// file declares at its own top level in the future.
+// Wrapped in an IIFE: classic scripts share one global scope, so a
+// top-level name also declared by another xyz-* widget would be a
+// SyntaxError that stops the second widget from loading.
 ;(function () {
-  // Unique per instance, not per class — a page can embed more than one
-  // <xyz-reactions>, and each needs its own id for aria-labelledby to
-  // resolve correctly.
+  // Per instance, so captions get unique ids on a page with several
+  // <xyz-reactions> elements.
   let nextCaptionId = 0
 
-  // Any string interpolated into innerHTML that isn't a fixed literal in
-  // this file's own template needs this first — see xyz-waitlist.js's
-  // identical helper for why.
+  // Escapes attribute-supplied text (caption, messages, button text)
+  // before it goes into innerHTML.
   function escapeHtml(value) {
     return String(value).replace(
       /[&<>"']/g,
@@ -72,8 +43,8 @@
     )
   }
 
-  // A 4xx response's own message is shown as-is (e.g. a missing sheet
-  // column); a 5xx or network failure shows a generic message instead.
+  // A 4xx response's message is shown as is (e.g. a missing sheet
+  // column); a 5xx or network failure gets a generic message.
   async function describeVoteFailure(response) {
     if (response.status >= 400 && response.status < 500) {
       try {
@@ -87,8 +58,7 @@
   }
 
   class XyzReactions extends HTMLElement {
-    // See xyz-waitlist.js's identical static property for what this is
-    // and how it's meant to be read.
+    // The element's attributes, for a config UI (see xyz-waitlist.js).
     static configFields = [
       {
         attribute: 'conduit-url',
@@ -172,18 +142,8 @@
     ]
 
     connectedCallback() {
-      // An unknown/undefined custom element defaults to `display: inline`
-      // in the UA stylesheet — without this, the very first paint renders
-      // this element (and its not-yet-laid-out contents) inline, then
-      // visibly snaps to the real block layout once style.css finishes
-      // loading. Setting it inline here, first thing, makes this widget
-      // correct on its own — a host page's stylesheet must never need to
-      // know or care that this element needs `display: block`. An inline
-      // style always wins over any stylesheet (loaded or not), no
-      // `!important` needed, and this runs synchronously before first
-      // paint: this <script> tag is a classic, blocking script placed
-      // before this element in the host's markup, so the parser has
-      // already defined this class by the time it reaches the tag.
+      // Custom elements default to display: inline. Setting block here,
+      // before first paint, keeps the layout from depending on style.css.
       this.style.display ||= 'block'
       this._votedReaction = this.demo ? null : this._readStoredVote()
       this._counts = { up: this._initialCount('initial-up'), down: this._initialCount('initial-down') }
@@ -192,10 +152,8 @@
       this._captionId = `xyz-reactions-caption-${nextCaptionId++}`
       this._render()
 
-      // If the caller didn't supply initial counts (e.g. this file opened
-      // standalone, no server-rendered starting point), fetch real ones
-      // once conduit-url is known. Skipped entirely when both were given —
-      // that's the common case on a page that server-renders them.
+      // Without counts from the page's attributes, fetch them once
+      // conduit-url is known.
       if (!this.demo && !this.hasAttribute('initial-up') && !this.hasAttribute('initial-down') && this.conduitUrl) {
         this._refreshCounts()
       }
@@ -260,9 +218,8 @@
         const value = localStorage.getItem(this._storageKey())
         return value === 'up' || value === 'down' ? value : null
       } catch {
-        // Storage can throw (private browsing, disabled site data) — a
-        // vote just isn't remembered across reloads in that case, the
-        // widget still works.
+        // Storage can throw (private browsing, blocked site data); the
+        // vote then isn't remembered.
         return null
       }
     }
@@ -271,7 +228,7 @@
       try {
         localStorage.setItem(this._storageKey(), reaction)
       } catch {
-        // Same as above — best-effort only.
+        // As above.
       }
     }
 
@@ -288,8 +245,7 @@
         }
         this._render()
       } catch {
-        // A failed refresh just keeps whatever counts were already
-        // showing (initial attributes, or 0/0) — never blocks voting.
+        // On failure, keep the counts already shown.
       }
     }
 
@@ -297,7 +253,7 @@
       if (this.demo || this._pending || this._votedReaction) return
       this._pending = true
       this._error = null
-      // Optimistic bump — reconciled (or reverted) once the real request settles.
+      // Optimistic; corrected or reverted when the request settles.
       this._counts[reaction] += 1
       this._render()
 
@@ -323,8 +279,7 @@
     }
 
     _render() {
-      // No conduit-url set yet (or not yet validated, in this file's own
-      // demo page).
+      // No conduit-url yet, or, on the demo page, not yet checked.
       if (!this.conduitUrl && !this.demo) {
         this.innerHTML = `
           <article class="xyz-reactions-widget">

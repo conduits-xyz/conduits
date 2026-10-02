@@ -5,12 +5,9 @@ import { createJmapFastmailClient, listJmapIdentities } from '../fastmail.ts'
 import { ConduitAuthError, ConduitSourceError } from '../sheets.ts'
 import { jsonResponse } from './helpers.ts'
 
-// createJmapFastmailClient() always hits real Fastmail servers — like
-// sheets.ts's own getSheetId(), any caller that needs to exercise this
-// directly has to scope a real fetch mock around it for the same
-// reason. NODE_ENV=test always resolves the exported fastmailClient to
-// the Mailpit-backed implementation instead — this file is what
-// actually exercises the JMAP request/response shapes themselves.
+// The JMAP client with a mocked fetch. Under NODE_ENV=test
+// fastmailClient is the Mailpit-backed client, so this calls
+// createJmapFastmailClient() directly.
 
 const API_URL = 'https://api.fastmail.example/jmap/api/'
 const ACCOUNT_ID = 'u1'
@@ -54,11 +51,8 @@ describe('Fastmail JMAP client (mocked fetch — real request/response shapes)',
     restore = mockFetch({
       session: () =>
         jsonResponse({ apiUrl: API_URL, primaryAccounts: { 'urn:ietf:params:jmap:mail': ACCOUNT_ID } }),
-      // Any call listTables() triggers (Mailbox/get) fails at the
-      // protocol level, not the HTTP level — connect() itself no
-      // longer calls Identity/get (see fetchSession's own comment: the
-      // identity comes from sourceKey, chosen at connect time,
-      // never re-derived here).
+      // Mailbox/get fails at the JMAP level, not HTTP. connect() makes no
+      // Identity/get call: the identity is sourceKey.
       jmap: () => jsonResponse({ methodResponses: [['error', { type: 'accountNotFound' }, '0']] }),
     })
     const client = createJmapFastmailClient()
@@ -93,9 +87,8 @@ describe('Fastmail JMAP client (mocked fetch — real request/response shapes)',
     })
 
     const client = createJmapFastmailClient()
-    // 'ident-2' — deliberately not the account's only/first identity in
-    // spirit, to prove this is threaded straight through from connect(),
-    // not silently picked some other way.
+    // 'ident-2', not the first identity, to show the one from connect()
+    // is used.
     const source = await client.connect('ident-2', 'good-token')
     const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
     const record = await table.createRecord({ name: 'Ada', email: 'ada@example.com' })
@@ -130,9 +123,8 @@ describe('Fastmail JMAP client (mocked fetch — real request/response shapes)',
           return jsonResponse({
             methodResponses: [
               ['Email/set', { created: { draft: { id: 'email-1' } } }, '0'],
-              // Submission simply didn't create anything — the
-              // exact partial-failure shape the investigation doc
-              // flags: created but never sent.
+              // The submission created nothing: the email exists but was
+              // never sent.
               ['EmailSubmission/set', { created: {} }, '1'],
             ],
           })
@@ -153,8 +145,7 @@ describe('Fastmail JMAP client (mocked fetch — real request/response shapes)',
         jsonResponse({ apiUrl: API_URL, primaryAccounts: { 'urn:ietf:params:jmap:mail': ACCOUNT_ID } }),
     })
     const client = createJmapFastmailClient()
-    // No identity chosen (empty sourceKey) — e.g. a conduit connected
-    // before this account had any sending identity at all.
+    // No identity (empty sourceKey).
     const source = await client.connect('', 'good-token')
     const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
     await assert.rejects(() => table.createRecord({ name: 'Ada' }), ConduitSourceError)

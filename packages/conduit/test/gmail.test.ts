@@ -5,13 +5,9 @@ import { createGmailApiClient } from '../gmail.ts'
 import { ConduitAuthError, ConduitSourceError } from '../sheets.ts'
 import { jsonResponse } from './helpers.ts'
 
-// createGmailApiClient() always hits the real Gmail API — same reasoning
-// as fastmail.ts's own createJmapFastmailClient() test file. NODE_ENV=test
-// always resolves the exported gmailClient to the Mailpit-backed
-// implementation instead (see services/gateway/test/gateway.test.ts for
-// this repo's own server-level test against real Mailpit, for
-// fastmail) — this file is what actually exercises the Gmail REST
-// API's own request/response shape.
+// The Gmail API client with a mocked fetch. Under NODE_ENV=test
+// gmailClient is the Mailpit-backed client, so this calls
+// createGmailApiClient() directly.
 
 const SEND_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send'
 
@@ -53,10 +49,8 @@ describe('Gmail API client (mocked fetch — real request/response shapes)', () 
     const client = createGmailApiClient()
     const source = await client.connect('', 'good-token')
     const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
-    // Gmail's own error body (message) is real diagnostic information —
-    // packages/gateway/middleware/source-errors.ts logs only this error's own
-    // `.message`, so a bare status code alone isn't enough to debug a
-    // real failure from the server log.
+    // Gmail's error message is kept, since source-errors.ts logs only
+    // the error's message.
     await assert.rejects(
       () => table.createRecord({ name: 'Ada' }),
       (error: unknown) => error instanceof ConduitSourceError && error.message.includes('quota exceeded'),

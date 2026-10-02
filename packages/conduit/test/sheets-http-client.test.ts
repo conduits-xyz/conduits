@@ -5,22 +5,17 @@ import { createHttpSheetsClient, ConduitAuthError, ConduitSourceError } from '..
 import { ConduitUnknownFieldError } from '../field-map.ts'
 import { jsonResponse } from './helpers.ts'
 
-// createHttpSheetsClient() always hits the real Sheets API —
-// NODE_ENV=test always resolves the exported googleSheetsClient to the
-// in-memory fake instead (see sheets-field-types.test.ts/
-// sheets-id-column.test.ts for that client's own pure-function tests).
-// This file is what actually exercises the real client's request
-// building, error mapping, and metadata cache. Same "mocked fetch,
-// real request/response shapes" style as gmail.test.ts/fastmail.test.ts.
+// The HTTP Sheets client with a mocked fetch: request building, error
+// mapping and the metadata cache. Under NODE_ENV=test googleSheetsClient
+// is the in-memory fake, so this calls createHttpSheetsClient()
+// directly.
 
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets'
 
 type Call = { url: string; method: string; body: unknown; authorization: string | undefined }
 
-// Fails loudly on any unmatched call rather than falling through to a
-// real fetch — every request this client makes targets sheets.googleapis.com,
-// so an unmatched call means a test's route table is missing something,
-// not a legitimate pass-through.
+// Throws on any request with no matching route, so a missing route
+// fails the test instead of reaching the network.
 function mockFetch(handler: (url: string, method: string, body: unknown) => Response): { calls: Call[]; restore: () => void } {
   const original = globalThis.fetch
   const calls: Call[] = []
@@ -94,17 +89,14 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
     it('bootstraps a missing id column before appending, backfilling every existing row with a generated id', async () => {
       const mock = mockFetch((url, method, body) => {
         if (method === 'GET') {
-          // Header already has a real field column, but no conduit-id
-          // column yet, plus one pre-existing data row — the realistic
-          // "first write to an already-typed sheet" bootstrap case.
-          // createRecord() only ever reads the grid once per call, so
-          // there's no second GET here to disambiguate.
+          // A header with a field column but no conduit-id column, and
+          // one data row. createRecord reads the grid once.
           return jsonResponse({ values: [['name'], ['Old Row']] })
         }
         if (url.endsWith('/values:batchUpdate')) {
           const data = (body as { data: Array<{ range: string; values: string[][] }> }).data
-          // One header cell for the new column, plus a backfill cell for
-          // the one existing data row — both in the new column (B).
+          // The new column's header cell and a backfilled id for the
+          // existing row, both in column B.
           assert.equal(data.length, 2)
           assert.equal(data[0]?.range, 'B1')
           assert.deepEqual(data[0]?.values, [['conduit-id']])
@@ -115,8 +107,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
         }
         if (url.includes(':append')) {
           const values = (body as { values: string[][] }).values
-          // header order is [name, conduit-id] — the new column is
-          // always appended after existing ones, never inserted.
+          // The new column is appended after the existing ones.
           assert.equal(values.length, 1)
           assert.equal(values[0]?.[0], 'Ada')
           assert.equal(typeof values[0]?.[1], 'string')
@@ -159,9 +150,8 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
         if (url.endsWith(':batchUpdate') && !url.includes('/values')) {
           const requests = (body as { requests: Array<{ deleteDimension: { range: { startIndex: number } } }> }).requests
           const indexes = requests.map((r) => r.deleteDimension.range.startIndex)
-          // r1/r2/r3 resolve to rows 1/2/3 (row 0 is the header) — each
-          // delete shifts rows below it up by one, so applying highest-
-          // index-first keeps every later request's index valid.
+          // r1, r2 and r3 are rows 1 to 3 (row 0 is the header), deleted
+          // highest first so earlier deletes don't shift later indexes.
           assert.deepEqual(indexes, [3, 2, 1])
           return jsonResponse({})
         }
@@ -266,10 +256,8 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
     })
 
     it('never shares the cache across two different credentials for the same spreadsheet', async () => {
-      // The security property this guards: two different owners who
-      // both happen to have access to the same underlying spreadsheet
-      // must never have one's schema list served from a cache entry
-      // the other's token populated.
+      // Two owners with access to the same spreadsheet never share a
+      // cached schema.
       let fetchCount = 0
       const mock = mockFetch(() => {
         fetchCount++

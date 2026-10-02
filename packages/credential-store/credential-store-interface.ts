@@ -9,15 +9,10 @@ import {
   type StoredFastmailCredential,
 } from './fastmail-credential-store.ts'
 
-// The one persistence interface both Gateway wrappers genuinely share
-// today (public self-hosted, private managed). Every method is async
-// even though createFileCredentialStore's own implementation below is
-// synchronous fs access underneath: a future
-// KV-backed implementation (a self-hosted Gateway on Cloudflare
-// Workers, say) can conform to this exact interface with no call-site
-// changes anywhere that depends on it. Note there's no `storePath`
-// parameter anywhere here — that's a filesystem-specific concept the
-// interface itself must not know about; see createFileCredentialStore.
+// Credential storage for a Gateway runtime. Async, though the file
+// implementation is synchronous, so another store (e.g. a key-value
+// store for a Gateway on Cloudflare Workers) can implement it. No
+// `storePath`: that belongs to the file implementation.
 export interface CredentialStore {
   loadGoogleGrant(name: string, purpose: GooglePurpose): Promise<StoredGoogleGrant | null>
   saveGoogleGrant(grant: StoredGoogleGrant): Promise<void>
@@ -34,13 +29,9 @@ export interface FileCredentialStorePaths {
   fastmailStorePath: string
 }
 
-// The only implementation today — thin async wrappers around this
-// package's existing flat-file functions, bound once to a specific
-// pair of paths. Purely additive: every existing direct caller of
-// loadGoogleGrant/saveFastmailCredential/etc. (getFreshGoogleAccessToken,
-// both services/gateway's own sync/runtime code) keeps calling them
-// exactly as before — this is a new, optional way to reach the same
-// storage, not a replacement of the existing one.
+// The file implementation: async wrappers over this package's file
+// functions, bound to a pair of paths. Those functions can still be
+// called directly.
 export function createFileCredentialStore(paths: FileCredentialStorePaths): CredentialStore {
   return {
     async loadGoogleGrant(name, purpose) {

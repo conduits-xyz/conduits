@@ -4,16 +4,11 @@ import { ConduitUnknownFieldError } from './field-map.ts'
 
 export { randomRowId } from './row-id.ts'
 
-// This file's own identity when it throws a conduit-domain error — the
-// `source` every ConduitAuthError/ConduitSourceError/ConduitUnknownFieldError
-// below carries. A second implementation of ConduitSourceClient in this
-// package would define its own.
+// The `source` on errors this client throws.
 const SOURCE = 'googleSheets'
 
-// ConduitSource.open() receives the conduit's whole suri_config,
-// JSON-encoded — Sheets only ever cares about `.table`. A malformed or
-// absent config (a genuinely blank suri_config, `{}`) means "use this
-// source's own default," same as always.
+// open() receives the conduit's suri_config as JSON; Sheets uses only
+// `.table`. A missing or malformed config means the first tab.
 function tableFromConfig(config: string | undefined): string | undefined {
   if (!config) return undefined
   try {
@@ -25,18 +20,13 @@ function tableFromConfig(config: string | undefined): string | undefined {
   }
 }
 
-// Conduit-domain error types — every integration (Google Sheets today;
-// Airtable/SQLite/others eventually) throws these, never a backend-specific
-// error class, so the gateway's generic error handler
-// (middleware/source-errors.ts) never needs to know which integrations
-// exist. `source` names which one actually failed (today, always
-// 'googleSheets'), for logging and for any source-specific recovery action
-// the handler takes.
+// Conduit errors. Every integration throws these rather than its own
+// error classes, so the gateway's error handler
+// (middleware/source-errors.ts) needn't know the integrations. `source`
+// names the integration that failed.
 
-// A 401-equivalent from the source — distinct from any other failure (a
-// bad range, a transient 5xx, a malformed request) because the gateway
-// reacts to it differently: it means the owner's credential no longer
-// works, not that the request or the underlying data is bad.
+// The source rejected the credential (a 401): the owner must reconnect.
+// Kept apart from other failures, which the gateway handles differently.
 export class ConduitAuthError extends Error {
   constructor(
     public readonly source: string,
@@ -46,12 +36,9 @@ export class ConduitAuthError extends Error {
   }
 }
 
-// Any other non-2xx response from the source — a deleted/renamed table, a
-// transient 5xx, a malformed range. Distinct from ConduitAuthError (which
-// means "reconnect/re-auth") and from an actual programming bug (a plain
-// thrown Error/TypeError) so middleware/source-errors.ts can turn this
-// specific case into a clean JSON 502 without also masking real bugs as if
-// they were a source outage.
+// Any other non-2xx from the source (a deleted table, a 5xx, a bad
+// range). source-errors.ts turns it into a JSON 502; a plain Error is
+// left alone as a bug.
 export class ConduitSourceError extends Error {
   constructor(
     public readonly source: string,
@@ -62,83 +49,53 @@ export class ConduitSourceError extends Error {
   }
 }
 
-// ConduitUnknownFieldError is defined in field-map.ts (imported above).
-
-// --- The contract (see packages/conduit/INTEGRATIONS.md for the full
-// rationale behind this shape) ---
+// --- The contract (see INTEGRATIONS.md) ---
 
 export type ConduitFieldType = 'string' | 'number' | 'boolean' | 'date'
 
 export type ConduitFields = Record<string, string | number | boolean | null>
 
-// `id` is always required here — a record with no id yet (create input)
-// isn't a ConduitRecord at all, it's just ConduitFields (see createRecord
-// below). Keeping id non-optional on the one shared type means every
-// method that receives or returns a ConduitRecord can rely on `.id` being
-// a real string, no `!` assertions scattered through every implementation
-// and every caller.
+// A record always has an id; create input without one is plain
+// ConduitFields.
 export type ConduitRecord = {
   id: string
   fields: ConduitFields
 }
 
-// Every RACM method a conduit could ever express, regardless of what's
-// actually backing it — used for rendering order (a conduit-management
-// UI's own RACM matrix iterates this, disabling whichever a given
-// suri_type's own capabilities().methods doesn't include), never as an
-// "allowed" list on its own. See INTEGRATIONS.md.
+// Every method a conduit can allow, in display order. A management UI
+// shows all of them and disables those a source's capabilities().methods
+// lacks. Not a list of allowed methods.
 export const ALL_HTTP_METHODS: readonly string[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 
-// Static facts about an integration type — true for every table/
-// mailbox/base it ever opens, never something that varies per
-// connected resource or per request. See ConduitSourceClient.capabilities()
-// below and INTEGRATIONS.md.
+// Facts about an integration that hold for every table or mailbox it
+// opens. See INTEGRATIONS.md.
 export interface ConduitSourceCapabilities {
-  // Which of ALL_HTTP_METHODS this integration actually supports.
+  // The methods in ALL_HTTP_METHODS this integration supports.
   methods: readonly string[]
-  // Whether the gateway's bulk-create body ({records: [...]}) is safe
-  // to accept for this source. Sheets: yes — createRecords is one
-  // atomic batched API call. An integration whose createRecords loops
-  // over independent, irreversible per-record side effects instead
-  // (Fastmail/Gmail: each is a real, already-sent email, no atomic
-  // multi-message send API to back a batch) must report false — a
-  // partial-batch failure has no way to report which records already
-  // succeeded, so a caller's retry would resend them. This is the
-  // create-specific counterpart to "Bulk atomicity" (INTEGRATIONS.md):
-  // that section's null/false-for-the-whole-batch contract already
-  // makes a partial replace/update/delete safe to retry regardless of
-  // per-call atomicity — id-addressed operations are naturally
-  // idempotent — so this flag only ever needs to gate create.
+  // Whether a bulk create ({records: [...]}) is safe. Sheets: yes, one
+  // atomic API call. Fastmail and Gmail send each record as an email
+  // that can't be unsent, so a partly failed batch would be resent on
+  // retry: false. Only create needs this; bulk replace, update and
+  // delete are addressed by id, so retrying them is safe.
   bulkCreate: boolean
 }
 
 export interface ConduitSourceClient {
-  // fetchImpl is optional and defaults to the ambient global `fetch` —
-  // a caller wanting provider-leg byte accounting (see
-  // packages/gateway's GatewayRuntime.instrumentFetch) passes an
-  // instrumented one; every other caller is unaffected. No global
-  // mutation, no AsyncLocalStorage — just a plain, optional parameter.
+  // fetchImpl defaults to the global fetch. A caller that counts
+  // provider bytes passes its own (GatewayRuntime.instrumentFetch).
   connect(sourceKey: string, credential: string, fetchImpl?: typeof fetch): Promise<ConduitSource>
   disconnect(source: ConduitSource): Promise<void>
 
-  // Deliberately synchronous and connection-free (no connect() call
-  // needed first): a conduit-management UI's own form and conduit
-  // save-time RACM validation both need this before any credential
-  // exists, not just at request time. Every other method on this interface does
-  // real I/O; this is the one exception. See INTEGRATIONS.md.
+  // Synchronous and needs no connection, so forms and save-time checks
+  // can use it before any credential exists.
   capabilities(): ConduitSourceCapabilities
 }
 
 export interface ConduitSource {
   listTables(): Promise<string[]>
-  // The conduit's whole suri_config, JSON-encoded (the gateway passes
-  // its raw stored value straight through — see
-  // packages/gateway/middleware/source-client.ts) — not just a literal
-  // tab name. Every integration receives the same string and pulls out
-  // whatever part of it is its own concern: Sheets reads `.table`; a
-  // source with per-conduit config beyond a table name (Fastmail's
-  // `recipients`/`subject`) reads that out of the same object instead
-  // of needing a wider interface.
+  // The conduit's suri_config as stored, JSON-encoded (see
+  // middleware/source-client.ts). Each integration reads its own keys:
+  // Sheets `.table`, Fastmail `recipients` and `subject`.
   open(config?: string): ConduitTable
 }
 
@@ -149,27 +106,16 @@ export interface ConduitTable {
     nextCursor: string | null
   }>
 
-  // An explicit, authenticated action (an owner defining their own
-  // schema) — separate from the gateway's own write
-  // path, which never creates a field implicitly (see
-  // ensureColumnsForWrite below). `type` is optional and, for a source
-  // with no real column types (Sheets), meaningless until data appears
-  // — it exists for a future source (Airtable) whose own create-field
-  // API needs one. A source whose schema is fixed rather than
-  // user-defined (a mailbox's headers) throws ConduitSourceError here,
-  // the same documented-deviation shape `replaceRecord` already uses
-  // for IMAP — see INTEGRATIONS.md.
+  // An owner action that defines a column. Writes never create columns
+  // (see ensureColumnsForWrite). `type` is for sources with typed
+  // columns; Sheets ignores it. A source with a fixed schema (a mailbox)
+  // throws ConduitSourceError. See INTEGRATIONS.md.
   createField(name: string, type?: ConduitFieldType): Promise<void>
   createFields(fields: Array<{ name: string; type?: ConduitFieldType }>): Promise<void>
 
-  // The structural counterpart to createField/createFields — an
-  // explicit, authenticated owner action (deleting a real column, not
-  // a declared field; see the Sync reconciliation documentation for why these are
-  // never the same thing). A no-op for a name that isn't a real column
-  // — same idempotent shape createField already has for the reverse
-  // case. A source with no real, deletable columns of its own (Gmail,
-  // Fastmail) throws ConduitSourceError, same documented-deviation
-  // shape createField already uses there.
+  // An owner action that deletes a column (not a declared field). A name
+  // that isn't a column is ignored. Sources without deletable columns
+  // (Gmail, Fastmail) throw ConduitSourceError.
   deleteField(name: string): Promise<void>
   deleteFields(names: string[]): Promise<void>
 
@@ -188,13 +134,9 @@ export interface ConduitTable {
 
 // --- Internal working shape ---
 //
-// Everything below the contract works with a flat, all-string row
-// (bookkeeping id merged in under the `id` key) — that's what a Sheets grid
-// row actually is, and every read/write helper here (getGrid,
-// ensureColumnsForWrite, findRowIndex, ...) predates and is independent of
-// ConduitRecord's shape. Only the ConduitTable methods themselves convert at
-// the boundary: a FlatRow becomes a ConduitRecord on the way out, and a
-// ConduitRecord's fields become a FlatRow's values on the way in.
+// The helpers below work on a flat all-string row with the id under
+// `id`, which is what a Sheets row is. The ConduitTable methods convert
+// to and from ConduitRecord.
 type FlatRow = Record<string, string>
 
 function toConduitRecord(row: FlatRow, schema: Map<string, ConduitFieldType>): ConduitRecord {
@@ -210,9 +152,7 @@ function coerceValue(raw: string, type: ConduitFieldType): string | number | boo
   if (raw === '') return null
   if (type === 'number') return Number(raw)
   if (type === 'boolean') return raw === 'TRUE'
-  return raw // 'string' and 'date' both stay as-is — see INTEGRATIONS.md: a
-  // date field's value is still an ISO-8601 string, `type: 'date'` is a
-  // refinement, not a different runtime shape.
+  return raw // 'string', and 'date' (an ISO-8601 string)
 }
 
 function stringifyValue(value: string | number | boolean | null): string {
@@ -235,12 +175,9 @@ function fromConduitRecord(record: ConduitRecord): FlatRow {
 const NUMBER_RE = /^-?\d+(\.\d+)?$/
 const DATE_RE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?)?$/
 
-// Every non-blank value seen in a column must agree for that column to be
-// typed as anything other than 'string' — a single stray text value in an
-// otherwise-numeric column means the honest answer is 'string', not "mostly
-// a number." Checked in this order (date before number) because a genuine
-// number can never also match DATE_RE, so there's no ambiguity to break.
-// Exported for unit testing without a real Sheets connection.
+// A column is typed only if every non-blank value agrees; one text value
+// makes it 'string'. Dates are tested before numbers; no value matches
+// both.
 export function inferColumnType(values: string[]): ConduitFieldType {
   const nonBlank = values.filter((v) => v !== '')
   if (nonBlank.length === 0) return 'string'
@@ -250,8 +187,7 @@ export function inferColumnType(values: string[]): ConduitFieldType {
   return 'string'
 }
 
-// Built once per grid read and reused for every row's read-side conversion
-// in the same call, rather than re-inferring per row.
+// Inferred once per grid read.
 function inferSchema(header: string[], dataRows: string[][]): Map<string, ConduitFieldType> {
   const schema = new Map<string, ConduitFieldType>()
   header.forEach((name, i) => {
@@ -261,65 +197,30 @@ function inferSchema(header: string[], dataRows: string[][]): Map<string, Condui
   return schema
 }
 
-// --- Real client: Google Sheets API v4 over fetch() ---
+// --- Client: Google Sheets API v4 over fetch() ---
 //
-// Row/id scheme: the sheet's first row is a header row that must have a
-// column named ID_COLUMN_NAME somewhere in it; the rest are arbitrary field
-// names. A real, organically-created spreadsheet essentially never already
-// has one, so the gateway adds it itself on first write (see
-// ensureColumnsForWrite) rather than requiring it to pre-exist. The
-// column's position isn't assumed after that: it's wherever
-// ensureColumnsForWrite found or placed it (existing sheets keep their own
-// id column wherever it already was; sheets that got one added have it
-// appended as the last column, not inserted, so nothing already in the
-// sheet shifts).
+// The first row is the header. Rows are addressed by an ID_COLUMN_NAME
+// column, which the first write adds as the last column if the sheet
+// doesn't have one; after that it is found wherever it is. It isn't
+// called `id` so it can't be confused with a column of the user's
+// named "id" or "ID". The API still calls the field `id`.
 //
-// The column is named ID_COLUMN_NAME rather than the more obvious `id` to
-// avoid two collision risks with a sheet the user already had: a
-// case-insensitive near-miss (their own "ID" or "Id" column, which a naive
-// exact-match lookup would neither find nor use, silently adding a
-// duplicate), and — worse — actually reusing an existing "id" column that
-// already holds the user's own unrelated data. `conduit-id` is distinctive
-// enough that a genuine collision is very unlikely. This only affects the
-// *sheet's* column name — the JSON API's field is still `id` (see
-// rowsFromGrid/gridRowFromFields), so the REST API's response shape doesn't
-// change.
+// A range without a sheet name applies to the first tab, the default
+// when no table is set.
 //
-// A range with no sheet-name prefix (e.g. `A1:ZZ10000`) applies to the
-// spreadsheet's first tab — that's still the default when `tableName` is
-// undefined, so a conduit that never sets one behaves exactly as before
-// multi-tab support existed.
+// The Sheets API can't update "the row where id = X": each write reads
+// the grid to find the row number, then writes that range. There is no
+// compare-and-swap, so a write racing a delete on the same row can go
+// wrong.
 //
-// There's no server-side "update the row where id=X" in the Sheets API:
-// every write reads the grid first to resolve a row number, then writes
-// that exact range. That means no compare-and-swap — a concurrent write
-// racing a delete on the same row is a known v1 limitation, same spirit as
-// the in-memory (single-process, not distributed) throttle.
+// Deletes remove the row (deleteDimension) rather than leave a blank
+// one. Row numbers are found immediately before each write and never
+// cached.
 //
-// Deletes actually remove the row (deleteDimension), not just clear its
-// values — leaving permanent blank rows behind is bad UX for something the
-// user is looking at directly in their own spreadsheet. The row index used
-// is always resolved fresh, immediately before the delete, by scanning for
-// the id's current value rather than trusting any previously-remembered
-// position — deleteDimension shifts every row below it up by one, but
-// nothing here ever caches a row's position across requests, so that's not
-// a problem for any *other* row's next operation, only (same as any other
-// write) for a delete racing a concurrent write on that exact row.
-//
-// Bulk operations: every plural method issues exactly one Sheets API
-// call for the whole batch (one grid read to
-// resolve row numbers/ensure columns, then one values.append /
-// values.batchUpdate / batchUpdate for the writes themselves), instead of
-// looping a full read-modify-write cycle per record. Two independent
-// reasons: (1) `spreadsheets.batchUpdate` and `spreadsheets.values.
-// batchUpdate` are both genuinely atomic per Google's own docs — either
-// every sub-request applies or none do — so a bad record in a batch of 10
-// no longer leaves the first N-1 silently written while the response
-// reports the whole request failed; (2) N sequential round trips for a
-// single incoming bulk request multiplies real Google API call volume by
-// up to 10x (MAX_BULK_RECORDS), which risks tripping Google's own
-// per-user/per-project rate limits under real traffic, not just being
-// slow.
+// Each bulk method makes one grid read and one write call for the whole
+// batch. spreadsheets.batchUpdate and values.batchUpdate are atomic, so
+// a bad record fails the whole batch, and a batch costs two API calls
+// rather than up to MAX_BULK_RECORDS.
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets'
 const RANGE = 'A1:ZZ10000'
 
@@ -335,15 +236,9 @@ async function sheetsFetch(
   })
 }
 
-// Google's own non-2xx error bodies are shaped {error: {code, message,
-// status}} — this is the one place that shape gets read, so every
-// throwForStatus caller gets Google's actual reason (e.g. "Unable to
-// parse range: A1:ZZ10000") instead of just a bare status code. Never
-// throws itself: an empty body (some non-2xx responses have none), a
-// non-JSON body (an intermediary's own HTML error page), or a JSON
-// body that isn't shaped as expected all fall back to undefined rather
-// than replacing "the request failed" with "and then parsing the
-// failure also failed."
+// Google's error message from a non-2xx body ({error: {code, message,
+// status}}), or undefined when the body is empty, not JSON or shaped
+// otherwise.
 async function extractGoogleErrorMessage(response: Response): Promise<string | undefined> {
   let text: string
   try {
@@ -373,9 +268,8 @@ async function throwForStatus(response: Response, action: string): Promise<void>
   throw new ConduitSourceError(SOURCE, `Sheets ${action} failed (${response.status})${detail ? `: ${detail}` : ''}`, response.status)
 }
 
-// Sheet names can contain spaces or other characters that A1 notation
-// requires single-quoting (with embedded quotes doubled) — always quoting
-// is simplest and Sheets accepts it even when not strictly required.
+// Always single-quoted (with quotes doubled) for A1 notation; Sheets
+// accepts quotes even where they aren't needed.
 function quoteSheetName(name: string): string {
   return `'${name.replace(/'/g, "''")}'`
 }
@@ -396,20 +290,9 @@ async function getGrid(
   return body.values ?? []
 }
 
-// deleteDimension needs the sheet's internal numeric id (gid), not its
-// name or the spreadsheet id string. Falls back to the first tab when
-// `tableName` is unset (the documented default). A `tableName` that no
-// longer matches any tab (renamed/deleted since the conduit was
-// configured) never actually reaches this fallback in practice: every
-// caller reads the grid via getGrid() first, which already fails with a
-// ConduitSourceError on that same bad table name before getSheetId() is
-// ever called — the `?? sheets[0]` below is just cheap insurance against
-// that assumption ever becoming false, not a real, exercised path today.
-//
-// Exported: also useful for building a real deep link to a conduit's
-// own tab — a plain /edit URL with no `gid` always lands on the
-// sheet's first tab regardless of which one the conduit actually
-// reads/writes.
+// The tab's numeric id (gid), which deleteDimension and tab links need.
+// Falls back to the first tab when `tableName` is unset or not found;
+// callers read the grid first, which already fails for an unknown tab.
 export async function getSheetId(
   sourceKey: string,
   tableName: string | undefined,
@@ -424,16 +307,14 @@ export async function getSheetId(
   return named?.properties?.sheetId ?? sheets[0]?.properties?.sheetId ?? 0
 }
 
-// The sheet's own column name for our row-id bookkeeping — see the
-// comment above for why it isn't just `id`.
+// The sheet's id column (see above for why it isn't `id`).
 export const ID_COLUMN_NAME = 'conduit-id'
 
-// Pure — exported for unit testing without a real Sheets connection.
 export function idColumnIndex(header: string[]): number {
   return header.indexOf(ID_COLUMN_NAME)
 }
 
-// Pure — 1-indexed (A=1), exported for unit testing.
+// 1-indexed: 1 is A.
 export function columnToLetter(column: number): string {
   let letter = ''
   let col = column
@@ -445,28 +326,15 @@ export function columnToLetter(column: number): string {
   return letter
 }
 
-// The sheet calls its bookkeeping column ID_COLUMN_NAME, but every FlatRow
-// object always uses the plain `id` key, so the REST API's shape stays
-// consistent regardless of the sheet's own column naming. This is
-// the one and only place a raw grid row is turned into a FlatRow — every
-// other conversion (including bulkWriteRows' "existing row" reconstruction)
-// must go through this function rather than duplicating the
-// ID_COLUMN_NAME -> 'id' translation inline, or a literal `"conduit-id"`
-// key leaks into `fields` alongside the translated `id`. Exported for unit
-// testing without a real Sheets connection.
+// A grid row as a FlatRow, with ID_COLUMN_NAME renamed to `id`. Every
+// grid-to-FlatRow conversion goes through here, so "conduit-id" never
+// appears among the fields.
 export function rowToFields(header: string[], row: string[]): FlatRow {
   return Object.fromEntries(header.map((name, i) => [name === ID_COLUMN_NAME ? 'id' : name, row[i] ?? '']))
 }
 
-// Excludes any row with no usable id — a blank id cell, or the id key
-// being entirely absent, which happens whenever the header has no
-// ID_COLUMN_NAME at all (rowToFields never assigns 'id' in that case,
-// e.g. a sheet whose conduit-id column was deleted by hand, or one
-// never bootstrapped at all). No id column means no addressable
-// ConduitRecord yet, matching this contract's own framing (see
-// INTEGRATIONS.md: "a record with no id yet isn't a ConduitRecord at
-// all, it's bare ConduitFields"). Exported for unit testing without a
-// real Sheets connection.
+// Rows with an id. Rows with a blank id, or every row when the sheet has
+// no id column, aren't records yet and are left out.
 export function rowsFromGrid(grid: string[][]): FlatRow[] {
   const [header, ...dataRows] = grid
   if (!header) return []
@@ -481,46 +349,23 @@ function findRowIndex(grid: string[][], idIndex: number, id: string): number {
   return grid.findIndex((row, i) => i > 0 && row[idIndex] === id)
 }
 
-// The union of every field name (excluding `id`, which is bookkeeping, not
-// a source column) across a whole batch — schema is checked/bootstrapped
-// once per batch, not once per record.
-// Takes any array of plain field-name-keyed objects — a FlatRow (real
-// client; 'id' filtered out since it's bookkeeping mixed into the same
-// object) or a ConduitFields (fake client; no 'id' to filter, the filter
-// is simply a no-op there).
+// Every field name in a batch except `id`, so the schema is checked
+// once per batch.
 function unionFieldNames(rows: Record<string, unknown>[]): string[] {
   return [...new Set(rows.flatMap((row) => Object.keys(row).filter((name) => name !== 'id')))]
 }
 
-// Always ensures the ID_COLUMN_NAME column exists (that's our bookkeeping,
-// not the user's schema — a conduit can't function without it, so it's
-// added unconditionally). Field columns are a different story: they're
-// only ever auto-added while bootstrapping a sheet that has no field
-// columns yet at all (a brand new connection, or one that's only had the
-// id column added so far) — see the block below for why. Both kinds are
-// appended as new trailing columns (never inserted), so nothing already in
-// the sheet shifts. Existing data rows are backfilled with a generated id
-// for the id column specifically (otherwise rows written before the
-// column existed would stay permanently unaddressable even after it shows
-// up); other new columns are simply blank for existing rows, same as any
-// field a legacy row never had a value for. A no-op, no extra request,
-// when the header already covers everything this write needs.
+// Makes sure the sheet has the columns a write needs. The id column is
+// always added if missing, and existing rows get generated ids so they
+// can be addressed. Field columns are added only while the sheet has no
+// field columns yet (a new sheet); once it has any, an unknown field is
+// rejected with ConduitUnknownFieldError rather than changing the
+// user's sheet. Owners add columns with createField/createFields or by
+// typing a header. New columns are appended, so nothing shifts. Makes no
+// request when nothing is missing.
 //
-// `fieldNames` is the set of field names this write (single record or a
-// whole bulk batch) needs columns for — callers pass Object.keys(fields)
-// for a single record or unionFieldNames(...) for a batch, so a bulk
-// write's schema is bootstrapped/checked once for the whole batch, not
-// once per record.
-//
-// Bootstrapping a genuinely header-less sheet with columns for whatever a
-// write submits is a one-time thing, not standing behavior: once a sheet
-// already has field columns (its schema is established — either because a
-// previous write bootstrapped it, or because the user typed the headers
-// themselves), a client sending an unrecognized field name gets a rejected
-// 400, not a silent, permanent mutation of the user's spreadsheet. A write
-// is never allowed to implicitly create a field once a schema exists — a
-// Sheets user who wants a new one can just type a header cell themselves,
-// or an owner can use createField/createFields above.
+// `fieldNames` covers the whole write: Object.keys(fields) for one
+// record, unionFieldNames(...) for a batch.
 async function ensureColumnsForWrite(
   sourceKey: string,
   tableName: string | undefined,
@@ -543,13 +388,9 @@ async function ensureColumnsForWrite(
   return addColumnsToGrid(sourceKey, tableName, credential, grid, newColumnNames, fetchImpl)
 }
 
-// The actual "append columns to the header row, backfill existing rows"
-// mechanics, shared by ensureColumnsForWrite's own write-time bootstrap
-// path above (gated — only reachable when the sheet has no other field
-// columns yet or the column already exists) and createFieldsOnSheet
-// below (never gated — an explicit, authenticated owner action, not a
-// public write). Neither caller's own gating logic lives here; this is
-// just "make these columns real," always.
+// Appends header columns and backfills ids for existing rows. Used by
+// ensureColumnsForWrite (which decides whether columns may be added) and
+// createFieldsOnSheet (an owner action, always allowed).
 async function addColumnsToGrid(
   sourceKey: string,
   tableName: string | undefined,
@@ -590,11 +431,8 @@ async function addColumnsToGrid(
   return [newHeader, ...newDataRows]
 }
 
-// createField/createFields' own logic — an explicit, authenticated owner
-// action, never gated the way
-// ensureColumnsForWrite is: always creates whatever's missing, idempotent
-// for a name that already exists, and refuses the one reserved name no
-// caller can claim for their own data.
+// createField/createFields: adds whatever columns are missing, ignores
+// existing ones, and refuses the reserved id column name.
 async function createFieldsOnSheet(
   sourceKey: string,
   tableName: string | undefined,
@@ -612,33 +450,21 @@ async function createFieldsOnSheet(
   const newColumnNames = names.filter((name) => !header.includes(name))
   await addColumnsToGrid(sourceKey, tableName, credential, grid, newColumnNames, fetchImpl)
 
-  // Without this, a describeFields() call within SHEET_METADATA_CACHE_TTL_MS
-  // of creating a field (e.g. immediately re-opening this same conduit's
-  // edit page right after Save) would silently miss it for up to that
-  // long — the whole point of this method is that the field is real
-  // *now*, not eventually.
+  // Clear the cached field list so the next describeFields sees the new
+  // column.
   sheetMetadataCache.delete(`fields\0${sourceKey}\0${tableName ?? ''}\0${tokenDigest(credential)}`)
 }
 
-// Both listTables and describeFields back any UI built on top of this
-// package that lets someone flip between tabs while composing a
-// conduit — each interaction fires one request. Reads just a sheet's
-// header row (plus data for
-// describeFields' type inference) into an in-memory Map keyed by
-// spreadsheet+tab, with a short TTL (not cached forever) bounding how
-// out-of-date the tab/column list can be — meant to smooth out a few
-// seconds of rapid UI interaction within one editing session, not stand in
-// for a live read indefinitely.
+// listTables and describeFields are called as someone switches tabs
+// while setting up a conduit. Their results are cached per spreadsheet
+// and tab for 30 seconds, to absorb those bursts without serving stale
+// lists for long.
 const SHEET_METADATA_CACHE_TTL_MS = 30_000
 const sheetMetadataCache = new Map<string, { value: unknown; expiresAt: number }>()
 
-// Cache keys include a short digest of the access token, not just the
-// spreadsheet id — a shared sheet could be reached through more than
-// one credential (different grants, or the same grant re-authorized),
-// and without this a cache hit could hand one caller a schema list
-// fetched using a different credential's own token/permissions. The
-// digest exists only to partition the cache per-grant; it's never sent
-// anywhere or logged.
+// Cache keys include a digest of the access token, so one credential's
+// results are never served to another. The digest is never sent or
+// logged.
 function tokenDigest(credential: string): string {
   return createHash('sha256').update(credential).digest('hex').slice(0, 16)
 }
@@ -651,8 +477,7 @@ async function cached<T>(key: string, fetchFresh: () => Promise<T>): Promise<T> 
   return value
 }
 
-// One shared grid read, one values.append call for the whole batch — see
-// the block comment above for why this replaced a per-record loop.
+// One grid read and one values.append for the whole batch.
 async function appendRows(
   sourceKey: string,
   tableName: string | undefined,
@@ -680,20 +505,13 @@ async function appendRows(
   return rows
 }
 
-// Resolves every entry's current row number from one grid snapshot, merges
-// each with its existing row via `merge`, ensures columns for the whole
-// batch's union of field names, then writes every resolved range in one
-// values.batchUpdate call. Returns null — writing nothing — if any entry's
-// id doesn't resolve to a real row, so a bulk update/replace is genuinely
-// atomic: never a partial batch.
+// Finds every entry's row from one grid read, merges each with its
+// existing row via `merge`, adds columns for the batch, and writes all
+// ranges in one values.batchUpdate. Returns null and writes nothing if
+// any id isn't found, so the batch is atomic.
 //
-// Also returns a schema inferred from the same grid this already read —
-// not an extra request, just reusing data already in hand. Only
-// updateRecord(s) actually needs it (an update's response can include
-// fields the caller never mentioned, carried over from the existing row,
-// so those need real type inference the way listRecords/describeFields
-// get it); replaceRecord(s) ignores it, since a replace's response is
-// exactly the fields the caller submitted, already correctly typed.
+// Also returns the schema inferred from that grid, which updateRecord
+// needs for fields carried over from the existing row.
 async function bulkWriteRows(
   sourceKey: string,
   tableName: string | undefined,
@@ -721,8 +539,7 @@ async function bulkWriteRows(
     id: entry.id,
   }))
 
-  // rowIndexes stay valid — ensureColumnsForWrite only ever appends
-  // columns, never rows.
+  // Row indexes stay valid: only columns are added.
   grid = await ensureColumnsForWrite(sourceKey, tableName, credential, grid, unionFieldNames(merged), fetchImpl)
 
   const data = merged.map((fields, i) => ({
@@ -740,16 +557,10 @@ async function bulkWriteRows(
   return { rows: merged, schema: inferSchema(grid[0], grid.slice(1)) }
 }
 
-// One shared grid read to resolve every id's row number, then one
-// batchUpdate carrying one deleteDimension request per row. Returns false
-// — deleting nothing — if any id doesn't resolve, so this is atomic like
-// bulkWriteRows. deleteDimension requests within one batchUpdate apply
-// sequentially in request order, each shifting every row below it up by
-// one (confirmed against Google's own batch-request-ordering docs) — so
-// requests are ordered highest row index first: since every index here
-// was resolved from the same pre-batch grid snapshot, and a delete only
-// ever shifts rows *below* it, processing top-down means every later
-// request's index is still valid when it's applied.
+// Finds every id's row from one grid read, then deletes them in one
+// batchUpdate. Returns false and deletes nothing if any id isn't found.
+// Deletes in one batchUpdate apply in order and shift the rows below
+// up, so they are sent from the highest row down.
 async function deleteRows(
   sourceKey: string,
   tableName: string | undefined,
@@ -785,16 +596,9 @@ async function deleteRows(
   return true
 }
 
-// The column analogue of deleteRows above — same reasoning throughout:
-// one shared header read to resolve every name's column index, one
-// batchUpdate carrying one deleteDimension request per column, indexes
-// sorted highest-first (within one batchUpdate, an earlier
-// deleteDimension shifts every column *after* it left by one, so
-// processing right-to-left keeps every later request's index valid —
-// the exact mirror of deleteRows' own top-down row ordering). A name
-// that isn't a real column is silently skipped, not an error — the
-// same idempotent shape createFieldsOnSheet already gives the reverse
-// case.
+// Deletes columns as deleteRows deletes rows: one header read, one
+// batchUpdate, highest column first. A name that isn't a column is
+// skipped.
 async function deleteFieldsOnSheet(
   sourceKey: string,
   tableName: string | undefined,
@@ -824,8 +628,7 @@ async function deleteFieldsOnSheet(
   )
   await throwForStatus(response, 'delete columns')
 
-  // Same reasoning createFieldsOnSheet's own cache-bust gives: the
-  // column is gone *now*, not eventually.
+  // Clear the cached field list, as in createFieldsOnSheet.
   sheetMetadataCache.delete(`fields\0${sourceKey}\0${tableName ?? ''}\0${tokenDigest(credential)}`)
 }
 
@@ -856,9 +659,8 @@ function bulkUpdateRows(
   )
 }
 
-// Builds the ConduitTable for one (sourceKey, tableName) pair against the
-// real Sheets API. Synchronous — see INTEGRATIONS.md's "open() is
-// synchronous" note: nothing here does I/O until a real method is called.
+// The ConduitTable for one spreadsheet and tab. No I/O until a method
+// is called.
 function openHttpTable(
   sourceKey: string,
   credential: string,
@@ -875,9 +677,7 @@ function openHttpTable(
         return header
           .filter((name) => name && name !== ID_COLUMN_NAME)
           .map((name) => ({ name, type: schema.get(name) ?? 'string', nullable: true }))
-        // nullable is always true for Sheets: any cell can be blank, and
-        // there's no column constraint to check — an honest answer, not a
-        // placeholder (see INTEGRATIONS.md).
+        // Any Sheets cell can be blank.
       })
     },
 
@@ -910,11 +710,8 @@ function openHttpTable(
       }
     },
 
-    // A create's response is exactly the fields the caller submitted, plus
-    // the newly assigned id — Sheets' append doesn't transform values, so
-    // reusing the input directly (already correctly typed) is both
-    // simpler and more accurate than round-tripping it through the grid's
-    // all-string representation and re-inferring types from scratch.
+    // The response is the submitted fields and the new id; Sheets stores
+    // values as given, so they aren't read back.
     async createRecord(fields) {
       const [row] = await appendRows(sourceKey, tableName, credential, [fieldsToFlatRow(fields)], fetchImpl)
       return { id: row.id, fields }
@@ -924,10 +721,7 @@ function openHttpTable(
       return rows.map((row, i) => ({ id: row.id, fields: fieldsList[i] }))
     },
 
-    // Same reasoning as createRecord: a replace's response is exactly the
-    // submitted fields (a replace clears everything else), so there's
-    // nothing to read back or re-type — only whether the write itself
-    // succeeded (a non-null result) matters here.
+    // A replace returns exactly the submitted fields.
     async replaceRecord(record) {
       const result = await bulkReplaceRows(sourceKey, tableName, credential, [fromConduitRecord(record)], fetchImpl)
       return result ? { id: record.id, fields: record.fields } : null
@@ -937,10 +731,8 @@ function openHttpTable(
       return result ? records.map((record) => ({ id: record.id, fields: record.fields })) : null
     },
 
-    // Unlike create/replace, an update's response can carry fields the
-    // caller never mentioned (merged in from the existing row) — those
-    // need real type inference, the same as listRecords/describeFields
-    // get it, not a blanket 'string' default.
+    // An update's response includes fields from the existing row, so it
+    // uses the inferred schema.
     async updateRecord(record) {
       const result = await bulkUpdateRows(sourceKey, tableName, credential, [fromConduitRecord(record)], fetchImpl)
       return result ? toConduitRecord(result.rows[0], result.schema) : null
@@ -959,16 +751,12 @@ function openHttpTable(
   }
 }
 
-// Exported for its own unit test (mocked fetch, real request/response
-// shapes) — NODE_ENV=test always resolves googleSheetsClient itself to
-// the fake, in-memory client below, so this is otherwise unreachable
-// in the test environment. Same reasoning as gmail.ts's own
-// createGmailApiClient/fastmail.ts's createJmapFastmailClient exports.
+// Exported for its unit test; under NODE_ENV=test googleSheetsClient is
+// the in-memory fake below.
 export function createHttpSheetsClient(): ConduitSourceClient {
   return {
-    // A REST API call needs no real handshake — connect() is synchronous
-    // in spirit (cheap, no I/O of its own); it just closes over
-    // sourceKey/credential for open() to use later.
+    // No handshake: connect() only keeps sourceKey and credential for
+    // open().
     async connect(sourceKey, credential, fetchImpl = fetch) {
       return {
         async listTables() {
@@ -986,35 +774,26 @@ export function createHttpSheetsClient(): ConduitSourceClient {
         },
       }
     },
-    // Nothing to tear down for a stateless REST API — see INTEGRATIONS.md's
-    // "a source with nothing to tear down can make it a no-op" note.
+    // Nothing to close for a REST API.
     async disconnect() {},
     capabilities: () => ({ methods: ALL_HTTP_METHODS, bulkCreate: true }),
   }
 }
 
-// --- Fake client: in-memory store, used under NODE_ENV=test so tests never
-// make real network calls. Keyed by `${sourceKey}\0${tableName ?? ''}`
-// so two different tables of the same conduit-under-test don't collide.
-// Mirrors the real client's atomicity and schema-checking contracts (see
-// checkFakeSchema/the bulk methods below) so tests exercise the same
-// guarantees the controllers actually rely on, not a looser approximation.
+// --- Fake client: in-memory, used under NODE_ENV=test ---
 //
-// Holds ConduitRecord directly, not a stringified FlatRow: unlike a real
-// Sheets grid, this store has no reason to flatten field values to text.
-// Keeping records in their real shape here means the fake client exercises
-// the same round-trip type fidelity (number/boolean/date) a caller gets
-// from the real one, instead of a looser approximation.
+// Keyed by `${sourceKey}\0${tableName ?? ''}`. Matches the real client's
+// atomicity and schema rules (checkFakeSchema, the bulk methods), and
+// stores ConduitRecords with typed values, so tests see the same types
+// the real client returns.
 
 const fakeStore = new Map<string, ConduitRecord[]>()
 const fakeAuthFailures = new Set<string>()
-// A valid credential without access to this specific file — mirrors the
-// real client mapping Google's 403/404 to ConduitSourceError, not
-// ConduitAuthError.
+// A valid credential without access to the file: ConduitSourceError,
+// as the real client maps Google's 403/404.
 const fakeForbiddenFailures = new Set<string>()
-// Mirrors the real client's ensureColumnsForWrite policy: undefined means
-// "still bootstrapping, anything goes"; once set, any field name outside
-// it is rejected the same way a real established sheet would reject it.
+// As in ensureColumnsForWrite: no entry means any field is accepted;
+// once set, unknown fields are rejected.
 const fakeSchemas = new Map<string, Set<string>>()
 
 function fakeKey(sourceKey: string, tableName: string | undefined): string {
@@ -1030,11 +809,8 @@ function checkFakeAccess(sourceKey: string): void {
   }
 }
 
-// Mirrors createFieldsOnSheet's own real logic — never gated the way a
-// write is (checkFakeSchema below), idempotent, refuses the reserved id
-// column name. Establishing fakeSchemas here for a sourceKey that's
-// never been seeded/written to before is deliberate: a genuinely blank
-// fake sheet can have fields created for it too, the same as a real one.
+// As createFieldsOnSheet. May create the schema for a sheet never
+// written to.
 function createFakeFields(sourceKey: string, tableName: string | undefined, names: string[]): void {
   checkFakeAccess(sourceKey)
   if (names.includes(ID_COLUMN_NAME)) {
@@ -1046,11 +822,8 @@ function createFakeFields(sourceKey: string, tableName: string | undefined, name
   fakeSchemas.set(key, known)
 }
 
-// Mirrors deleteFieldsOnSheet's own real logic — removes the name from
-// the known-schema set *and* strips it from every already-stored fake
-// row's own fields, the same way a real structural column delete would
-// leave no trace of the old data behind. Silently skips a name that
-// isn't known, matching createFakeFields' own idempotent shape.
+// As deleteFieldsOnSheet: removes the name from the schema and the
+// field from every stored row. Unknown names are skipped.
 function deleteFakeFields(sourceKey: string, tableName: string | undefined, names: string[]): void {
   checkFakeAccess(sourceKey)
   const key = fakeKey(sourceKey, tableName)
@@ -1063,9 +836,7 @@ function deleteFakeFields(sourceKey: string, tableName: string | undefined, name
   }
 }
 
-// Checked/established once per whole batch (fieldsList.length may be > 1),
-// same as the real client's ensureColumnsForWrite taking
-// unionFieldNames(...).
+// Checked once per batch, as ensureColumnsForWrite is.
 function checkFakeSchema(key: string, fieldsList: ConduitFields[]): void {
   const known = fakeSchemas.get(key)
   const submittedFieldNames = unionFieldNames(fieldsList)
@@ -1086,9 +857,7 @@ function appendRowsFake(sourceKey: string, tableName: string | undefined, fields
   return rows
 }
 
-// Atomic, like the real client: resolves every entry's existing row first
-// and bails out (returning null, writing nothing) if any id isn't found,
-// before merging or checking schema.
+// Atomic: returns null and writes nothing if any id isn't found.
 function bulkWriteRowsFake(
   sourceKey: string,
   tableName: string | undefined,
@@ -1125,9 +894,7 @@ function deleteRowsFake(sourceKey: string, tableName: string | undefined, ids: s
   return true
 }
 
-// typeof suffices here — unlike the real client, values in this store were
-// never flattened to text in the first place, so there's no string to
-// parse back.
+// Values here are stored typed, so typeof is enough.
 function inferFakeFieldType(values: (string | number | boolean | null)[]): ConduitFieldType {
   const nonNull = values.filter((v) => v !== null)
   if (nonNull.length === 0) return 'string'
@@ -1145,9 +912,7 @@ function openFakeTable(sourceKey: string, tableName: string | undefined): Condui
       return [...(known ?? [])].map((name) => ({
         name,
         type: inferFakeFieldType(rows.map((row) => row.fields[name] ?? null)),
-        // Always true, matching the real client — see INTEGRATIONS.md:
-        // there's no column constraint to check for a Sheets-shaped
-        // source, fake or real.
+        // Always true, as in the real client.
         nullable: true,
       }))
     },
@@ -1239,11 +1004,8 @@ function createFakeSheetsClient(): ConduitSourceClient {
 }
 
 /**
- * Test-only: seed a fake spreadsheet's rows. Each row is assigned a fresh
- * id. Also establishes the fake schema from these rows' field names — a
- * seeded sheet models a real pre-existing spreadsheet, whose columns are
- * already fixed, exactly like the real client treats one seen with data
- * already in it.
+ * For tests: seeds a fake sheet's rows, each with a new id, and fixes
+ * its schema to their field names, as for an existing spreadsheet.
  */
 export function seedFakeSheet(sourceKey: string, rows: ConduitFields[], tableName?: string): ConduitRecord[] {
   const seeded = rows.map((fields) => ({ id: randomRowId(), fields }))
@@ -1253,21 +1015,20 @@ export function seedFakeSheet(sourceKey: string, rows: ConduitFields[], tableNam
   return seeded
 }
 
-/** Test-only: make the fake client throw ConduitAuthError for this spreadsheet, simulating a revoked Google grant. */
+/** For tests: makes this spreadsheet throw ConduitAuthError, as for a revoked grant. */
 export function simulateFakeAuthFailure(sourceKey: string): void {
   fakeAuthFailures.add(sourceKey)
 }
 
 /**
- * Test-only: make the fake client throw ConduitSourceError(403) for this
- * spreadsheet — a valid grant without access to this file, unlike
- * simulateFakeAuthFailure.
+ * For tests: makes this spreadsheet throw ConduitSourceError(403), as for
+ * a valid grant without access to the file.
  */
 export function simulateFakeForbidden(sourceKey: string): void {
   fakeForbiddenFailures.add(sourceKey)
 }
 
-/** Test-only: clear all fake spreadsheet state between tests. */
+/** For tests: clears all fake spreadsheet state. */
 export function resetFakeSheets(): void {
   fakeStore.clear()
   fakeAuthFailures.clear()
@@ -1275,11 +1036,7 @@ export function resetFakeSheets(): void {
   fakeSchemas.clear()
 }
 
-/**
- * Test-only convenience: connect, open, and list a fake table's records in
- * one call, for tests that just want to peek at what's actually stored
- * without spelling out the full connect()/open() dance themselves.
- */
+/** For tests: a fake table's stored records. */
 export async function listFakeRecords(sourceKey: string, tableName?: string): Promise<ConduitRecord[]> {
   const source = await googleSheetsClient.connect(sourceKey, 'unused')
   const { records } = await source.open(tableName ? JSON.stringify({ table: tableName }) : undefined).listRecords()
@@ -1289,7 +1046,5 @@ export async function listFakeRecords(sourceKey: string, tableName?: string): Pr
 export const googleSheetsClient: ConduitSourceClient =
   process.env.NODE_ENV === 'test' ? createFakeSheetsClient() : createHttpSheetsClient()
 
-// The combined sourceClients registry lives in index.ts, not here —
-// this file shouldn't need to import a second implementation's own
-// file (fastmail.ts imports shared types from this one; this file
-// importing back from it too would be circular for no reason).
+// The sourceClients registry is in index.ts, to avoid a circular import
+// with fastmail.ts.

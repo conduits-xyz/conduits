@@ -25,15 +25,13 @@ import {
   type WireRecord,
 } from '@conduits/conduit'
 
-// A reserved field name a plain HTML <form> (library/pages/progressive-enhancement-form) can
-// include as a hidden input to get redirected to its own "thanks" page
-// after a real create, instead of landing on this endpoint's raw JSON
-// body.
+// A reserved field a plain HTML <form> (e.g.
+// library/pages/progressive-enhancement-form) can include as a hidden
+// input to be redirected after a create instead of getting JSON.
 const REDIRECT_FIELD = '_redirect'
 
-// Only ever redirects to the same origin the request's own Referer names.
-// Anything else, or no Referer to check against, falls back to the normal
-// JSON response.
+// Redirects only to the origin the request's Referer names; otherwise,
+// or without a Referer, the response is the usual JSON.
 function resolveRedirectTarget(fields: Record<string, unknown> | undefined, request: Request): string | null {
   const raw = fields?.[REDIRECT_FIELD]
   if (typeof raw !== 'string' || raw.trim() === '') return null
@@ -51,22 +49,16 @@ function resolveRedirectTarget(fields: Record<string, unknown> | undefined, requ
   }
 }
 
-// A dropped record (honeypot tripped, or a pass-if-match mismatch) is
-// counted even though it's never written, for reporting elsewhere —
-// stashed on the context for dispatch()'s own outer wrapper to read
-// back once, alongside providerBytesContext (see observation.ts),
-// rather than a separate recordEvent call per drop the way this used
-// to work.
+// Dropped records (a tripped honeypot or pass-if-match mismatch) are
+// counted though never written. The count is kept on the context for
+// dispatch() to read, beside providerBytesContext (observation.ts).
 function recordHoneypotDrops(context: GatewayContext, count: number): void {
   if (count > 0) context.set(honeypotDropCountContext, count)
 }
 
-// Applies a bulk update/replace as one Sheets API call for the whole batch
-// (see packages/conduit/sheets.ts's bulkWriteRows). Atomic: either every
-// entry's id resolves and all are written, or (any id missing) nothing is.
-//
-// No hidden-form-field handling here — hff only ever applies to create
-// (see write() below).
+// Applies a bulk update or replace in one source call (bulkWriteRows in
+// sheets.ts): either every id resolves and all are written, or nothing
+// is. Hidden form fields apply only to create.
 async function runBulkWrite(
   table: ConduitTable,
   fieldMap: Record<string, string> | undefined,
@@ -94,12 +86,9 @@ async function runBulkWrite(
   return jsonResponse({ records })
 }
 
-// The "bare" conduit-path actions (see dispatch.ts) — list/create/bulk
-// update/bulk replace/bulk destroy, dispatched by HTTP method rather
-// than by remix's own route-action mapping (see dispatch.ts for why).
-// Each still runs behind createGatewayMiddleware(deps) — dispatch.ts
-// invokes that itself via run-middleware.ts, identically to how
-// remix's router used to.
+// The actions on a conduit's base path (list, create, bulk update,
+// replace and delete), chosen by HTTP method (see dispatch.ts), each
+// behind createGatewayMiddleware(deps) via run-middleware.ts.
 export interface GatewayActions {
   list(context: GatewayContext): Promise<Response>
   write(context: GatewayContext): Promise<Response>
@@ -137,16 +126,11 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
       const rules = config.hiddenFormField
       const { fieldMap } = config.suriConfig
 
-      // A single record (`{fields}`) or a bulk array (`{records:
-      // [{fields}, ...]}`) on this same create endpoint — shape alone
-      // decides which (see packages/conduit/record-shape.ts's isBulkBody).
+      // One record (`{fields}`) or several (`{records: [{fields}, ...]}`);
+      // the body's shape decides (isBulkBody in record-shape.ts).
       if (isBulkBody(body)) {
-        // A source whose createRecords loops over independent,
-        // irreversible side effects (Fastmail/Gmail: each is a real,
-        // already-sent email) can't safely accept a bulk create — a
-        // partial-batch failure has no way to report what already
-        // succeeded, so a caller's retry would resend it. See
-        // ConduitSourceCapabilities.bulkCreate's own doc.
+        // Refused for sources whose records are emails that can't be
+        // unsent (ConduitSourceCapabilities.bulkCreate).
         if (!sourceClients[config.suriType]?.capabilities().bulkCreate) {
           return jsonResponse({ error: 'Bad Request' }, 400)
         }
@@ -154,15 +138,13 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
         const entries = extractBulkRecords(body.records, false)
         if (!entries) return jsonResponse({ error: 'Bad Request' }, 400)
 
-        // _redirect is reserved everywhere, not just the single-record
-        // path below, so it never leaks into Sheets as literal data.
+        // _redirect is reserved here too, so it is never stored.
         for (const entry of entries) {
           if (REDIRECT_FIELD in entry) delete entry[REDIRECT_FIELD]
         }
 
-        // A dropped record (tripped honeypot or mismatched pass-if-match)
-        // never reaches Sheets; everything else is appended in one
-        // createRecords call for the whole batch.
+        // Dropped records are not written; the rest go in one
+        // createRecords call.
         const outcomes = entries.map((entry) => checkHiddenFormField(rules, entry))
         const toAppend: ConduitFields[] = []
         for (const outcome of outcomes) {
@@ -186,12 +168,11 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
         return jsonResponse({ records }, 201)
       }
 
-      // A caller can't assign their own id on create (see packages/conduit/record-shape.ts).
+      // Callers can't set an id on create (record-shape.ts).
       if (hasBodyId(body)) return jsonResponse({ error: 'Bad Request' }, 400)
 
-      // Resolved and stripped from the fields before extractFields() below,
-      // so REDIRECT_FIELD never gets written into the sheet as a literal
-      // column.
+      // Removed from the fields before extractFields(), so it isn't
+      // stored.
       const rawFields = (body as { fields?: Record<string, unknown> }).fields
       const redirectTarget = resolveRedirectTarget(rawFields, context.request)
       if (rawFields && REDIRECT_FIELD in rawFields) delete rawFields[REDIRECT_FIELD]
@@ -201,8 +182,8 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
 
       const outcome = checkHiddenFormField(rules, fields)
       if (outcome.outcome === 'dropped') {
-        // Same 201 (and _redirect handling) a real create returns — a
-        // dropped record must be indistinguishable from a real success.
+        // The same 201 and redirect as a stored record, so a dropped one
+        // looks like a success.
         recordHoneypotDrops(context, 1)
         if (redirectTarget) return Response.redirect(redirectTarget, 303)
         return jsonResponse(wrapRecord({ id: randomRowId(), fields: outcome.fields }), 201)
@@ -238,8 +219,8 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
       if (exceedsBulkLimit(ids.length)) return jsonResponse({ error: 'Bad Request' }, 400)
       if (hasDuplicateIds(ids)) return jsonResponse({ error: 'Bad Request' }, 400)
 
-      // One deleteRecords call for the whole batch — atomic, so a bad id
-      // can't leave some of the batch deleted and some not.
+      // One deleteRecords call, so the batch is deleted entirely or not
+      // at all.
       const ok = await table.deleteRecords(ids)
       if (!ok) return jsonResponse({ error: 'Not Found' }, 404)
       return jsonResponse({ records: ids.map((id) => ({ id, deleted: true })) })

@@ -1,100 +1,76 @@
 export type AllowlistEntry = { ip: string; comment?: string; status: 'active' | 'inactive' }
 
-// Discriminated by policy: `include`/`value` don't mean the same thing
-// for both. A drop-if-filled field is always excluded, with no `include`
-// of its own. A pass-if-match field's `value` (what a submission must
-// equal to pass) is required, not optional.
+// By policy: a drop-if-filled field is always excluded and has no
+// `include`; a pass-if-match field requires `value`, which a submission
+// must equal.
 export type HiddenFormFieldRule =
   | { fieldName: string; policy: 'drop-if-filled' }
   | { fieldName: string; policy: 'pass-if-match'; value: string; include: boolean }
 
-// The gateway's view of one scoped API key: only what enforcement
-// needs, never the plaintext or who holds it.
+// A scoped API key as enforcement sees it: no plaintext, no holder.
 export type ApiKeyRef = {
-  // A host-assigned id, carried only for usage attribution; not part of
-  // bearer verification and never identifies a secret by itself.
+  // The host's id for the key, used only to attribute usage.
   id?: number
   tokenHash: string
   scopes: string[]
 }
 
 export type SuriConfig = {
-  // Sheet tab / SQLite table name. Undefined/absent means "use the
-  // source's own default" (Sheets: the first tab).
+  // Sheet tab or table name. Absent means the source's default (Sheets:
+  // the first tab).
   table?: string
-  // Widget-facing field name -> actual source column name, both
-  // directions. A field not present here is passed through unchanged
-  // (its widget-facing name and its real column name are the same).
+  // Field name -> source column name, used both ways. Fields not listed
+  // use the same name.
   fieldMap?: Record<string, string>
-  // suri_type 'fastmail' only: who a POST's message goes to
-  // (owner-configured, never the submission's own fields) and a fixed
-  // subject line.
+  // suri_type 'fastmail' only: the owner-set recipients and subject of
+  // a POST's message.
   recipients?: string[]
   subject?: string
 }
 
-// The gateway's own view of a conduit — whatever the pipeline actually
-// needs to decide access control, credential lookup, and source
-// dispatch, not the full data-model row. Plain and serializable:
-// produced by whichever host resolves a curi into one of these (this
-// repo's own compiled-YAML projection — see packages/config — or any
-// other projection a different GatewayRuntime implementation chooses)
-// and handed to this package's router/pipeline already resolved, one
-// per request.
+// A conduit as the gateway needs it: access control, credential lookup
+// and source dispatch. Plain data, resolved by the host (packages/config
+// for YAML, or another GatewayRuntime's projection) and passed in per
+// request.
 export interface ConduitConfig {
   curi: string
   allowlist: AllowlistEntry[]
   racm: string[]
   throttle: boolean
   tokenRequiredMethods: string[]
-  // Replaces the old single bearerTokenHash — a request is authorized
-  // for a token-required method by presenting any one of these whose
-  // own scopes include it, never by a single shared secret.
+  // A token-required method is allowed for a request presenting any key
+  // whose scopes include it.
   apiKeys: ApiKeyRef[]
   suriType: string
   suriObjectKey: string
   suriConfig: SuriConfig
   hiddenFormField: HiddenFormFieldRule[]
-  // Opaque to this package — never parsed or interpreted here, only
-  // handed back to GatewayRuntime.getCredential/invalidateCredential.
-  // Only the host that produced this config knows what it means —
-  // e.g. a "kind:id" string naming a row in that host's own credential
-  // store (see services/gateway's own convention).
+  // Opaque here; only passed back to GatewayRuntime.getCredential and
+  // invalidateCredential. The host defines it, e.g. a "kind:id" naming
+  // an entry in its credential store.
   credentialRef: string | null
 }
 
 export type { GatewayObservation, RouteKind, StatusClass } from './observation.ts'
 import type { GatewayObservation } from './observation.ts'
 
-// The one seam this package uses to reach outside itself, implemented
-// by whichever host resolved the ConduitConfig it's called with. Every
-// method is keyed by curi/config, never by an internal database id, so
-// this package never needs to know one exists.
+// What this package needs from its host, implemented by whoever resolved
+// the ConduitConfig. Keyed by curi or config, never by a database id.
 export interface GatewayRuntime {
   getCredential(config: ConduitConfig): Promise<string | null>
-  // Called when a source rejects a credential getCredential() already
-  // handed out (a revoked Google grant, most commonly) — best-effort
-  // cleanup from the runtime's side; the response already sent back to
-  // the caller doesn't wait on or change based on this.
+  // Called when a source rejects a credential getCredential returned
+  // (most often a revoked Google grant). Cleanup only; the response
+  // doesn't wait on it.
   invalidateCredential(config: ConduitConfig): Promise<void>
-  // Optional — a runtime that doesn't implement this gets none of the
-  // measurement work at all (see dispatch.ts's own dispatch()): no
-  // timing, no byte counting, no observation object ever built. A
-  // metrics write must never fail the request it's counting — the
-  // dispatcher awaits this so an observation is durable (from the
-  // runtime's own point of view) before the response goes out, but
-  // treats a rejection as best-effort, same as the implementation
-  // itself should.
+  // Optional. Without it, dispatch() skips all measurement. dispatch()
+  // awaits it so the observation is recorded before responding, but a
+  // rejection doesn't fail the request.
   recordObservation?(observation: GatewayObservation): void | Promise<void>
-  // Optional — lets a runtime measure provider-leg bytes without any
-  // global mutation. Called once by loadConduitTable
-  // (middleware/source-client.ts), right before resolving the
-  // credential; the returned fetchImpl is passed straight into
-  // ConduitSourceClient.connect()'s own optional third parameter.
-  // finish() is called in the same finally block that already calls
-  // client.disconnect() — its result is stashed on providerBytesContext
-  // for dispatch()'s wrapper to read back once the whole pipeline
-  // completes.
+  // Optional: measures provider bytes without global state.
+  // loadConduitTable (middleware/source-client.ts) calls it before
+  // resolving the credential and passes fetchImpl to
+  // ConduitSourceClient.connect(). finish() runs beside disconnect(),
+  // and its result goes on providerBytesContext for dispatch() to read.
   instrumentFetch?(): {
     fetchImpl: typeof fetch
     finish(): { providerRequestBytes: number; providerResponseBytes: number; providerAttempted: boolean }

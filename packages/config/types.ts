@@ -1,8 +1,6 @@
-// Everything here describes untrusted, raw parsed YAML — deliberately
-// loose. Real validation (required fields, cross-field checks like
-// bearerToken.requiredFor being a subset of methods) happens in
-// compile.ts and sources/*, not here; these types exist only so that
-// code isn't reading off a bare `unknown` with no structure at all.
+// Raw parsed YAML, loosely typed. compile.ts and sources/* validate it
+// (required fields, and checks such as bearerToken.requiredFor being a
+// subset of methods).
 
 export type RawConduitsFile = {
   conduits?: unknown

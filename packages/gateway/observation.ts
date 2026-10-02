@@ -1,24 +1,18 @@
 import { createContextKey } from 'remix/router'
 
-// Every request the dispatcher sees ends up as exactly one of these,
-// regardless of outcome — an unmatched route, a rejected request, a
-// real provider call, or a genuine 500. Deliberately neutral: this
-// package never decides what an observation means (billing, analytics,
-// nothing) — it only measures what actually happened and hands the
-// result to whichever GatewayRuntime.recordObservation a host supplies.
-// See GatewayRuntime's own doc in types.ts.
+// One per request the dispatcher handles, whatever the outcome: no
+// matching route, rejected, a provider call, or a 500. It records what
+// happened; the host's GatewayRuntime.recordObservation decides what it
+// means (see types.ts).
 export type RouteKind = 'bare' | 'item' | 'schema' | 'readyz' | 'unmatched'
 
 export type StatusClass = 'success' | 'clientError' | 'rejected' | 'notFound' | 'providerError' | 'serverError'
 
-// Classified from the final response status alone — RACM/allowlist/
-// bearer-token/throttle already return four distinct, non-overlapping
-// codes (405/403/401/429), so 'rejected' falls out with no new tagging
-// needed in any of those middleware. 502 is exactly handleSourceErrors'
-// own translation of a ConduitAuthError/ConduitSourceError. 404 is its
-// own bucket, not folded into clientError or rejected — it means "this
-// curi doesn't resolve to anything," a different fact from "the caller
-// did something wrong" or "this was blocked."
+// From the response status alone. RACM, allowlist, bearer token and
+// throttle return 405, 403, 401 and 429, which make up 'rejected'. 502
+// is handleSourceErrors' response to ConduitAuthError and
+// ConduitSourceError. 404 (the curi resolves to nothing) has its own
+// class.
 export function classifyStatus(status: number): StatusClass {
   if (status === 401 || status === 403 || status === 405 || status === 429) return 'rejected'
   if (status === 404) return 'notFound'
@@ -31,13 +25,11 @@ export function classifyStatus(status: number): StatusClass {
 export interface GatewayObservation {
   timestamp: string
   latencyMs: number
-  // Absent only for a route that never matched any binding at all
-  // (dispatch.ts's own resolveRoute() returning null) — every other
-  // case, including a curi that resolves to no live conduit, still has
-  // a real curi to attribute to.
+  // Absent only when no route binding matched (resolveRoute returned
+  // null).
   curi: string | undefined
-  // Present when this request authenticated with a configured API key.
-  // The key id is metadata for the host's usage ledger, never a secret.
+  // The API key the request authenticated with, if any; an id, not a
+  // secret.
   apiKeyId?: number
   routeKind: RouteKind
   host: string | undefined
@@ -48,33 +40,28 @@ export interface GatewayObservation {
   clientResponseBytes: number
   providerRequestBytes: number
   providerResponseBytes: number
-  // Whether the pipeline actually attempted a call against the
-  // provider (Sheets/Fastmail/Gmail) — the one fact a future billing
-  // decision hangs on, kept here as a physical observation, not a
-  // pricing concept. False for anything rejected, not-found, or
-  // honeypot-dropped without at least one real record alongside it.
+  // Whether a provider call (Sheets, Fastmail, Gmail) was attempted.
+  // False for rejected, not-found and honeypot-dropped requests with no
+  // record written.
   providerAttempted: boolean
   honeypotDropCount: number
   suriType: string | undefined
 }
 
-// Set once, deep in loadConduitTable's own finally block (right
-// alongside its existing client.disconnect() call), read back once by
-// the outer dispatch() wrapper — the same pattern honeypotDropCountContext
-// below uses. Absent entirely when no runtime supplied
-// GatewayRuntime.instrumentFetch (the common case), or for any request
-// that never reached loadConduitTable at all (rejected, not-found).
+// Set in loadConduitTable's finally block, beside disconnect(), and read
+// once by dispatch(), like honeypotDropCountContext. Absent when the
+// runtime has no instrumentFetch, or the request never reached
+// loadConduitTable.
 export const providerBytesContext = createContextKey<{
   providerRequestBytes: number
   providerResponseBytes: number
   providerAttempted: boolean
 }>()
 
-// Set by controller.ts's write()/bulk write actions when a submission
-// trips the honeypot — replaces the old per-drop recordEvent loop with
-// one number the outer wrapper reads back once.
+// Set by controller.ts's create actions when a submission is dropped;
+// read once by dispatch().
 export const honeypotDropCountContext = createContextKey<number>()
 
-// Set by bearer-token middleware after a presented token matches an API key;
-// read by dispatch when it builds the physical-request observation.
+// Set by the bearer-token middleware when a token matches an API key;
+// read by dispatch() for the observation.
 export const apiKeyIdContext = createContextKey<number>()

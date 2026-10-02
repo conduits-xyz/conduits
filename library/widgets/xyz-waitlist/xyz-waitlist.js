@@ -1,11 +1,8 @@
-// <xyz-waitlist> — a first-name-and-email waitlist form backed by a
-// real conduit. Zero dependencies, no build step: drop this file next
-// to your page, add the element, done.
+// <xyz-waitlist>: a first-name and email waitlist form that submits to
+// a conduit. No dependencies or build step.
 //
-// Not `type="module"`: Chromium blocks a module script on a file://
-// page, and this file has no import/export of its own — a classic
-// <script> works identically and actually runs when opened directly
-// from disk.
+// A classic script, not a module: Chromium blocks module scripts on
+// file:// pages.
 //
 //   <script src="./xyz-waitlist.js"></script>
 //   <xyz-waitlist
@@ -13,55 +10,26 @@
 //     caption="Join our premium waitlist"
 //   ></xyz-waitlist>
 //
-// See `static configFields` below for the full, authoritative list of
-// optional attributes (caption, unconfigured-message, success-message,
-// button-text, heading-level) — this is also what any config UI could
-// read to build a form for this widget, by loading this
-// script and inspecting `customElements.get('xyz-waitlist').configFields`.
+// `static configFields` below lists the attributes.
 //
-// `caption` — when set, the widget renders it itself and gives its
-// own <form> an aria-labelledby pointing at it, so the widget owns
-// the "this text labels that control" relationship instead of every
-// embedder reconstructing it. Not a real heading by default: the
-// widget has no way to know what heading level is correct wherever it
-// lands, and guessing risks clobbering the host page's own outline.
-// Set `heading-level` alongside it to opt in — the caption then also
-// gets `role="heading" aria-level="{heading-level}"`, so *you* (the
-// only party that actually knows your own document's outline) decide
-// the level, not the widget.
+// `caption` is rendered by the widget and labels its <form>
+// (aria-labelledby). It is a heading only when `heading-level` is set,
+// which adds role="heading" and aria-level: only the host page knows its
+// outline.
 //
-// Wire format: a signup is `POST {fields: {firstName, email}}` — the
-// same envelope every conduit accepts (see docs/gateway-api.md). This
-// element only ever handles the form itself; a running signup count
-// (if you want one shown next to it) is a plain `GET conduit-url` your
-// own page renders however it likes.
+// A signup is `POST {fields: {firstName, email}}` (docs/gateway-api.md).
+// To show a signup count, GET conduit-url from your page.
 
-// Everything below is wrapped in an IIFE deliberately — this is a
-// classic (non-module) script by design (see the top of this file),
-// and classic scripts share ONE global lexical scope across every
-// <script> tag on the page. A host embedding more than one xyz-*
-// widget loads more than one of these files together — without this
-// wrapper, a top-level `let`/`const`/`class` declared here with the
-// same name as one in another widget's file throws a SyntaxError the
-// moment the second script parses, silently killing that widget
-// (customElements.define never runs, connectedCallback never fires)
-// with no visible error unless something happens to already be
-// listening for uncaught exceptions. The IIFE gives this file's own
-// top-level names a real, isolated scope, so nothing here can ever
-// collide with another widget's file again, regardless of what either
-// file declares at its own top level in the future.
+// Wrapped in an IIFE: classic scripts share one global scope, so a
+// top-level name also declared by another xyz-* widget would be a
+// SyntaxError that stops the second widget from loading.
 ;(function () {
-  // Unique per instance, not per class — a page can embed more than one
-  // <xyz-waitlist>, and each needs its own id for aria-labelledby to
-  // resolve correctly.
+  // Per instance, so captions get unique ids on a page with several
+  // <xyz-waitlist> elements.
   let nextCaptionId = 0
 
-  // Any string interpolated into innerHTML that isn't a fixed literal in
-  // this file's own template needs this first — caption/messages/button
-  // text are all attribute values a caller sets, and an unescaped '<' or
-  // '&' breaks rendering outright (the browser tries to parse whatever
-  // follows as markup); a value shaped like <img onerror=...> executes
-  // as script. Same fix needed regardless of who set the value.
+  // Escapes attribute-supplied text (caption, messages, button text)
+  // before it goes into innerHTML.
   function escapeHtml(value) {
     return String(value).replace(
       /[&<>"']/g,
@@ -69,8 +37,8 @@
     )
   }
 
-  // A 4xx response's own message is shown as-is (e.g. a missing sheet
-  // column); a 5xx or network failure shows a generic message instead.
+  // A 4xx response's message is shown as is (e.g. a missing sheet
+  // column); a 5xx or network failure gets a generic message.
   async function describeSubmitFailure(response) {
     if (response.status >= 400 && response.status < 500) {
       try {
@@ -84,13 +52,9 @@
   }
 
   class XyzWaitlist extends HTMLElement {
-    // The authoritative, machine-readable list of this widget's own
-    // optional configuration surface — everything except `conduit-url`
-    // itself (wiring, not cosmetic config) is described here. Read this
-    // by loading this script and inspecting
-    // `customElements.get('xyz-waitlist').configFields`; kept next to
-    // the getters below by hand, not generated, so it can never drift
-    // from what this file actually does without a test catching it.
+    // The element's attributes, for a config UI to read from
+    // customElements.get('xyz-waitlist').configFields. Kept in step with
+    // the getters below by hand.
     static configFields = [
       {
         attribute: 'conduit-url',
@@ -143,18 +107,8 @@
     ]
 
     connectedCallback() {
-      // An unknown/undefined custom element defaults to `display: inline`
-      // in the UA stylesheet — without this, the very first paint renders
-      // this element (and its not-yet-laid-out contents) inline, then
-      // visibly snaps to the real block layout once style.css finishes
-      // loading. Setting it inline here, first thing, makes this widget
-      // correct on its own — a host page's stylesheet must never need to
-      // know or care that this element needs `display: block`. An inline
-      // style always wins over any stylesheet (loaded or not), no
-      // `!important` needed, and this runs synchronously before first
-      // paint: this <script> tag is a classic, blocking script placed
-      // before this element in the host's markup, so the parser has
-      // already defined this class by the time it reaches the tag.
+      // Custom elements default to display: inline. Setting block here,
+      // before first paint, keeps the layout from depending on style.css.
       this.style.display ||= 'block'
       this._status = 'idle' // 'idle' | 'pending' | 'success' | 'error'
       this._errorText = null
@@ -190,10 +144,7 @@
       return this.getAttribute('button-text') || 'Join the waitlist'
     }
 
-    // The caption markup is identical whether the form is showing or
-    // the not-connected message is — rendered in both, so a caller can
-    // render this widget unconditionally (conduit-url set or not) and
-    // still always see its own caption.
+    // Shown both with the form and with the not-connected message.
     _renderCaption() {
       if (!this.caption) return ''
       const headingAttrs = this.headingLevel
@@ -232,17 +183,10 @@
     }
 
     _render() {
-      // A real sectioning element as this widget's own root, not a bare
-      // light-DOM blob — <article> here specifically: a complete, self-
-      // contained, independently reusable thing, matching the HTML
-      // spec's own definition (it names "a widget" as an example). Gives
-      // this widget a real landmark boundary regardless of where it
-      // lands, and explicit license for its own internal markup (the
-      // caption, the form) to exist without reading as presumptuous
-      // toward whatever page it's embedded in.
+      // <article>: a self-contained component (the HTML spec gives "a
+      // widget" as an example).
 
-      // No conduit-url set yet (or not yet validated, in this file's own
-      // demo page).
+      // No conduit-url yet, or, on the demo page, not yet checked.
       if (!this.conduitUrl && !this.demo) {
         this.innerHTML = `
           <article class="xyz-waitlist-widget">

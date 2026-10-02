@@ -1,14 +1,10 @@
 import { parseGoogleRef } from '../google-ref.ts'
 import type { SourceCompileResult } from '../source-compiler.ts'
 
-// Validates a `source:` block shaped for suriType 'googleSheets' — the
-// fields here match what packages/conduit/sheets.ts's own
-// ConduitSourceClient actually reads: `connect(sourceKey, credential)`
-// takes the spreadsheet id as sourceKey (from `conduits sheets create`
-// — see services/gateway/sheets-create.ts's own comment on why an
-// existing sheet's id doesn't work here), and `tableFromConfig`/the
-// shared SuriConfig shape only ever read `.table`/`.fieldMap` from
-// suri_config.
+// Validates a googleSheets `source:` block: the spreadsheet id (from
+// `conduits sheets create`; see sheets-create.ts) becomes sourceKey, and
+// suri_config carries `table` and `fieldMap`, which is all sheets.ts
+// reads.
 export function compileGoogleSheetsSource(raw: unknown, context: string): SourceCompileResult {
   if (typeof raw !== 'object' || raw === null) {
     throw new Error(`${context}: source must be a map`)
@@ -18,8 +14,7 @@ export function compileGoogleSheetsSource(raw: unknown, context: string): Source
   if (typeof source.credential !== 'string') {
     throw new Error(`${context}: source.credential is required`)
   }
-  // Format-only — see google-ref.ts's own doc on why this package never
-  // checks whether the named credential actually exists.
+  // Format only; see google-ref.ts.
   parseGoogleRef(source.credential)
 
   if (typeof source.spreadsheetId !== 'string' || source.spreadsheetId === '') {

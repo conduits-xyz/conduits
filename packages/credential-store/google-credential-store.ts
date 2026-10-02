@@ -5,36 +5,22 @@ import type { GooglePurpose } from '@conduits/config'
 
 import { readJsonFileOrDefault, writeJsonFileAtomic } from './atomic-file.ts'
 
-// A grant is self-contained on purpose (see this file's own callers):
-// clientId/clientSecret travel with the grant instead of being read
-// from the environment every time a gateway starts, so a running
-// gateway never depends on GOOGLE_CLIENT_ID/SECRET still being set —
-// only the one-time authorization step that creates or replaces a
-// grant needs them.
+// A grant includes its clientId and clientSecret, so a running gateway
+// doesn't need GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET; only creating
+// or replacing a grant does.
 export interface StoredGoogleGrant {
   name: string
   purpose: GooglePurpose
   clientId: string
-  // Google's own "Desktop app" OAuth client type is a public client —
-  // its downloaded JSON may carry no client_secret at all, or an empty
-  // one Google doesn't actually require for the token exchange. Kept
-  // optional rather than assumed, matching the real downloaded shape
-  // rather than the "Web application" client type (which always has
-  // one).
+  // Optional: Google's "Desktop app" clients may have no secret, or an
+  // empty one the token exchange doesn't need.
   clientSecret?: string
   tokens: OAuthTokens
-  // Optional lifecycle metadata beyond the grant itself. A plain,
-  // single-operator CLI-authorized install never sets these — both
-  // default to unset and nothing in this package reads them. They
-  // exist for a caller that provisions Google credentials on someone
-  // else's behalf and needs to tell "this exact authorization" apart
-  // from "a replacement of it" across restarts: `generation` is meant
-  // to change only when such a caller intentionally issues a new
-  // authorization, never on an ordinary token refresh, and `status`
-  // can be set to 'invalid' once a generation is confirmed dead by the
-  // provider — tombstoning it in place rather than deleting the grant,
-  // so that same generation, seen again later, is recognizable as
-  // already-dead rather than being silently reinstated.
+  // Optional, unused by this package and unset by the CLI. For a caller
+  // that provisions credentials for others: `generation` changes only
+  // when a new authorization replaces this one (not on refresh), and
+  // `status: 'invalid'` marks a generation the provider has rejected,
+  // keeping the grant so that generation isn't reinstated later.
   generation?: number
   status?: 'active' | 'invalid'
 }
@@ -43,19 +29,15 @@ type StoreFile = Record<string, Partial<Record<GooglePurpose, StoredGoogleGrant>
 
 const DEFAULT_PATH = path.join(os.homedir(), '.conduits', 'credentials.json')
 
-// CONDUITS_CREDENTIAL_STORE_PATH overrides the default — kept out of
-// the project directory by default (not next to conduits.yaml) so an
-// operator committing their config directory to source control doesn't
-// accidentally commit live OAuth tokens alongside it.
+// CONDUITS_CREDENTIAL_STORE_PATH overrides the default. The default is
+// outside the project directory, so committing the config directory
+// doesn't commit tokens.
 export function credentialStorePath(): string {
   return process.env.CONDUITS_CREDENTIAL_STORE_PATH ?? DEFAULT_PATH
 }
 
-// JSON has no Date type — expiresAt round-trips through
-// JSON.stringify/parse as a plain ISO string, so reading a stored
-// connection back needs this same step reconstructing a real Date.
-// Every grant for every purpose under every name needs this, so it's
-// applied once here rather than at each call site.
+// expiresAt is stored as an ISO string; this turns it back into a Date
+// for every grant.
 function reviveGrant(grant: StoredGoogleGrant): StoredGoogleGrant {
   const { expiresAt } = grant.tokens
   if (!expiresAt || expiresAt instanceof Date) return grant
@@ -84,12 +66,9 @@ export function saveGoogleGrant(storePath: string, grant: StoredGoogleGrant): vo
   writeJsonFileAtomic(storePath, store)
 }
 
-// Removes one confirmed-dead grant outright — the rest of the store
-// (other names, or this same name's other purpose) is untouched. Only
-// ever the right call for a grant nothing else is tracking generations
-// for (a one-shot CLI-authorized credential, or an explicit user
-// disconnect) — see markGoogleGrantInvalid below for the alternative a
-// generation-tracking caller should use instead.
+// Removes one grant, leaving the rest of the store. For grants without
+// generation tracking (a CLI-authorized grant, or a disconnect); callers
+// that track generations use markGoogleGrantInvalid.
 export function deleteGoogleGrant(storePath: string, name: string, purpose: GooglePurpose): void {
   const store = readStore(storePath)
   const forName = store[name]
@@ -99,12 +78,9 @@ export function deleteGoogleGrant(storePath: string, name: string, purpose: Goog
   writeJsonFileAtomic(storePath, store)
 }
 
-// The generation-preserving alternative to deleteGoogleGrant: a
-// confirmed-dead grant is tombstoned in place (status: 'invalid'),
-// keeping its generation and the rest of its material — see
-// StoredGoogleGrant's own doc on why deleting it here would lose
-// information a generation-tracking caller still needs. A no-op if
-// nothing is stored under this name/purpose.
+// Marks a grant invalid, keeping its generation and material (see
+// StoredGoogleGrant). Does nothing if no grant is stored under this
+// name and purpose.
 export function markGoogleGrantInvalid(storePath: string, name: string, purpose: GooglePurpose): void {
   const store = readStore(storePath)
   const grant = store[name]?.[purpose]

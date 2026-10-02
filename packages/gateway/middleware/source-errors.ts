@@ -5,11 +5,9 @@ import type { GatewayRuntime } from '../types.ts'
 import { jsonResponse } from '../response.ts'
 import { conduitConfigContext } from './conduit-config.ts'
 
-// Wraps the action (and loadConduitTable()'s connect()/open(), which runs
-// downstream of this in the pipeline). Translates the three
-// ConduitAuthError/ConduitSourceError/ConduitUnknownFieldError types from
-// packages/conduit/sheets.ts into JSON responses; any other thrown error
-// passes through unchanged.
+// Wraps the action and loadConduitTable's connect() and open(). Turns
+// ConduitAuthError, ConduitSourceError and ConduitUnknownFieldError into
+// JSON responses; other errors pass through.
 export function handleSourceErrors(runtime: GatewayRuntime): Middleware {
   return async (context, next) => {
     try {
@@ -20,21 +18,16 @@ export function handleSourceErrors(runtime: GatewayRuntime): Middleware {
       }
 
       if (err instanceof ConduitAuthError) {
-        // A revoked grant — tell the runtime to clean up the now-dead
-        // credential so the next request fails fast instead of hitting
-        // the source again with a token already known to be dead. This
-        // package doesn't know or care which suriTypes have anything to
-        // invalidate; that's the runtime's own call (e.g. Fastmail's
-        // static API token has no refresh/revocation concept, so a
-        // runtime's invalidateCredential() can simply be a no-op for it).
+        // The credential was rejected: let the runtime clean it up so the
+        // next request fails without calling the source. What that means
+        // per suriType is the runtime's choice (a no-op for Fastmail).
         const config = context.get(conduitConfigContext)
         if (config) await runtime.invalidateCredential(config)
         return jsonResponse({ error: 'Service Unavailable' }, 502)
       }
 
       if (err instanceof ConduitSourceError) {
-        // Some other non-2xx from the source (a deleted/renamed table, a
-        // transient 5xx) — logged server-side since it's unexpected.
+        // Another non-2xx (a deleted table, a 5xx); logged.
         console.error(`${err.source} request failed (${err.status}): ${err.message}`)
         return jsonResponse({ error: 'Service Unavailable' }, 502)
       }

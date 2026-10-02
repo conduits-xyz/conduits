@@ -1,27 +1,20 @@
-// A RouteBinding is a concrete (host, path) a request can actually
-// arrive on, mapped to the CURI it resolves to. Multiple bindings can
-// resolve to the same curi (a conduit's standard route plus a custom
-// alias) — see docs/data-model.md's "route binding". Kept generic
-// enough for both the self-hosted Gateway (host usually omitted — a
-// single-deployment operator's own YAML) and a managed Gateway's
-// projected snapshot (host always present).
+// A (host, path) a request can arrive on and the curi it resolves to.
+// Several bindings can resolve to one curi (a standard route and an
+// alias); see docs/data-model.md "route binding". Self-hosted YAML
+// usually omits the host.
 export interface RouteBinding {
-  // undefined matches any host — the common self-hosted case where a
-  // conduit's route isn't tied to a specific hostname.
+  // undefined matches any host.
   host?: string
-  // Always normalized: starts with '/', no trailing slash except '/'
-  // itself, no '.'/'..' segments, no segment equal to the reserved
-  // infrastructure namespace (see RESERVED_SEGMENT).
+  // Normalized: leading '/', no trailing slash except '/' itself, no
+  // '.' or '..' segments, and no RESERVED_SEGMENT segment.
   path: string
   curi: string
 }
 
-// The reserved infrastructure/meta namespace — visually similar to
-// `.well-known` but not claiming to be one. A concrete route's own
-// path may never use this as one of its segments (see
-// normalizeRoutePath), and it's what separates conduit/data paths
-// from conduit-metadata paths at request time (see
-// classifyConduitAction).
+// The reserved namespace for conduit metadata (like `.well-known`, but
+// not one). Route paths can't contain it as a segment
+// (normalizeRoutePath), and classifyConduitAction uses it to tell
+// metadata paths from data paths.
 export const RESERVED_SEGMENT = '.conduits'
 
 export class InvalidRoutePathError extends Error {
@@ -31,9 +24,8 @@ export class InvalidRoutePathError extends Error {
   }
 }
 
-// Case-insensitive, strips a trailing :port — matches how browsers
-// send Host headers and how an operator's own custom-domain config is
-// typically written. undefined/empty means "no host constraint".
+// Lowercased, without a :port, as browsers send Host. undefined or
+// empty means no host constraint.
 export function normalizeHost(host: string | undefined | null): string | undefined {
   if (!host) return undefined
   return host.split(':')[0]!.toLowerCase()
@@ -43,11 +35,9 @@ function splitPath(path: string): string[] {
   return path.split('/').filter((segment) => segment.length > 0)
 }
 
-// Validates and normalizes a route path supplied as configuration
-// (self-hosted YAML, or a managed route projection) — never a live
-// request path, see matchRouteBinding for that. Throws rather than
-// silently coercing a bad value, so a misconfigured route fails at
-// load time, not as a confusing 404 later.
+// Validates and normalizes a configured route path (not a request path;
+// see matchRouteBinding). Throws on a bad value, so the config fails at
+// load time rather than as a 404 later.
 export function normalizeRoutePath(path: string): string {
   if (!path.startsWith('/')) throw new InvalidRoutePathError(path, "must start with '/'")
   if (path !== '/' && path.endsWith('/')) throw new InvalidRoutePathError(path, "must not end with '/'")
@@ -64,19 +54,14 @@ export function normalizeRoutePath(path: string): string {
 
 export interface RouteMatch {
   binding: RouteBinding
-  // What's left of the request path after the binding's own path is
-  // stripped — '' (bare), or a leading-'/' string. Not yet
-  // interpreted as an action — see classifyConduitAction.
+  // The request path after the binding's path: '' or a string starting
+  // with '/'. Interpreted by classifyConduitAction.
   suffix: string
 }
 
-// Finds the binding whose (host, path) is the longest prefix — on
-// segment boundaries, never a raw string prefix — of a live request's
-// (host, pathname). Longest match wins when more than one binding
-// could apply (the same convention most path-based routers/proxies
-// use); in practice this only matters for a self-hosted operator's own
-// overlapping custom `routes:`, since managed default routes never
-// collide (each conduit's namespace/leaf is unique).
+// The binding whose (host, path) is the longest prefix of the request's,
+// matching whole segments only. Overlaps arise only from overlapping
+// custom routes; default routes are unique.
 export function matchRouteBinding(bindings: readonly RouteBinding[], host: string | undefined, pathname: string): RouteMatch | null {
   const requestHost = normalizeHost(host)
   const requestSegments = splitPath(pathname)
@@ -98,28 +83,19 @@ export function matchRouteBinding(bindings: readonly RouteBinding[], host: strin
   return { binding: best.binding, suffix: suffixSegments.length === 0 ? '' : '/' + suffixSegments.join('/') }
 }
 
-// The seam GatewayDeps.resolveRoute actually needs (see pipeline.ts).
-// A precomputed, in-memory RouteBinding[] (self-hosted YAML, a managed
-// Gateway's local active-config cache) is the common case — this
-// wraps matchRouteBinding above for exactly that, so a host with a
-// small, static binding list never has to write its own resolver.
-// A host whose conduit set is too large or dynamic to precompute
-// (resolving straight from its own live database, say) implements
-// GatewayDeps.resolveRoute itself instead of using this.
+// A GatewayDeps.resolveRoute (pipeline.ts) over a fixed in-memory list
+// of bindings. A host with too many bindings to hold in memory
+// implements resolveRoute itself.
 export function createStaticRouteResolver(bindings: readonly RouteBinding[]): (host: string | undefined, pathname: string) => Promise<RouteMatch | null> {
   return async (host, pathname) => matchRouteBinding(bindings, host, pathname)
 }
 
 export type ConduitAction = { kind: 'bare' } | { kind: 'schema' } | { kind: 'readyz' } | { kind: 'item'; id: string }
 
-// Interprets what's left of the request path once matchRouteBinding
-// has stripped a conduit's own base path — the only shapes the
-// protocol defines. Anything under the reserved segment other than
-// exactly `.conduits/schema` or `.conduits/readyz` is deliberately
-// unrecognized (null) rather than guessed at, per the reservation rule
-// (a route may never resolve to something conflicting with Gateway/
-// conduit metadata routing) — this includes a malformed
-// percent-escape in what would otherwise be an item id.
+// Interprets the path after a conduit's base path. Under the reserved
+// segment only `.conduits/schema` and `.conduits/readyz` are recognized;
+// anything else there, or a malformed percent-escape in an item id,
+// returns null.
 export function classifyConduitAction(suffix: string): ConduitAction | null {
   if (suffix === '') return { kind: 'bare' }
   const segments = splitPath(suffix)

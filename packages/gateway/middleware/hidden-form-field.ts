@@ -1,22 +1,16 @@
 import type { HiddenFormFieldRule } from '../types.ts'
 import type { ConduitFields } from '@conduits/conduit'
 
-// A plain function, not middleware — evaluated once per record so a bulk
-// request can keep each record's outcome independent.
-//
-// Every failure — a tripped honeypot (drop-if-filled) or a mismatched
-// pass-if-match value — is handled identically: silently succeed without
-// writing, never a 4xx.
+// Called once per record, not as middleware, so each record in a bulk
+// request has its own outcome. A tripped honeypot (drop-if-filled) or a
+// pass-if-match mismatch both succeed silently without writing, never a
+// 4xx.
 export type HiddenFormFieldOutcome =
-  // `fields` is the submitted set, minus any rule configured with
-  // `include: false` — those are validated (or, for drop-if-filled,
-  // watched as a honeypot) but never forwarded to the source, per that
-  // field's own documented meaning ("whether the field is forwarded to
-  // the target", docs/gateway-api.md).
+  // The submitted fields without those configured `include: false`,
+  // which are checked but not sent to the source (docs/gateway-api.md).
   | { outcome: 'ok'; fields: ConduitFields }
-  // Silently succeed without writing. `fields` is the submitted set with
-  // the field that caused the drop (and any other include: false field)
-  // already stripped out, ready to echo back in the faked response.
+  // Succeed without writing. `fields` excludes the triggering field and
+  // every `include: false` field, for the response.
   | { outcome: 'dropped'; fields: ConduitFields }
 
 export function checkHiddenFormField(rules: HiddenFormFieldRule[], fields: ConduitFields): HiddenFormFieldOutcome {
@@ -30,17 +24,14 @@ export function checkHiddenFormField(rules: HiddenFormFieldRule[], fields: Condu
         const { [rule.fieldName]: _dropped, ...rest } = kept
         return { outcome: 'dropped', fields: rest }
       }
-      // Always excluded, unconditionally — a drop-if-filled field is a
-      // trap, never real data.
+      // Always excluded: a drop-if-filled field is a trap, not data.
       const { [rule.fieldName]: _excluded, ...rest } = kept
       kept = rest
       continue
     }
 
-    // pass-if-match. Stringified before comparing: a JSON body can send a
-    // field's value as a raw number/boolean, and rule.value is always a
-    // string — comparing the submitted value's own string form is what
-    // makes a numeric-looking campaign token still match.
+    // pass-if-match. Compared as strings: JSON may send a number or
+    // boolean, and rule.value is a string.
     if (String(submitted ?? '') !== rule.value) {
       const { [rule.fieldName]: _dropped, ...rest } = kept
       return { outcome: 'dropped', fields: rest }

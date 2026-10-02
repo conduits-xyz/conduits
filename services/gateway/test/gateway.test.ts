@@ -6,8 +6,7 @@ import { compileConduits } from '@conduits/config'
 
 import { gatewayServiceRuntime } from '../runtime.ts'
 
-// A real local Mailpit instance — a real SMTP/REST round trip, never
-// a hand-rolled fake, for anything that actually sends mail.
+// Mail goes through a local Mailpit instance.
 const MAILPIT_API_URL = process.env.MAILPIT_API_URL ?? 'http://localhost:8025'
 
 type MailpitMessage = { To: Array<{ Address: string }>; Subject: string }
@@ -50,8 +49,7 @@ conduits:
       subject: ${subject}
 `)
 
-    // No /api prefix — the default self-hosted route is bare /<curi>
-    // (see docs/data-model.md and README.md).
+    // The default self-hosted route is /<curi> (docs/data-model.md).
     const response = await router.fetch(
       new Request('http://localhost/contact-form', {
         method: 'POST',
@@ -94,8 +92,7 @@ conduits:
     )
     assert.equal(response.status, 201)
 
-    // The default /<curi> route no longer exists once routes: is
-    // explicit — see @conduits/config's compileConduits doc.
+    // With explicit routes:, there is no default /<curi> route.
     const bareResponse = await router.fetch(new Request('http://localhost/contact-form', { method: 'POST' }))
     assert.equal(bareResponse.status, 404)
 

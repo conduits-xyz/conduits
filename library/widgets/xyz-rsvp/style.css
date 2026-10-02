@@ -1,19 +1,11 @@
 /*
- * Theming hook: every visual property a host page might want to override
- * is a --xyz-* custom property, with a sane default — the same --xyz-*
- * vocabulary every widget/form in this repo shares
- * (library/pages/progressive-enhancement-form, library/widgets/xyz-waitlist,
- * library/widgets/xyz-reactions, library/widgets/xyz-contact-form,
- * library/widgets/xyz-feedback). Set these once, on :root or any
- * ancestor common to everything you embed, and every one of them picks
- * up your brand at once, not just this widget.
+ * Theming: visual properties are --xyz-* custom properties, the same
+ * names every widget and form in this library uses. Set them on :root,
+ * or an ancestor of everything you embed, to theme them all.
  *
- * Deliberately NOT declared with a default value on `xyz-rsvp` itself —
- * see xyz-waitlist/style.css's own comment for the full reasoning: a
- * custom property declared anywhere on this tag, at any specificity,
- * always wins over one merely inherited from an ancestor, which would
- * make a :root override silently do nothing. Every default instead lives
- * as the fallback argument to var() at each actual use site below.
+ * Defaults are var() fallbacks below, not declarations on `xyz-rsvp`:
+ * a value declared on the element beats one inherited from :root, so it
+ * would make a :root override do nothing.
  */
 xyz-rsvp {
   display: block;
@@ -22,24 +14,16 @@ xyz-rsvp {
   box-sizing: border-box;
 }
 
-/* Self-containment: every element this widget draws has its own
-   padding/border math scoped to *this* box-sizing, never a host page's
-   ambient convention (or lack of one — content-box is the CSS default,
-   and a host that hasn't reset it must render this widget identically
-   to one that has). Scoped under the widget's own tag, so this can
-   never leak out and change how the host page's *other* content boxes
-   its own elements. */
+/* border-box for everything the widget draws, scoped to the widget so
+   the host page's own box-sizing (or none) doesn't matter. */
 xyz-rsvp *,
 xyz-rsvp *::before,
 xyz-rsvp *::after {
   box-sizing: inherit;
 }
 
-/* A sensible, neutral default for the optional `caption` attribute —
-   a host page can still restyle it (e.g. an uppercase "eyebrow" look)
-   by reaching into this class the same way it already can for
-   .xyz-rsvp-input/.xyz-rsvp-btn; this is just what it looks like with
-   zero host CSS at all. */
+/* The `caption` attribute's default look; host pages can restyle this
+   class, as they can .xyz-rsvp-input and .xyz-rsvp-btn. */
 .xyz-rsvp-caption {
   margin: 0 0 0.5rem;
   font-size: 0.9rem;
@@ -63,13 +47,9 @@ xyz-rsvp *::after {
   font-weight: 600;
 }
 
-/* The UA default `[hidden] { display: none }` rule and
-   `.xyz-rsvp-field { display: flex }` above are equal specificity —
-   an author rule always beats a same-specificity UA one, so without
-   this the guest-count field would stay visible (as flex) even while
-   `hidden`. Higher-specificity override, not !important, so a host's
-   own more-specific selector could still never reach in here anyway —
-  see library/widgets/README.md's "Self-containment" section. */
+/* The UA's [hidden] { display: none } has the same specificity as
+   .xyz-rsvp-field { display: flex }, and the author rule wins, so this
+   more specific rule hides the guest count. */
 .xyz-rsvp-field[hidden] {
   display: none;
 }
@@ -90,18 +70,12 @@ xyz-rsvp *::after {
   outline-offset: 1px;
 }
 
-/* A real <fieldset> now (was a <div role="radiogroup">), with its own
-   <legend> (was a <span> + aria-label) — the fieldset default
-   border/padding/margin/min-width is reset so it behaves like the
-   plain container it's replacing, and legend gets forced onto its own
-   full-width line (flex-basis: 100%) so the three choices below it
-   still wrap into their own row, exactly like before. */
+/* The <fieldset>'s default border, padding, margin and min-width are
+   reset, and the <legend> takes a full line (flex-basis: 100%) so the
+   three choices wrap onto their own row. */
 .xyz-rsvp-attending-fieldset {
   display: flex;
-  /* .xyz-rsvp-field (same specificity, earlier in this file) sets
-     flex-direction: column — must be redeclared here, not just
-     omitted, since the cascade is per-property: a property this rule
-     never mentions keeps whatever the earlier rule already set. */
+  /* Restated: .xyz-rsvp-field, earlier, sets flex-direction: column. */
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;

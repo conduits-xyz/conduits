@@ -1,19 +1,11 @@
 /*
- * Theming hook: every visual property a host page might want to override
- * is a --xyz-* custom property, with a sane default — the same --xyz-*
- * vocabulary every widget/form in this repo shares
- * (library/pages/progressive-enhancement-form, library/widgets/xyz-waitlist,
- * library/widgets/xyz-reactions, library/widgets/xyz-contact-form). Set
- * these once, on :root or any ancestor common to everything you embed,
- * and every one of them picks up your brand at once, not just this
- * widget.
+ * Theming: visual properties are --xyz-* custom properties, the same
+ * names every widget and form in this library uses. Set them on :root,
+ * or an ancestor of everything you embed, to theme them all.
  *
- * Deliberately NOT declared with a default value on `xyz-feedback` itself
- * — see xyz-waitlist/style.css's own comment for the full reasoning: a
- * custom property declared anywhere on this tag, at any specificity,
- * always wins over one merely inherited from an ancestor, which would
- * make a :root override silently do nothing. Every default instead lives
- * as the fallback argument to var() at each actual use site below.
+ * Defaults are var() fallbacks below, not declarations on `xyz-feedback`:
+ * a value declared on the element beats one inherited from :root, so it
+ * would make a :root override do nothing.
  */
 xyz-feedback {
   display: block;
@@ -22,24 +14,16 @@ xyz-feedback {
   box-sizing: border-box;
 }
 
-/* Self-containment: every element this widget draws has its own
-   padding/border math scoped to *this* box-sizing, never a host page's
-   ambient convention (or lack of one — content-box is the CSS default,
-   and a host that hasn't reset it must render this widget identically
-   to one that has). Scoped under the widget's own tag, so this can
-   never leak out and change how the host page's *other* content boxes
-   its own elements. */
+/* border-box for everything the widget draws, scoped to the widget so
+   the host page's own box-sizing (or none) doesn't matter. */
 xyz-feedback *,
 xyz-feedback *::before,
 xyz-feedback *::after {
   box-sizing: inherit;
 }
 
-/* A sensible, neutral default for the optional `caption` attribute —
-   a host page can still restyle it (e.g. an uppercase "eyebrow" look)
-   by reaching into this class the same way it already can for
-   .xyz-feedback-btn; this is just what it looks like with zero host
-   CSS at all. */
+/* The `caption` attribute's default look; host pages can restyle this
+   class, as they can .xyz-feedback-btn. */
 .xyz-feedback-caption {
   margin: 0 0 0.5rem;
   font-size: 0.9rem;
@@ -55,23 +39,17 @@ xyz-feedback *::after {
 .xyz-feedback-scale {
   display: flex;
   gap: 0.375rem;
-  /* A real <fieldset> now (was a <div role="radiogroup">) — resets its
-     UA-default border/padding/margin/min-width so it behaves exactly
-     like the plain flex row it was before; fieldset's own default
-     min-width: min-content is the classic gotcha that would otherwise
-     let it overflow its flex/grid parent. */
+  /* Resets the <fieldset>'s default border, padding, margin and
+     min-width; min-width: min-content would let it overflow its flex
+     parent. */
   border: none;
   margin: 0;
   padding: 0;
   min-width: 0;
 }
 
-/* The <legend> carries the same accessible name role="radiogroup" +
-   aria-label used to, but visually hidden — this scale is already
-   captioned by the page around it (the widget's own README/demo
-   label, or a host page's own copy), so a second, visible label here
-   would be redundant. Same visually-hidden technique as the radio
-   inputs themselves, just below. */
+/* The <legend> names the radio group but is visually hidden; the
+   caption around the widget already labels it. */
 .xyz-feedback-scale-legend {
   position: absolute;
   width: 1px;
@@ -103,11 +81,9 @@ xyz-feedback *::after {
   justify-content: center;
 }
 
-/* Stars: rendered largest-first in source order but visually reversed
-   with row-reverse, the standard pure-CSS star-rating trick — a
-   checked star and every star *before* it in the reversed row (i.e.
-   visually to its left, meaning a lower-or-equal value) picks up the
-   filled color via the general sibling combinator. */
+/* Stars are in source order 5 to 1, shown reversed with row-reverse. A
+   checked star and the stars after it in the source (to its left on
+   screen) are filled via the ~ combinator. */
 .xyz-feedback-scale--stars {
   flex-direction: row-reverse;
   justify-content: flex-end;
@@ -119,10 +95,8 @@ xyz-feedback *::after {
   color: var(--xyz-border, #e0e0e0);
 }
 
-/* row-reverse means DOM order (5,4,3,2,1) runs opposite the visual
-   order — so "every choice at or after this one in the DOM" (the `~`
-   general sibling combinator) is exactly "this star and every star
-   visually to its left," the set a rating of this value should fill. */
+/* With row-reverse, "this star and the ones after it in the DOM" are
+   this star and those to its left: the stars a rating fills. */
 .xyz-feedback-scale--stars .xyz-feedback-choice:has(input:checked) .xyz-feedback-choice-label,
 .xyz-feedback-scale--stars .xyz-feedback-choice:has(input:checked) ~ .xyz-feedback-choice .xyz-feedback-choice-label,
 .xyz-feedback-scale--stars .xyz-feedback-choice:hover .xyz-feedback-choice-label,
