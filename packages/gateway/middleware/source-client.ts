@@ -1,5 +1,5 @@
 import { createContextKey, type Middleware } from 'remix/router'
-import { sourceClients, type ConduitTable } from '@conduits/conduit'
+import { sourceClients, type ConduitSourceClient, type ConduitTable } from '@conduits/conduit'
 
 import { jsonResponse } from '../response.ts'
 import type { GatewayRuntime } from '../types.ts'
@@ -14,12 +14,13 @@ export const conduitTableContext = createContextKey<ConduitTable>()
 // request, and disconnects when the request is done.
 export function loadConduitTable(
   runtime: GatewayRuntime,
+  overrides: Record<string, ConduitSourceClient> = {},
 ): Middleware<{ key: typeof conduitTableContext; value: ConduitTable }> {
   return async (context, next) => {
     const config = context.get(conduitConfigContext)
     if (!config) throw new Error('loadConduitTable() requires resolveConduitConfig() middleware to run first')
 
-    const client = sourceClients[config.suriType]
+    const client = overrides[config.suriType] ?? sourceClients[config.suriType]
     if (!client) {
       return jsonResponse({ error: `Unsupported source: '${config.suriType}'` }, 500)
     }

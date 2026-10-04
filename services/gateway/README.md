@@ -261,6 +261,22 @@ parent directory `0700`), the same trust model most local CLI
 credential stores use. Treat it like an SSH private key: don't commit
 it, don't copy it somewhere with looser permissions.
 
+## Settings
+
+Besides credentials, `.env` holds five required settings, already set
+in `.env.example`; the gateway won't start without them:
+
+| variable | what it does |
+|:--|:--|
+| `CONDUITS_LIST_DEFAULT_LIMIT` | rows a list read (`GET` on a conduit) returns without `limit` |
+| `CONDUITS_LIST_MAX_LIMIT` | the largest `limit` a list read may ask for |
+| `CONDUITS_SHEETS_READ_CACHE_MS` | how long list reads reuse a sheet tab's contents; a write through the gateway clears it, an edit in Google Sheets shows once it expires |
+| `CONDUITS_SHEETS_REQUESTS_PER_MINUTE` | requests to Google Sheets per minute, reads and writes counted separately; above it callers get `429` with `Retry-After` |
+| `CONDUITS_SHEETS_REQUESTS_PER_MINUTE_PER_ACCOUNT` | the same, per Google account |
+
+A list read returns one page and a `nextCursor`; pass it back as
+`?cursor=` until it is `null`.
+
 ## Routes
 
 Every conduit's default route is `/<curi>` — no `/api` prefix, and the

@@ -73,6 +73,7 @@ conduits:
     resolveConfig: async (curi) => byCuri.get(curi) ?? null,
     resolveRoute: createStaticRouteResolver(bindings),
     runtime: testRuntime,
+    listLimits: { default: 1000, max: 1000 },
   })
 }
 

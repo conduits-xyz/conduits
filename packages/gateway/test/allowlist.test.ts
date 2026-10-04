@@ -30,6 +30,7 @@ const router = createGatewayRouter({
   resolveConfig: async (curi) => (curi === 'allowlisted' ? config : null),
   resolveRoute: createStaticRouteResolver([{ path: '/allowlisted', curi: 'allowlisted' }]),
   runtime,
+  listLimits: { default: 1000, max: 1000 },
 })
 
 function get(forwardedFor?: string): Promise<Response> {

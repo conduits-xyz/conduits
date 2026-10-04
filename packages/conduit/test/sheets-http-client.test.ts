@@ -1,7 +1,7 @@
 import * as assert from 'remix/assert'
 import { describe, it, afterEach } from 'remix/test'
 
-import { createHttpSheetsClient, ConduitAuthError, ConduitSourceError } from '../sheets.ts'
+import { createHttpSheetsClient, ConduitAuthError, ConduitRateLimitError, ConduitSourceError } from '../sheets.ts'
 import { ConduitUnknownFieldError } from '../field-map.ts'
 import { jsonResponse } from './helpers.ts'
 
@@ -45,7 +45,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
   describe('request building — reads', () => {
     it('reads the grid with a Bearer token, no table quoting when no table is configured', async () => {
       const mock = mockFetch((url) => {
-        assert.equal(url, `${SHEETS_API}/sheet-1/values/A1:ZZ10000`)
+        assert.equal(url, `${SHEETS_API}/sheet-1/values/A:ZZ`)
         return jsonResponse({ values: [['conduit-id', 'name'], ['r1', 'Ada']] })
       })
       restore = mock.restore
@@ -61,7 +61,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
 
     it('quotes a table name in the range, doubling any embedded single quotes', async () => {
       const mock = mockFetch((url) => {
-        assert.equal(url, `${SHEETS_API}/sheet-1/values/'Q&A''s'!A1:ZZ10000`)
+        assert.equal(url, `${SHEETS_API}/sheet-1/values/'Q&A''s'!A:ZZ`)
         return jsonResponse({ values: [] })
       })
       restore = mock.restore
@@ -308,5 +308,72 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
       const client = createHttpSheetsClient()
       assert.deepEqual(client.capabilities(), { methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], bulkCreate: true })
     })
+  })
+})
+
+describe('Sheets HTTP client — read cache and request budget', () => {
+  let restore: (() => void) | undefined
+  afterEach(() => {
+    restore?.()
+    restore = undefined
+  })
+
+  const grid = { values: [['conduit-id', 'name'], ['r1', 'Ada'], ['r2', 'Grace']] }
+
+  it('reads the whole sheet, not a fixed number of rows', async () => {
+    const mock = mockFetch(() => jsonResponse(grid))
+    restore = mock.restore
+    const source = await createHttpSheetsClient().connect('sheet-1', 'good-token')
+    await source.open().listRecords()
+    assert.match(mock.calls[0]!.url, /\/values\/A:ZZ$/)
+  })
+
+  it('pages from one read while the cache lasts, and reads again after a write through the client', async () => {
+    const mock = mockFetch((url, method) => {
+      if (method === 'GET') return jsonResponse(grid)
+      return jsonResponse({ updates: { updatedRange: 'Sheet1!A4:B4' } })
+    })
+    restore = mock.restore
+    const table = (await createHttpSheetsClient({ readCacheMs: 60_000 }).connect('sheet-1', 'good-token')).open()
+
+    const first = await table.listRecords({ limit: 1 })
+    await table.listRecords({ cursor: first.nextCursor!, limit: 1 })
+    assert.equal(mock.calls.filter((c) => c.method === 'GET').length, 1, 'the second page came from the cache')
+
+    await table.createRecord({ name: 'Mary' }).catch(() => {})
+    const readsBefore = mock.calls.filter((c) => c.method === 'GET').length
+    await table.listRecords()
+    assert.equal(mock.calls.filter((c) => c.method === 'GET').length, readsBefore + 1, 'a write clears the cache')
+  })
+
+  it('never serves one access token the rows read with another', async () => {
+    const mock = mockFetch(() => jsonResponse(grid))
+    restore = mock.restore
+    const client = createHttpSheetsClient({ readCacheMs: 60_000 })
+    await (await client.connect('sheet-1', 'token-a')).open().listRecords()
+    await (await client.connect('sheet-1', 'token-b')).open().listRecords()
+    assert.equal(mock.calls.length, 2)
+  })
+
+  it('refuses with a retry time once the per-account budget is used, without calling Google', async () => {
+    const mock = mockFetch(() => jsonResponse(grid))
+    restore = mock.restore
+    const client = createHttpSheetsClient({ readCacheMs: 1, budget: { perMinute: 100, perCredentialPerMinute: 2 } })
+    const table = (await client.connect('sheet-1', 'good-token')).open()
+    await table.listRecords()
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await table.listRecords()
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await assert.rejects(table.listRecords(), (err: unknown) => err instanceof ConduitRateLimitError && err.retryAfterSeconds >= 1)
+    assert.equal(mock.calls.length, 2)
+    // Another account still has its own budget.
+    await (await client.connect('sheet-1', 'other-token')).open().listRecords()
+  })
+
+  it("turns Google's own 429 into a rate-limit error", async () => {
+    const mock = mockFetch(() => jsonResponse({ error: { message: 'Quota exceeded' } }, 429))
+    restore = mock.restore
+    const table = (await createHttpSheetsClient().connect('sheet-1', 'good-token')).open()
+    await assert.rejects(table.listRecords(), (err: unknown) => err instanceof ConduitRateLimitError && /Quota exceeded/.test(err.message))
   })
 })

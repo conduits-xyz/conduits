@@ -44,6 +44,10 @@ export interface ConduitSource {
 
 export interface ConduitTable {
   describeFields(): Promise<Array<{ name: string; type: ConduitFieldType; nullable: boolean }>>
+  // `cursor` is whatever your last page returned as nextCursor; the
+  // gateway wraps it so callers never see its form. `limit` is always
+  // set by the gateway (its listLimits). Return fewer rows than `limit`
+  // if your API does; callers follow nextCursor until it is null.
   listRecords(page?: { cursor?: string; limit?: number }): Promise<{
     records: ConduitRecord[]
     nextCursor: string | null
@@ -226,9 +230,14 @@ method anywhere re-passes `sourceKey`, `credential`, or `config`.
 
 ```ts
 throw new ConduitAuthError(SOURCE, message)           // credential no longer works
+throw new ConduitRateLimitError(SOURCE, message, retryAfterSeconds)  // your API (or a budget you keep) says not now
 throw new ConduitSourceError(SOURCE, message, status)  // any other non-2xx from your API
 throw new ConduitUnknownFieldError(SOURCE, fieldName)  // write named a field your source doesn't have
 ```
+
+The gateway answers `ConduitRateLimitError` with `429` and
+`Retry-After: <retryAfterSeconds>`, so callers back off instead of
+seeing a failure.
 
 `SOURCE` is a constant you define — the string identifying your
 integration (see "Registering" below; it must match your entry in

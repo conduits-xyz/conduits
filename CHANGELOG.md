@@ -5,6 +5,36 @@ config tooling, and widgets are documented here.
 
 ## Unreleased
 
+## 0.5.1 - 2026-10-04
+
+### Changed
+
+- **A list read (`GET` on a conduit) returns pages.** Without `limit` it
+  returns `CONDUITS_LIST_DEFAULT_LIMIT` rows, and `limit` can't exceed
+  `CONDUITS_LIST_MAX_LIMIT`; both are new required settings (1000 in
+  `.env.example`). A client that read a large sheet without `limit`
+  now gets the first page and a `nextCursor`; follow it until it is
+  `null`.
+- **`nextCursor` is opaque.** Pass it back unchanged; a bare row
+  number is no longer accepted.
+- **Google Sheets reads take the whole sheet.** They stopped at row
+  10,000 before.
+- **Repeated reads of one sheet come from a short cache.** A list read
+  reuses a tab's contents for `CONDUITS_SHEETS_READ_CACHE_MS`. A write
+  through the gateway clears the cache at once; an edit made in Google
+  Sheets shows once the cache expires.
+- **Requests to Google Sheets are budgeted per minute,** across the
+  gateway and per Google account (`CONDUITS_SHEETS_REQUESTS_PER_MINUTE`,
+  `CONDUITS_SHEETS_REQUESTS_PER_MINUTE_PER_ACCOUNT`; required). Above the
+  budget, or when Google itself answers 429, the gateway answers `429`
+  with `Retry-After` instead of `502`.
+- **`createGatewayRouter` takes `listLimits`,** and optionally
+  `sourceClients` to replace a source's client, for example one made by
+  `createGoogleSheetsClient` with a cache and budget. Sources can throw
+  the new `ConduitRateLimitError`.
+- **The reactions widget counts every reaction,** following `nextCursor`
+  across pages.
+
 ### Security
 
 - The IP allowlist now uses the rightmost `X-Forwarded-For` entry, the

@@ -28,6 +28,7 @@ function buildRouter(yamlText: string) {
     resolveConfig: async (curi) => byCuri.get(curi) ?? null,
     resolveRoute: createStaticRouteResolver(bindings),
     runtime: gatewayServiceRuntime,
+    listLimits: { default: 1000, max: 1000 },
   })
 }
 

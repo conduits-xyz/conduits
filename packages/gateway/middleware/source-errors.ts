@@ -1,13 +1,14 @@
 import type { Middleware } from 'remix/router'
 
-import { ConduitAuthError, ConduitSourceError, ConduitUnknownFieldError } from '@conduits/conduit'
+import { ConduitAuthError, ConduitRateLimitError, ConduitSourceError, ConduitUnknownFieldError } from '@conduits/conduit'
 import type { GatewayRuntime } from '../types.ts'
 import { jsonResponse } from '../response.ts'
 import { conduitConfigContext } from './conduit-config.ts'
 
 // Wraps the action and loadConduitTable's connect() and open(). Turns
-// ConduitAuthError, ConduitSourceError and ConduitUnknownFieldError into
-// JSON responses; other errors pass through.
+// ConduitAuthError, ConduitRateLimitError (429 with Retry-After),
+// ConduitSourceError and ConduitUnknownFieldError into JSON responses;
+// other errors pass through.
 export function handleSourceErrors(runtime: GatewayRuntime): Middleware {
   return async (context, next) => {
     try {
@@ -24,6 +25,10 @@ export function handleSourceErrors(runtime: GatewayRuntime): Middleware {
         const config = context.get(conduitConfigContext)
         if (config) await runtime.invalidateCredential(config)
         return jsonResponse({ error: 'Service Unavailable' }, 502)
+      }
+
+      if (err instanceof ConduitRateLimitError) {
+        return jsonResponse({ error: 'Too Many Requests' }, 429, { 'Retry-After': String(err.retryAfterSeconds) })
       }
 
       if (err instanceof ConduitSourceError) {

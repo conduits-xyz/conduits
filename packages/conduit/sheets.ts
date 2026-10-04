@@ -49,6 +49,19 @@ export class ConduitSourceError extends Error {
   }
 }
 
+// The source, or this process's budget for it, refused the request for
+// now; retry after `retryAfterSeconds`. The gateway answers 429 with
+// Retry-After.
+export class ConduitRateLimitError extends ConduitSourceError {
+  constructor(
+    source: string,
+    message: string,
+    public readonly retryAfterSeconds: number,
+  ) {
+    super(source, message, 429)
+  }
+}
+
 // --- The contract (see INTEGRATIONS.md) ---
 
 export type ConduitFieldType = 'string' | 'number' | 'boolean' | 'date'
@@ -223,6 +236,8 @@ function inferSchema(header: string[], dataRows: string[][]): Map<string, Condui
 // rather than up to MAX_BULK_RECORDS.
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets'
 const RANGE = 'A1:ZZ10000'
+// Reads take every row; RANGE only anchors appends.
+const READ_RANGE = 'A:ZZ'
 
 async function sheetsFetch(
   path: string,
@@ -265,6 +280,10 @@ async function throwForStatus(response: Response, action: string): Promise<void>
   if (response.status === 401) {
     throw new ConduitAuthError(SOURCE, `Sheets ${action} failed: access token rejected (401)${detail ? ` — ${detail}` : ''}`)
   }
+  if (response.status === 429) {
+    // Google's quotas refill each minute.
+    throw new ConduitRateLimitError(SOURCE, `Sheets ${action} refused by Google's quota (429)${detail ? `: ${detail}` : ''}`, 60)
+  }
   throw new ConduitSourceError(SOURCE, `Sheets ${action} failed (${response.status})${detail ? `: ${detail}` : ''}`, response.status)
 }
 
@@ -284,7 +303,7 @@ async function getGrid(
   credential: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<string[][]> {
-  const response = await sheetsFetch(`${sourceKey}/values/${rangeFor(tableName, RANGE)}`, credential, undefined, fetchImpl)
+  const response = await sheetsFetch(`${sourceKey}/values/${rangeFor(tableName, READ_RANGE)}`, credential, undefined, fetchImpl)
   await throwForStatus(response, 'read')
   const body = (await response.json()) as { values?: string[][] }
   return body.values ?? []
@@ -666,8 +685,9 @@ function openHttpTable(
   credential: string,
   tableName: string | undefined,
   fetchImpl: typeof fetch = fetch,
+  gridCache?: GridCache,
 ): ConduitTable {
-  return {
+  const table: ConduitTable = {
     async describeFields() {
       return cached(`fields\0${sourceKey}\0${tableName ?? ''}\0${tokenDigest(credential)}`, async () => {
         const grid = await getGrid(sourceKey, tableName, credential, fetchImpl)
@@ -695,7 +715,9 @@ function openHttpTable(
     },
 
     async listRecords(page) {
-      const grid = await getGrid(sourceKey, tableName, credential, fetchImpl)
+      const grid = gridCache
+        ? await gridCache.read(sourceKey, tableName, credential, () => getGrid(sourceKey, tableName, credential, fetchImpl))
+        : await getGrid(sourceKey, tableName, credential, fetchImpl)
       const [header, ...dataRows] = grid
       const schema = header ? inferSchema(header, dataRows) : new Map<string, ConduitFieldType>()
       const allRows = rowsFromGrid(grid)
@@ -749,15 +771,118 @@ function openHttpTable(
       return deleteRows(sourceKey, tableName, credential, ids, fetchImpl)
     },
   }
+  if (!gridCache) return table
+  // Any write through this client drops the spreadsheet's cached tabs,
+  // so a read after it sees the change. Edits made elsewhere (in Google
+  // Sheets itself) show once the cache entry expires.
+  for (const name of WRITE_METHODS) {
+    const write = table[name] as (...args: unknown[]) => Promise<unknown>
+    ;(table as unknown as Record<string, unknown>)[name] = async (...args: unknown[]) => {
+      try {
+        return await write(...args)
+      } finally {
+        gridCache.invalidate(sourceKey)
+      }
+    }
+  }
+  return table
+}
+
+const WRITE_METHODS = [
+  'createField',
+  'createFields',
+  'deleteField',
+  'deleteFields',
+  'createRecord',
+  'createRecords',
+  'replaceRecord',
+  'replaceRecords',
+  'updateRecord',
+  'updateRecords',
+  'deleteRecord',
+  'deleteRecords',
+] as const satisfies readonly (keyof ConduitTable)[]
+
+// A tab's contents, reused by list reads for `ttlMs` so paging through a
+// large sheet reads it from Google once. Keys include a digest of the
+// access token, so one credential's rows are never served to another.
+class GridCache {
+  private readonly entries = new Map<string, { grid: Promise<string[][]>; expiresAt: number }>()
+
+  constructor(private readonly ttlMs: number) {}
+
+  read(sourceKey: string, tableName: string | undefined, credential: string, load: () => Promise<string[][]>): Promise<string[][]> {
+    const key = `${sourceKey}\0${tableName ?? ''}\0${tokenDigest(credential)}`
+    const now = Date.now()
+    for (const [k, entry] of this.entries) if (entry.expiresAt <= now) this.entries.delete(k)
+    const hit = this.entries.get(key)
+    if (hit) return hit.grid
+    const grid = load()
+    this.entries.set(key, { grid, expiresAt: now + this.ttlMs })
+    // A failed read isn't cached.
+    grid.catch(() => this.entries.delete(key))
+    return grid
+  }
+
+  invalidate(sourceKey: string): void {
+    for (const key of this.entries.keys()) if (key.startsWith(`${sourceKey}\0`)) this.entries.delete(key)
+  }
+}
+
+// A budget of requests per minute to Google, for the whole process and
+// per access token, kept below Google's own quotas so this process gets
+// a 429 with Retry-After before Google refuses everyone. Reads and
+// writes have separate budgets, as Google's quotas do.
+class RequestBudget {
+  private readonly windows = new Map<string, number[]>()
+
+  constructor(private readonly perMinute: number, private readonly perCredentialPerMinute: number) {}
+
+  take(kind: 'read' | 'write', credential: string): void {
+    const now = Date.now()
+    // Access tokens change hourly; drop windows with nothing in the last
+    // minute so old tokens' windows don't pile up.
+    for (const [key, window] of this.windows) if ((window.at(-1) ?? 0) <= now - 60_000) this.windows.delete(key)
+    const check = (key: string, limit: number) => {
+      const window = (this.windows.get(key) ?? []).filter((at) => at > now - 60_000)
+      this.windows.set(key, window)
+      if (window.length >= limit) {
+        const retryAfterSeconds = Math.max(1, Math.ceil((window[0]! + 60_000 - now) / 1000))
+        throw new ConduitRateLimitError(SOURCE, `Sheets ${kind} budget used up for this minute`, retryAfterSeconds)
+      }
+      return window
+    }
+    const all = check(kind, this.perMinute)
+    const mine = check(`${kind}\0${tokenDigest(credential)}`, this.perCredentialPerMinute)
+    all.push(now)
+    mine.push(now)
+  }
+}
+
+export interface GoogleSheetsClientOptions {
+  // How long list reads may reuse a tab's contents, in milliseconds; 0
+  // turns the cache off.
+  readCacheMs: number
+  // Requests per minute to Google, for the process and per access token,
+  // for reads and for writes. Absent: no budget.
+  budget?: { perMinute: number; perCredentialPerMinute: number }
 }
 
 // Exported for its unit test; under NODE_ENV=test googleSheetsClient is
 // the in-memory fake below.
-export function createHttpSheetsClient(): ConduitSourceClient {
+export function createHttpSheetsClient(options: GoogleSheetsClientOptions = { readCacheMs: 0 }): ConduitSourceClient {
+  const gridCache = options.readCacheMs > 0 ? new GridCache(options.readCacheMs) : undefined
+  const budget = options.budget ? new RequestBudget(options.budget.perMinute, options.budget.perCredentialPerMinute) : undefined
   return {
     // No handshake: connect() only keeps sourceKey and credential for
     // open().
-    async connect(sourceKey, credential, fetchImpl = fetch) {
+    async connect(sourceKey, credential, baseFetch = fetch) {
+      const fetchImpl: typeof fetch = budget
+        ? (input, init) => {
+            budget.take((init?.method ?? 'GET').toUpperCase() === 'GET' ? 'read' : 'write', credential)
+            return baseFetch(input, init)
+          }
+        : baseFetch
       return {
         async listTables() {
           return cached(`tabs\0${sourceKey}\0${tokenDigest(credential)}`, async () => {
@@ -770,7 +895,7 @@ export function createHttpSheetsClient(): ConduitSourceClient {
           })
         },
         open(config) {
-          return openHttpTable(sourceKey, credential, tableFromConfig(config), fetchImpl)
+          return openHttpTable(sourceKey, credential, tableFromConfig(config), fetchImpl, gridCache)
         },
       }
     },
@@ -1045,6 +1170,12 @@ export async function listFakeRecords(sourceKey: string, tableName?: string): Pr
 
 export const googleSheetsClient: ConduitSourceClient =
   process.env.NODE_ENV === 'test' ? createFakeSheetsClient() : createHttpSheetsClient()
+
+// A Sheets client with a read cache and request budget, for a gateway's
+// `sourceClients`. Under NODE_ENV=test, the same in-memory fake.
+export function createGoogleSheetsClient(options: GoogleSheetsClientOptions): ConduitSourceClient {
+  return process.env.NODE_ENV === 'test' ? googleSheetsClient : createHttpSheetsClient(options)
+}
 
 // The sourceClients registry is in index.ts, to avoid a circular import
 // with fastmail.ts.

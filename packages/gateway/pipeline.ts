@@ -1,3 +1,4 @@
+import type { ConduitSourceClient } from '@conduits/conduit'
 import { resolveConduitConfig } from './middleware/conduit-config.ts'
 import { enforceRacm } from './middleware/racm.ts'
 import { enforceAllowlist } from './middleware/allowlist.ts'
@@ -16,6 +17,13 @@ export interface GatewayDeps {
   resolveConfig: (curi: string) => Promise<ConduitConfig | null>
   resolveRoute: (host: string | undefined, pathname: string) => Promise<RouteMatch | null>
   runtime: GatewayRuntime
+  // Rows a list read returns when it gives no `limit`, and the largest
+  // `limit` it may give. Set by the caller; the package has no default.
+  listLimits: { default: number; max: number }
+  // Source clients by suriType, replacing the package's registry
+  // (`sourceClients`) for the types given, for example a Sheets client
+  // with a read cache and budget (createGoogleSheetsClient).
+  sourceClients?: Record<string, ConduitSourceClient>
 }
 
 // Runs per action rather than on the router, since context.params.curi
@@ -30,7 +38,7 @@ export function createGatewayMiddleware(deps: GatewayDeps) {
     enforceBearerToken(),
     enforceThrottle(),
     handleSourceErrors(deps.runtime),
-    loadConduitTable(deps.runtime),
+    loadConduitTable(deps.runtime, deps.sourceClients),
   ] as const
 }
 

@@ -10,7 +10,7 @@ for the full extension-point contract.
 - `sheets.ts` — the `ConduitSourceClient`/`ConduitSource`/`ConduitTable`
   interfaces, the `sourceClients` registry every implementation plugs
   into, the conduit-domain error types
-  (`ConduitAuthError`/`ConduitSourceError`/`ConduitUnknownFieldError`)
+  (`ConduitAuthError`/`ConduitRateLimitError`/`ConduitSourceError`/`ConduitUnknownFieldError`)
   every integration throws, and the Google Sheets implementation.
   `connect(sourceKey, credential)` and `open(config)` resolve those
   three once each, not per method call — conduit's own vocabulary

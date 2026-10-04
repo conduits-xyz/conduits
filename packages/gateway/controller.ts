@@ -104,18 +104,18 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
       const table = requireConduitTable(context)
       const { fieldMap } = config.suriConfig
 
-      const cursor = context.url.searchParams.get('cursor') ?? undefined
+      const cursorParam = context.url.searchParams.get('cursor')
+      const cursor = cursorParam === null ? undefined : decodeListCursor(cursorParam)
+      if (cursor === null) return jsonResponse({ error: 'Bad Request: unknown cursor' }, 400)
       const limitParam = context.url.searchParams.get('limit')
-      let limit: number | undefined
-      if (limitParam !== null) {
-        limit = Number(limitParam)
-        if (!Number.isInteger(limit) || limit <= 0) return jsonResponse({ error: 'Bad Request' }, 400)
-      }
+      const limit = limitParam === null ? deps.listLimits.default : Number(limitParam)
+      if (!Number.isInteger(limit) || limit <= 0) return jsonResponse({ error: 'Bad Request' }, 400)
+      if (limit > deps.listLimits.max) return jsonResponse({ error: `Bad Request: limit must be at most ${deps.listLimits.max}` }, 400)
 
       const { records, nextCursor } = await table.listRecords({ cursor, limit })
       return jsonResponse({
         records: records.map((record) => wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) })),
-        nextCursor,
+        nextCursor: nextCursor === null ? null : encodeListCursor(nextCursor),
       })
     },
 
@@ -225,5 +225,21 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
       if (!ok) return jsonResponse({ error: 'Not Found' }, 404)
       return jsonResponse({ records: ids.map((id) => ({ id, deleted: true })) })
     },
+  }
+}
+
+// A list read's cursor, opaque to callers: base64url of {v:1,c:<the
+// source's own cursor>}, so a source can change what it puts inside
+// without breaking clients. Returns null for anything else.
+export function encodeListCursor(sourceCursor: string): string {
+  return Buffer.from(JSON.stringify({ v: 1, c: sourceCursor })).toString('base64url')
+}
+
+export function decodeListCursor(cursor: string): string | null {
+  try {
+    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as { v?: unknown; c?: unknown }
+    return value.v === 1 && typeof value.c === 'string' ? value.c : null
+  } catch {
+    return null
   }
 }

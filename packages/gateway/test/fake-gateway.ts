@@ -36,6 +36,7 @@ export function createFakeGateway(curi: string) {
       resolveConfig: async (requested) => (requested === curi ? config : null),
       resolveRoute: createStaticRouteResolver(bindings),
       runtime,
+      listLimits: { default: 1000, max: 1000 },
     })
   }
 

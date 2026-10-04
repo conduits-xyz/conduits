@@ -234,10 +234,19 @@
 
     async _refreshCounts() {
       try {
-        const response = await fetch(this.conduitUrl)
-        if (!response.ok) return
-        const body = await response.json()
-        const records = Array.isArray(body.records) ? body.records : []
+        // A list read returns one page at a time; follow nextCursor to
+        // count every reaction.
+        const records = []
+        let cursor = null
+        do {
+          const url = new URL(this.conduitUrl, location.href)
+          if (cursor) url.searchParams.set('cursor', cursor)
+          const response = await fetch(url)
+          if (!response.ok) return
+          const body = await response.json()
+          if (Array.isArray(body.records)) records.push(...body.records)
+          cursor = typeof body.nextCursor === 'string' ? body.nextCursor : null
+        } while (cursor)
         const matching = records.filter((r) => (r.fields ? r.fields.subject : undefined) === this.subject)
         this._counts = {
           up: matching.filter((r) => r.fields.reaction === 'up').length,
