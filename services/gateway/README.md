@@ -298,12 +298,15 @@ route reference.
 surfaces here — there's no general conduit-editing command; conduits
 are still authored directly in `conduits.yaml`.
 
-## What's deliberately not here yet
+## What isn't here
 
-No config-reload watcher, no general-purpose conduit-editing CLI
-commands, no metrics persistence (hit/honeypot counts are logged to
-stdout, not stored anywhere — there's no database to store them in). A
-future CLI improvement: accepting Google's downloaded Desktop-client
-JSON directly instead of two env vars, and looking up a Fastmail
-identity id instead of requiring you to find it yourself. These are
-later milestones, not oversights.
+- No config-reload watcher: restart the gateway after editing
+  `conduits.yaml`.
+- No conduit-editing commands: conduits are written in
+  `conduits.yaml`.
+- No stored metrics: hit and honeypot counts are logged to stdout;
+  there's no database to keep them in.
+- Google's OAuth client is configured with two environment variables,
+  not the Desktop-client JSON file Google offers to download.
+- A Fastmail identity id isn't looked up for you (see
+  `conduits.example.yaml`).

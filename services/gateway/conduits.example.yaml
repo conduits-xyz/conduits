@@ -27,9 +27,7 @@ conduits:
     source:
       type: fastmail
       # The Fastmail JMAP identity (the "send as" address) to send
-      # from — there's no discovery tool for this yet, so find it
-      # yourself via Fastmail's own JMAP Identity/get call. A future
-      # CLI is meant to look this up for you.
+      # from. Find it with Fastmail's own JMAP Identity/get call.
       identityId: REPLACE_WITH_YOUR_FASTMAIL_IDENTITY_ID
       credential: env:FASTMAIL_TOKEN
       recipients: [owner@example.com]
