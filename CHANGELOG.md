@@ -5,6 +5,33 @@ provider integrations, the config tools, and the widgets.
 
 ## Unreleased
 
+## 0.6.1 - 2026-10-05
+
+### Changed
+
+- **A body member that a request does not accept gets `400`
+  `unknown_member`,** with one `errors` item and a JSON Pointer for each
+  member, for example `feilds`, or `note` beside `fields` in a record.
+  Before, the gateway ignored it.
+- Each response has a `Request-Id` header. Each problem has the same id
+  in `instance` (`urn:request:<id>`) and `Cache-Control: no-store`.
+  Browser code can read `Request-Id` and `Retry-After`
+  (`Access-Control-Expose-Headers`).
+- `createGatewayRouter` takes an optional `requestId` function, which
+  makes each request's id.
+
+### Added
+
+- `problemResponder(codes, docsUrl)` builds Problem Details for a host's
+  own API in the gateway's shape; `problemResponse` is the gateway's
+  own. `findUnknownMembers` lists the members of a body that a route
+  does not accept.
+
+### Fixed
+
+- The self-hosted gateway's last-resort `500` is Problem Details, not
+  plain text.
+
 ## 0.6.0 - 2026-10-04
 
 ### Breaking

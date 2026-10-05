@@ -4,7 +4,7 @@
 // The alphabet leaves out 0, 1, i, l and o, which are easily confused.
 // Fixed width and an ascending alphabet make string order equal numeric
 // order, so ids sort by creation time; nothing here may break that.
-const ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz'
+export const ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz'
 const BASE = ALPHABET.length // 31
 const TIMESTAMP_LENGTH = 9 // 31^9 ~= 1.75e13 ms ~= year 2525 — plenty of headroom
 

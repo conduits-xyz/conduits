@@ -23,6 +23,7 @@ const ERRORS = {
   invalid_limit: { status: 400, title: 'Invalid limit' },
   unknown_cursor: { status: 400, title: 'Unknown cursor' },
   unknown_field: { status: 400, title: 'Unknown field' },
+  unknown_member: { status: 400, title: 'Unknown member' },
   unauthorized: { status: 401, title: 'Unauthorized' },
   forbidden: { status: 403, title: 'Forbidden' },
   not_found: { status: 404, title: 'Not found' },
@@ -36,37 +37,39 @@ const ERRORS = {
 
 type ErrorCode = keyof typeof ERRORS
 
-const ERROR_DOCS = 'https://github.com/conduits-xyz/conduits/blob/main/docs/gateway-api.md'
-
 // One field or element at fault; `pointer` is a JSON Pointer into the
 // request body.
-export interface FieldError {
-  code: ErrorCode
+export interface FieldError<Code extends string = ErrorCode> {
+  code: Code
   field?: string
   pointer: string
   detail: string
 }
 
-// An error as RFC 9457 Problem Details, with the gateway's `code`, and
-// `errors` and `retryAfter` when they apply.
-export function problemResponse(
-  code: ErrorCode,
-  options: { detail?: string; errors?: FieldError[]; retryAfter?: number; headers?: Record<string, string> } = {},
-): Response {
-  const { status, title } = ERRORS[code]
-  const body = {
-    type: `${ERROR_DOCS}#${code.replaceAll('_', '-')}`,
-    title,
-    status,
-    ...(options.detail ? { detail: options.detail } : {}),
-    code,
-    ...(options.errors ? { errors: options.errors } : {}),
-    ...(options.retryAfter !== undefined ? { retryAfter: options.retryAfter } : {}),
+export type ProblemOptions<Code extends string> = { detail?: string; errors?: FieldError<Code>[]; retryAfter?: number; headers?: Record<string, string> }
+
+// Builds RFC 9457 Problem Details from a table of codes, each with its
+// status and title; `type` links to the code's entry in `docs`. Adds
+// `errors` and `retryAfter` when given. A problem is never cached.
+export function problemResponder<Code extends string>(errors: Record<Code, { status: number; title: string }>, docs: string) {
+  return (code: Code, options: ProblemOptions<Code> = {}): Response => {
+    const { status, title } = errors[code]
+    const body = {
+      type: `${docs}#${code.replaceAll('_', '-')}`,
+      title,
+      status,
+      ...(options.detail ? { detail: options.detail } : {}),
+      code,
+      ...(options.errors ? { errors: options.errors } : {}),
+      ...(options.retryAfter !== undefined ? { retryAfter: options.retryAfter } : {}),
+    }
+    const headers: Record<string, string> = { 'cache-control': 'no-store', ...options.headers }
+    if (options.retryAfter !== undefined) headers['Retry-After'] = String(options.retryAfter)
+    return respond(body, status, 'application/problem+json', headers)
   }
-  const headers: Record<string, string> = { ...options.headers }
-  if (options.retryAfter !== undefined) headers['Retry-After'] = String(options.retryAfter)
-  return respond(body, status, 'application/problem+json', headers)
 }
+
+export const problemResponse = problemResponder(ERRORS, 'https://github.com/conduits-xyz/conduits/blob/main/docs/gateway-api.md')
 
 // A JSON Pointer segment (RFC 6901): `~` and `/` escaped.
 export const pointerSegment = (name: string) => name.replaceAll('~', '~0').replaceAll('/', '~1')

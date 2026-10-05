@@ -167,7 +167,9 @@ appears. A `pass-if-match` field with `include: true` appears.
 Each response has `Access-Control-Allow-Origin: *`. Widgets on other
 sites call the API directly, so the API must allow all origins. This
 is safe because the API uses no cookies. A preflight allows the
-`Content-Type` and `Authorization` headers.
+`Content-Type` and `Authorization` headers. Browser code can read the
+`Request-Id` and `Retry-After` response headers
+(`Access-Control-Expose-Headers`).
 
 ## Record shape
 
@@ -187,6 +189,10 @@ The body shape tells the gateway which one you send:
 
 These requests get `400`:
 
+- A body member that is not in the table above, for example `feilds`
+  or a `note` beside `fields` in a record. The code is
+  `unknown_member`, with one `errors` item for each member. The gateway
+  does not ignore a member that it does not know.
 - A create with an `id`.
 - A `PUT` or `PATCH` on `<route>/:id` with an `id` in the body.
 - A bulk request with duplicate ids, or more than 10 records.
@@ -237,8 +243,11 @@ A delete removes the row. It does not only clear the values.
 
 ## Errors
 
+Each response has a `Request-Id` header. Give this id when you report
+a problem with a request.
+
 Each error is RFC 9457 Problem Details, with the content type
-`application/problem+json`:
+`application/problem+json` and `Cache-Control: no-store`:
 
 ```json
 {
@@ -250,7 +259,8 @@ Each error is RFC 9457 Problem Details, with the content type
   "errors": [
     { "code": "unknown_field", "field": "email", "pointer": "/fields/email", "detail": "Unknown field: 'email'" },
     { "code": "unknown_field", "field": "phone", "pointer": "/fields/phone", "detail": "Unknown field: 'phone'" }
-  ]
+  ],
+  "instance": "urn:request:7k2m9p4q8r3s5t6v2w8x"
 }
 ```
 
@@ -260,8 +270,9 @@ Each error is RFC 9457 Problem Details, with the content type
 | `title` | Yes | A short summary. The same for each occurrence of the code. |
 | `status` | Yes | The HTTP status. It equals the response status. |
 | `code` | Yes | A stable code from the table below. Use it in your code. |
+| `instance` | Yes | `urn:request:` and the `Request-Id` of the request. |
 | `detail` | No | Text about this occurrence, for developers. |
-| `errors` | No | One item for each field at fault: `code`, `field`, `pointer` (a JSON Pointer into the request body), and `detail`. In a bulk request, the pointer has the record index, for example `/records/2/fields/email`. |
+| `errors` | No | One item for each field or member at fault: `code`, `pointer` (a JSON Pointer into the request body), `detail`, and `field` when it is a record field. In a bulk request, the pointer has the record index, for example `/records/2/fields/email`. |
 | `retryAfter` | With `429` and `503` | The seconds to wait. The `Retry-After` header has the same value. |
 
 Rules for clients:
@@ -284,6 +295,7 @@ Rules for clients:
 | <a id="bulk-not-supported"></a>`bulk_not_supported` | `400` | The source cannot create several records in one request (Fastmail, Gmail). | Send one record in each request. |
 | <a id="invalid-limit"></a>`invalid_limit` | `400` | `limit` is not a whole number from 1 to the gateway's maximum. | Use a `limit` from 1 to the gateway's maximum. |
 | <a id="unknown-cursor"></a>`unknown_cursor` | `400` | The gateway did not issue this cursor. | Read again from the first page. |
+| <a id="unknown-member"></a>`unknown_member` | `400` | The body has a member that this request does not accept. `errors` lists each one. | Correct the request. Do not retry it. |
 | <a id="unknown-field"></a>`unknown_field` | `400` | A field is not in the conduit's field map, or the source has no column for it. `errors` lists each one. | Mark each field in `errors`. Ask the owner to add it. |
 | <a id="unauthorized"></a>`unauthorized` | `401` | The bearer token is missing or wrong. | Send the correct bearer token. |
 | <a id="forbidden"></a>`forbidden` | `403` | The caller's IP is not on the allowlist. | The caller's network cannot use this conduit. |

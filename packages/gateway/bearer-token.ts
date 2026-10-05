@@ -1,23 +1,12 @@
-import { randomBytes, createHash, timingSafeEqual } from 'node:crypto'
+import { createHash, timingSafeEqual } from 'node:crypto'
 
-// Base31 leaves out 0, 1, i, l and o, which are easily confused. 32
-// symbols is about 158 bits.
-const ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz'
+import { randomBase31 } from './random.ts'
+
+// 32 base-31 symbols, about 158 bits.
 const TOKEN_LENGTH = 32
-// The largest multiple of 31 in a byte; higher bytes are redrawn so
-// every symbol is equally likely.
-const BYTE_ACCEPT_LIMIT = 248
 
 export function generateBearerToken(): string {
-  let token = ''
-  while (token.length < TOKEN_LENGTH) {
-    for (const byte of randomBytes(TOKEN_LENGTH)) {
-      if (byte >= BYTE_ACCEPT_LIMIT) continue
-      token += ALPHABET[byte % ALPHABET.length]
-      if (token.length === TOKEN_LENGTH) break
-    }
-  }
-  return token
+  return randomBase31(TOKEN_LENGTH)
 }
 
 export function hashBearerToken(token: string): string {

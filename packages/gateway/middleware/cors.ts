@@ -11,6 +11,8 @@ export function addCorsHeaders(): Middleware {
     const response = await next()
     const headers = new Headers(response.headers)
     headers.set('Access-Control-Allow-Origin', '*')
+    // So browser code can read them; neither is CORS-safelisted.
+    headers.set('Access-Control-Expose-Headers', 'Request-Id, Retry-After')
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,

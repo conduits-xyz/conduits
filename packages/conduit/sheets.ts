@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { randomRowId } from './row-id.ts'
 import { ConduitUnknownFieldError } from './field-map.ts'
 
-export { randomRowId } from './row-id.ts'
+export { randomRowId, ALPHABET as BASE31_ALPHABET } from './row-id.ts'
 
 // The `source` on errors this client throws.
 const SOURCE = 'googleSheets'

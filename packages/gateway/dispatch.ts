@@ -8,6 +8,7 @@ import { createGatewayItemActions } from './item-controller.ts'
 import { gatewaySchemaAction } from './schema-controller.ts'
 import { gatewayReadyzAction } from './readyz-controller.ts'
 import { problemResponse } from './response.ts'
+import { finishResponse, requestIdContext } from './middleware/request-id.ts'
 import { conduitConfigContext } from './middleware/conduit-config.ts'
 import { providerBytesContext, honeypotDropCountContext, apiKeyIdContext, classifyStatus, type RouteKind, type GatewayObservation } from './observation.ts'
 
@@ -100,23 +101,21 @@ export function createGatewayDispatcher(deps: GatewayDeps): (context: GatewayCon
   }
 
   return async function dispatch(context: GatewayContext): Promise<Response> {
-    // Without recordObservation, skip all measurement.
-    if (!deps.runtime.recordObservation) {
-      const routeKind = { current: 'unmatched' as RouteKind }
-      return route(context, routeKind)
-    }
-
     const start = Date.now()
     const routeKind = { current: 'unmatched' as RouteKind }
     let response: Response
     try {
       response = await route(context, routeKind)
     } catch (err) {
-      // The same 500 as server.ts's fallback in services/gateway, caught
-      // here so the request is still observed.
+      // The same 500 as the hosts' last-resort fallback, caught here so
+      // the request still gets its id and is still observed.
       console.error(err)
       response = problemResponse('internal_error')
     }
+    response = await finishResponse(response, context.get(requestIdContext))
+
+    // Without recordObservation, skip all measurement.
+    if (!deps.runtime.recordObservation) return response
 
     const config = context.get(conduitConfigContext)
     const providerBytes = context.get(providerBytesContext)

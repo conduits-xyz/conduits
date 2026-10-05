@@ -6,6 +6,7 @@ import { jsonBodyContext } from './middleware/body.ts'
 import { requireConduitConfig, requireConduitTable } from './require-context.ts'
 import { checkHiddenFormField } from './middleware/hidden-form-field.ts'
 import { honeypotDropCountContext } from './observation.ts'
+import { refuseUnknownMembers } from './request-members.ts'
 import {
   randomRowId,
   type ConduitRecord,
@@ -27,6 +28,9 @@ import {
 } from '@conduits/conduit'
 
 const TOO_MANY_RECORDS = { detail: `Send ${MAX_BULK_RECORDS} records or ids or fewer.` }
+// The members of each item of `records`. An id on a created record is
+// refused by extractBulkRecords, as invalid_body.
+const RECORD_MEMBERS = ['id', 'fields']
 
 // A reserved field a plain HTML <form> (e.g.
 // library/pages/progressive-enhancement-form) can include as a hidden
@@ -66,10 +70,12 @@ async function runBulkWrite(
   table: ConduitTable,
   fieldMap: Record<string, string> | undefined,
   source: string,
-  body: unknown,
+  body: Record<string, unknown>,
   mode: 'update' | 'replace',
 ): Promise<Response> {
   if (!isBulkBody(body)) return problemResponse('invalid_body', { detail: 'Send {records: [{id, fields}, ...]}.' })
+  const unknown = refuseUnknownMembers(body, ['records'], RECORD_MEMBERS)
+  if (unknown) return unknown
   if (exceedsBulkLimit(body.records.length)) return problemResponse('too_many_records', TOO_MANY_RECORDS)
   const entries = extractBulkRecords(body.records, true)
   if (!entries) return problemResponse('invalid_body', { detail: 'Each record needs an id and fields.' })
@@ -137,6 +143,8 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
           return problemResponse('bulk_not_supported', { detail: 'Send one record at a time to this conduit.' })
         }
         if (exceedsBulkLimit(body.records.length)) return problemResponse('too_many_records', TOO_MANY_RECORDS)
+        const unknown = refuseUnknownMembers(body, ['records'], RECORD_MEMBERS)
+        if (unknown) return unknown
         const entries = extractBulkRecords(body.records, false)
         if (!entries) return problemResponse('invalid_body', { detail: 'Each record needs fields and no id.' })
 
@@ -168,6 +176,8 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
 
       // Callers can't set an id on create (record-shape.ts).
       if (hasBodyId(body)) return problemResponse('id_not_allowed', { detail: 'The gateway makes the id of a new record.' })
+      const unknown = refuseUnknownMembers(body, ['fields'])
+      if (unknown) return unknown
 
       // Removed from the fields before extractFields(), so it isn't
       // stored.
@@ -212,6 +222,8 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
     async bulkDestroy(context) {
       const table = requireConduitTable(context)
       const body = context.get(jsonBodyContext)
+      const unknown = refuseUnknownMembers(body, ['ids'])
+      if (unknown) return unknown
       const ids = extractIds(body)
       if (!ids) return problemResponse('invalid_body', { detail: 'Send {ids: [id, ...]} with one id or more.' })
       if (exceedsBulkLimit(ids.length)) return problemResponse('too_many_records', TOO_MANY_RECORDS)

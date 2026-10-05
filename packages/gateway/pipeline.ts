@@ -24,6 +24,9 @@ export interface GatewayDeps {
   // (`sourceClients`) for the types given, for example a Sheets client
   // with a read cache and budget (createGoogleSheetsClient).
   sourceClients?: Record<string, ConduitSourceClient>
+  // Makes each request's id (middleware/request-id.ts). Defaults to
+  // generateRequestId; a test passes its own to get known ids.
+  requestId?: () => string
 }
 
 // Runs per action rather than on the router, since context.params.curi

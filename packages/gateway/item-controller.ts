@@ -1,6 +1,7 @@
 import type { GatewayContext } from './context.ts'
 import { jsonResponse, problemResponse } from './response.ts'
 import { jsonBodyContext } from './middleware/body.ts'
+import { refuseUnknownMembers } from './request-members.ts'
 import { requireConduitConfig, requireConduitTable } from './require-context.ts'
 import type { ConduitTable } from '@conduits/conduit'
 import { toSourceFields, toWidgetFields, checkKnownFields, wrapRecord, extractFields, hasBodyId } from '@conduits/conduit'
@@ -12,10 +13,12 @@ async function runSingleWrite(
   fieldMap: Record<string, string> | undefined,
   source: string,
   id: string,
-  body: unknown,
+  body: Record<string, unknown>,
   mode: 'update' | 'replace',
 ): Promise<Response> {
   if (hasBodyId(body)) return problemResponse('id_not_allowed', { detail: 'The id is in the path. Do not put it in the body.' })
+  const unknown = refuseUnknownMembers(body, ['fields'])
+  if (unknown) return unknown
 
   const fields = extractFields(body)
   if (!fields) return problemResponse('invalid_body', { detail: 'Send {fields: {...}}.' })

@@ -1,6 +1,6 @@
 import * as http from 'node:http'
 import { createRequestListener } from 'remix/node-fetch-server'
-import { createGatewayRouter, createStaticRouteResolver } from '@conduits/gateway'
+import { createGatewayRouter, createStaticRouteResolver, problemResponse } from '@conduits/gateway'
 import { createGoogleSheetsClient } from '@conduits/conduit'
 import { googleSheetsOptionsFromEnv, listLimitsFromEnv } from '@conduits/config'
 
@@ -29,7 +29,7 @@ const server = http.createServer(
       return await gatewayRouter.fetch(request)
     } catch (error) {
       console.error(error)
-      return new Response('Internal Server Error', { status: 500 })
+      return problemResponse('internal_error')
     }
   }),
 )
