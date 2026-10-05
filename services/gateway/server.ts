@@ -1,11 +1,10 @@
 import * as http from 'node:http'
 import { createRequestListener } from 'remix/node-fetch-server'
 import { createGatewayRouter, createStaticRouteResolver } from '@conduits/gateway'
-
 import { createGoogleSheetsClient } from '@conduits/conduit'
+import { googleSheetsOptionsFromEnv, listLimitsFromEnv } from '@conduits/config'
 
 import { loadConduitConfigs } from './config.ts'
-import { loadListLimits, loadSheetsOptions } from './settings.ts'
 import { gatewayServiceRuntime } from './runtime.ts'
 
 const configPath = process.env.CONDUITS_CONFIG_PATH ?? './conduits.yaml'
@@ -20,8 +19,8 @@ const gatewayRouter = createGatewayRouter({
   resolveConfig: async (curi) => configs.get(curi) ?? null,
   resolveRoute: createStaticRouteResolver(bindings),
   runtime: gatewayServiceRuntime,
-  listLimits: loadListLimits(),
-  sourceClients: { googleSheets: createGoogleSheetsClient(loadSheetsOptions()) },
+  listLimits: listLimitsFromEnv(),
+  sourceClients: { googleSheets: createGoogleSheetsClient(googleSheetsOptionsFromEnv()) },
 })
 
 const server = http.createServer(

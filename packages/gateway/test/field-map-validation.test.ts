@@ -32,10 +32,20 @@ describe('gateway-wide field schema enforcement (checkKnownFields, wired)', () =
     // A blank sheet, which ensureColumnsForWrite would accept (it adds
     // the columns), so the rejection comes from checkKnownFields.
     const router = makeRouter(baseConfig({ suriConfig: { fieldMap: { name: 'name' } } }))
-    const response = await postFields(router, { phone: '555-0100' })
+    const response = await postFields(router, { phone: '555-0100', fax: '555-0101' })
     assert.equal(response.status, 400)
-    const body = (await response.json()) as { error: string }
-    assert.match(body.error, /'phone'/)
+    assert.equal(response.headers.get('content-type'), 'application/problem+json')
+    const body = (await response.json()) as { status: number; code: string; errors: { code: string; field: string; pointer: string }[] }
+    assert.equal(body.status, 400)
+    assert.equal(body.code, 'unknown_field')
+    assert.deepEqual(
+      body.errors.map((error) => [error.code, error.field, error.pointer]),
+      [
+        ['unknown_field', 'phone', '/fields/phone'],
+        ['unknown_field', 'fax', '/fields/fax'],
+      ],
+      'every unknown field, each with a pointer into the body',
+    )
   })
 
   it('still accepts anything when no schema is declared at all — the existing passthrough default, unchanged', async () => {

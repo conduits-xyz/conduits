@@ -1,60 +1,57 @@
 # Progressive enhancement form
 
-One real form, submitted two different ways — a native `<form
-method="post">` that works with zero JavaScript, and the same form
-enhanced with `fetch()` to submit in the background and report
-success or failure inline instead of navigating away. Paste a real
-conduit into the page and try both: toggle "Enhance with JavaScript"
-off and on, then submit again, to see the exact same markup behave
-differently depending only on whether the enhancement is present.
+One form, sent in two ways:
 
-## Running it
+- **Plain**: a `<form method="post">`. It works without JavaScript.
+- **Enhanced**: the same form, sent with `fetch()`. The page shows the
+  result and does not go to a different page.
 
-Open `index.html` directly in a browser and paste a real conduit's URL
-or curi into the Conduit URL field, or copy the file into your own
-page. For a real embed, don't rely on the Conduit URL picker this demo
-page uses to try different conduits — hardcode your own conduit's URL
-directly, either as the form's static `action` (for the plain path) or
-as the `fetch()` target (for the enhanced path).
+To compare them, enter a conduit URL in the page. Turn "Enhance with
+JavaScript" off and on, and send the form each time.
 
-## Wire format
+## Run it
 
-**Plain submission** (JavaScript disabled, or "Enhance with
-JavaScript" unchecked): the gateway accepts
-`application/x-www-form-urlencoded` directly — a bare field name like
-`name` is treated as that field, no `fields` envelope required. By
-default, a plain submission lands the visitor on the gateway's own raw
-JSON response — fine for testing, not what you want in production.
-Add a hidden `_redirect` field naming a path on your own site
-(relative or absolute) and a successful submission sends the visitor
-there instead, as a real 303 redirect:
+Open `index.html` in a browser. Enter a conduit URL or a CURI in the
+Conduit URL field.
+
+In your own page, do not use the Conduit URL field. Put your conduit
+URL in the form's `action` (plain), or in the `fetch()` call
+(enhanced).
+
+## Plain submission
+
+The gateway accepts `application/x-www-form-urlencoded`. A plain field
+name, for example `name`, goes into `fields`. You do not need the
+`fields` envelope.
+
+Without `_redirect`, the browser shows the gateway's JSON response. Use
+that only for tests. In production, add a hidden `_redirect` field with
+a path on your site:
 
 ```html
 <input type="hidden" name="_redirect" value="/thanks" />
 ```
 
-The target must resolve to the same origin as the page the form was
-submitted from (checked against the request's `Referer` header) — this
-is what stops `_redirect` from being usable as an open redirect
-through a conduit URL that's otherwise public. Point it anywhere else,
-or omit the `Referer` header entirely (as a `file://` page does, which
-is why this demo doesn't include the field), and the submission falls
-back to the plain JSON response instead of guessing.
+After a successful submission, the gateway sends the browser to that
+path (`303`). These rules apply:
 
-**Enhanced submission** ("Enhance with JavaScript" checked): sends
-real JSON with the `fields` envelope explicitly — `{fields: {...}}` —
-and a create response comes back as `{id, createdTime, fields}`. Copy
-the `fetch()` call in `index.html` directly if you're building your
-own widget against a conduit.
+- The path must be on the same origin as the form's page. The gateway
+  uses the `Referer` header to check this. Thus a public conduit
+  cannot send visitors to another site.
+- Without a `Referer`, the gateway returns JSON. A `file://` page sends
+  no `Referer`, so this demo has no `_redirect` field.
 
-## Theming
+## Enhanced submission
 
-Styled entirely through CSS custom properties on the `.xyz-form`
-element (`style.css`) — the same `--xyz-*` vocabulary
-`library/widgets/xyz-waitlist` and `library/widgets/xyz-reactions`
-share. Set them once, on `:root` or any ancestor common to everything
-you embed, and your whole brand applies across every form and widget
-at once — or override on the element itself for a one-off:
+The page sends JSON with the `fields` envelope: `{fields: {...}}`. The
+gateway returns `201 {id, createdTime, fields}`. Copy the `fetch()`
+call in `index.html` for your own widget.
+
+## Theme
+
+The form uses the same `--xyz-*` CSS custom properties as the widgets
+(see [`THEME.md`](../../widgets/THEME.md)). Set them on `:root` to style
+all forms and widgets. Set them on `.xyz-form` to style one form:
 
 ```css
 .xyz-form {
@@ -63,5 +60,3 @@ at once — or override on the element itself for a one-off:
   --xyz-font: 'Inter', sans-serif;
 }
 ```
-
-See `style.css` for the full list of available properties.

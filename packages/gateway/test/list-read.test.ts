@@ -2,42 +2,18 @@ import * as assert from 'remix/assert'
 import { describe, it } from 'remix/test'
 import { ConduitRateLimitError, type ConduitSourceClient } from '@conduits/conduit'
 
-import { createGatewayRouter } from '../router.ts'
 import { decodeListCursor, encodeListCursor } from '../controller.ts'
-import { createStaticRouteResolver } from '../route-binding.ts'
-import type { ConduitConfig, GatewayDeps } from '../index.ts'
+import { generateBearerToken, hashBearerToken, type GatewayDeps } from '../index.ts'
+import { createFakeGateway } from './fake-gateway.ts'
 
 // GET on a conduit: page sizes from the caller's listLimits, an opaque
-// cursor, and 429 when the source is rate-limited.
+// cursor, and 503 when the source is rate-limited.
 
-const runtime = {
-  async getCredential() {
-    return 'fake-credential'
-  },
-  async invalidateCredential() {},
-}
+const LIMITS = { listLimits: { default: 2, max: 3 } }
 
-function router(curi: string, overrides: Partial<GatewayDeps> = {}) {
-  const config: ConduitConfig = {
-    curi,
-    allowlist: [],
-    racm: ['GET', 'POST'],
-    throttle: false,
-    tokenRequiredMethods: [],
-    apiKeys: [],
-    suriType: 'googleSheets',
-    suriObjectKey: `${curi}-sheet`,
-    suriConfig: {},
-    hiddenFormField: [],
-    credentialRef: null,
-  }
-  return createGatewayRouter({
-    resolveConfig: async (requested) => (requested === curi ? config : null),
-    resolveRoute: createStaticRouteResolver([{ path: `/${curi}`, curi }]),
-    runtime,
-    listLimits: { default: 2, max: 3 },
-    ...overrides,
-  })
+function router(curi: string, deps: Partial<GatewayDeps> = {}) {
+  const gateway = createFakeGateway(curi)
+  return gateway.makeRouter(gateway.baseConfig(), { ...LIMITS, ...deps })
 }
 
 async function seed(curi: string, count: number) {
@@ -82,7 +58,7 @@ describe('list read', () => {
     assert.equal(decodeListCursor('e30'), null)
   })
 
-  it("answers 429 with Retry-After when the source is rate-limited", async () => {
+  it('answers 503 source_busy with Retry-After when the source is rate-limited', async () => {
     const limited: ConduitSourceClient = {
       async connect() {
         return {
@@ -105,7 +81,39 @@ describe('list read', () => {
     } as unknown as ConduitSourceClient
     const curi = `list-${Math.random().toString(36).slice(2)}`
     const response = await router(curi, { sourceClients: { googleSheets: limited } }).fetch(new Request(`http://gateway.test/${curi}`))
-    assert.equal(response.status, 429)
+    assert.equal(response.status, 503)
+    assert.equal(((await response.json()) as { code: string }).code, 'source_busy')
     assert.equal(response.headers.get('retry-after'), '17')
+  })
+
+  it('uses the given source client for the schema too', async () => {
+    const limited = {
+      async connect() {
+        return {
+          async listTables() {
+            return []
+          },
+          open() {
+            return {
+              async describeFields() {
+                throw new ConduitRateLimitError('googleSheets', 'budget used', 17)
+              },
+            } as never
+          },
+        }
+      },
+      async disconnect() {},
+      capabilities() {
+        return { bulkCreate: true }
+      },
+    } as unknown as ConduitSourceClient
+    const curi = `list-${Math.random().toString(36).slice(2)}`
+    const gateway = createFakeGateway(curi)
+    const token = generateBearerToken()
+    const config = gateway.baseConfig({ apiKeys: [{ tokenHash: hashBearerToken(token), scopes: ['GET'] }] })
+    const response = await gateway
+      .makeRouter(config, { ...LIMITS, sourceClients: { googleSheets: limited } })
+      .fetch(new Request(`http://gateway.test/${curi}/.conduits/schema`, { headers: { authorization: `Bearer ${token}` } }))
+    assert.equal(response.status, 503)
   })
 })

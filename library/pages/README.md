@@ -1,59 +1,42 @@
 # Pages
 
-Runnable tutorials in integrating with a conduit — buildless HTML/CSS/JS,
-no framework, no build step. These pages are source you're meant to read
-and adapt, not embed as-is — for the drop-in, embeddable widgets, see
-`../widgets/`.
+Tutorials that show how to build on a conduit. They are HTML, CSS, and
+JavaScript, with no framework and no build step. Read them and change
+them. Do not embed them as they are. For widgets that you can embed
+without changes, see [`../widgets/`](../widgets/README.md).
 
-## For marketers — use a widget as-is
+| Tutorial | Shows |
+|:--|:--|
+| [`progressive-enhancement-form/`](progressive-enhancement-form/README.md) | One form that works without JavaScript, and better with `fetch()`. Start here. |
+| [`contact-validation-flow/`](contact-validation-flow/README.md) | Three conduits with different RACM on one sheet: public write, review, and public read. |
 
-Real, brand-agnostic, copy-paste-ready widgets — not reference code —
-live in [`../widgets/`](../widgets/README.md), not this directory. See
-that directory's README for the full list and its shared `--xyz-*`
-theming vocabulary.
+## The two calls you need
 
-## For developers — build on the API
+```js
+// Create a record
+await fetch(conduitUrl, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ fields: { name: 'Ada', done: false } }),
+})
 
-- [`progressive-enhancement-form/`](progressive-enhancement-form/README.md)
-  — the simplest possible reference: one real form, submitted with
-  zero JavaScript or enhanced with `fetch()`, toggleable live against
-  a real conduit. Copy the pattern.
-- [`contact-validation-flow/`](contact-validation-flow/README.md) — the
-  fuller tutorial: composing write, read, and update conduits with
-  different RACM (per-method access control) settings into one
-  moderated submission flow.
-- **Automation recipe**: point a Zapier/n8n/Make webhook step directly
-  at your conduit's own URL (`https://conduits.xyz/XXXXXXXX`), same
-  as any other webhook target — no code, this already works. `POST`
-  writes a row (`{fields: {...}}`); `GET` reads the sheet back, so the
-  same tool can validate against existing data instead of only writing
-  to it. See `docs/gateway-api.md` for the full request/response shapes.
-- **Quickstart**: the two calls you actually need.
+// Read the first page of records
+const { records, nextCursor } = await fetch(conduitUrl).then((r) => r.json())
+```
 
-  ```js
-  // Create a row
-  await fetch(conduitUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields: { name: 'Ada', done: false } }),
-  })
+To read all pages, follow `nextCursor`. See the
+[developer guide](../../docs/developer-guide.md#read-all-records).
 
-  // Read them back
-  const { records } = await fetch(conduitUrl).then((r) => r.json())
-  ```
-- Build the next widget yourself — every one above is plain HTML/JS,
-  zero dependencies, copy and ship.
+## Automation tools
 
-## Everything in this directory
+Zapier, n8n, and Make can call a conduit with a webhook step. No code
+is necessary.
 
-- [`progressive-enhancement-form/`](progressive-enhancement-form/README.md)
-  — one real form, submitted either as a plain HTML `<form>` with no
-  JavaScript, or enhanced with `fetch()` for an inline result — toggle
-  it live to see the same markup behave both ways.
-- [`contact-validation-flow/`](contact-validation-flow/README.md) — a
-  fuller tutorial: write, update, and read through 3 conduits with
-  different RACM settings, composed into a moderated submission flow
-  and charted at the end.
+1. Set the webhook URL to the conduit URL, for example
+   `https://gateway.example/XXXXXXXX`.
+2. To write a record, send `POST` with `{"fields": {...}}`.
+3. To read records, send `GET`. It returns one page. If `nextCursor` is
+   not `null`, send `GET` again with `?cursor=<nextCursor>`.
 
-The actual embeddable widgets live in [`../widgets/`](../widgets/README.md).
-Their detail pages are the interactive showcase and demo entry points.
+For all request and response shapes, see
+[`docs/gateway-api.md`](../../docs/gateway-api.md).

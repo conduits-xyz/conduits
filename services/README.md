@@ -1,7 +1,8 @@
 # services/
 
-Deployable backend processes, configured via YAML, no UI of their own.
+Processes that you deploy. A YAML file configures each process. They
+have no user interface.
 
-- [`gateway`](gateway/README.md) — the runnable gateway service:
-  `@conduits/gateway` (the library) driven by a `conduits.yaml` config
-  file, no database required. See its own README for setup.
+- [`gateway`](gateway/README.md): the gateway service. It runs
+  `@conduits/gateway` from a `conduits.yaml` file and needs no
+  database.

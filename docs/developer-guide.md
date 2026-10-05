@@ -1,200 +1,323 @@
-# Building on a conduit: a developer guide
+# Developer guide
 
-For the full wire contract and rationale, see
-[`docs/gateway-api.md`](gateway-api.md) — this guide doesn't restate
-it, only what's needed to build against it quickly.
-[`packages/conduit/INTEGRATIONS.md`](../packages/conduit/INTEGRATIONS.md)
-covers the source-integration contract if you're adding a new backend.
+This guide shows how to call a conduit from a web page or a script.
+For every rule of the wire API, read
+[`docs/gateway-api.md`](gateway-api.md). To add a new data source, read
+[`packages/conduit/INTEGRATIONS.md`](../packages/conduit/INTEGRATIONS.md).
 
-**Vocabulary used throughout:** **CURI** — a conduit's own stable
-public identifier (the explicit `curi:` field in `conduits.yaml` — not
-the map key, which is only a local label); a bare curi
-(`contact-form`) and a full URL
-(`https://your-gateway.example/contact-form`) are both valid wherever
-this guide accepts a conduit URL. A CURI is a proper noun, not a URL —
-see [`docs/gateway-api.md`](gateway-api.md#access-control). **RACM** —
-which HTTP methods a conduit allows (`methods:` in YAML).
-**Allowlist** — the optional IP restriction. **Schema** — `GET
-<route>/.conduits/schema`, the field names/types a conduit's table
-has. **Field map** — the optional widget-facing-name →
-real-column-name translation (`fieldMap:` in YAML).
-
-**Contents:** [Concepts](#concepts) ·
-[Tutorial: your first widget](#tutorial-your-first-widget-end-to-end) ·
+**Contents:** [Words used](#words-used) ·
+[Safe defaults](#safe-defaults) · [Tutorial](#tutorial-your-first-widget) ·
 [How-to guides](#how-to-guides) · [Authentication](#authentication) ·
 [Reference](#reference) · [Explanation](#explanation) ·
 [Known limitations](#known-limitations)
 
-## Concepts
+## Words used
 
-Beyond the vocabulary above:
+| Word | Meaning |
+|:--|:--|
+| **Conduit** | One API endpoint for one data source, for example one tab of a Google Sheet. |
+| **CURI** | The permanent name of a conduit, for example `contact-form`. It is the `curi:` field in `conduits.yaml`. It is not a URL. |
+| **Route** | The path where a gateway serves a conduit. The default is `/<curi>`. This guide writes `<route>`. |
+| **Conduit URL** | The gateway origin and the route, for example `https://gateway.example/contact-form`. |
+| **Record** | One row. It goes in as `{fields}` and comes out as `{id, createdTime, fields}`. |
+| **RACM** | The HTTP methods that a conduit allows (`methods:` in YAML). |
+| **Allowlist** | The IP addresses that can call a conduit. It is optional. |
+| **Bearer token** | A secret that the methods you choose require. |
+| **Field map** | Optional names for fields, different from the column names in the source (`fieldMap:` in YAML). |
 
-| Term | Meaning |
-|:-----|:--------|
-| **Wire envelope** | `{fields: {...}}` in, `{id, createdTime, fields: {...}}` out for a single record; a list is `{records: [...]}`. Keeps `id`/`createdTime` out of a record's own data namespace. |
-| **curi resolution** | A bare curi (`XXXXXXXX`) and a full URL (`https://host/XXXXXXXX`) are both valid wherever this guide accepts a conduit URL — a bare curi resolves against the calling page's own origin. |
+## Safe defaults
 
-## Tutorial: your first widget, end to end
+Do these things in every client:
 
-**1. Get a conduit URL.** Define one in your gateway's `conduits.yaml`
-(see [`services/gateway/README.md`](../services/gateway/README.md)) —
-give it an explicit `curi:` field — or ask whoever runs the gateway
-you're building against for the URL.
+1. Send each request through one function that handles `429`, `503`,
+   and errors. Copy [`conduitFetch`](#call-a-conduit).
+2. Check `GET <route>/.conduits/readyz` before you show a widget.
+3. Send a record as `{fields: {...}}`. Do not send an `id` when you create a record.
+4. Decide what to do from the error's `code`, not from its text. See [Error codes](#error-codes).
+5. On `rate_limited` (`429`) or `source_busy` (`503`), wait `retryAfter` seconds. Then retry. The gateway did not do the request, so a retry is safe for each method.
+6. Do not retry a `POST` after a network error, a timeout, or another `5xx`. The record can exist already.
+7. Write many records with one bulk request (10 records or fewer), not a loop of single writes.
+8. To read all records, follow `nextCursor` until it is `null`. Do not make or change a cursor.
+9. Treat `''` as an empty value. Google Sheets returns `''` for an empty cell, not `null`.
 
-**2. Confirm it's reachable before wiring anything up.**
+> **WARNING:** Do not put a bearer token in a public web page. Anyone
+> can read it there. Use bearer tokens only in server code or in
+> private tools.
 
-```js
-const ok = (await fetch(`${conduitUrl}/.conduits/readyz`)).ok
-```
+## Tutorial: your first widget
 
-```sh
-curl -i "$CONDUIT_URL/.conduits/readyz"   # 204 = reachable
-```
+1. Get a conduit URL. Add a conduit to your gateway's `conduits.yaml`
+   (see [`services/gateway/README.md`](../services/gateway/README.md)),
+   or ask the operator of the gateway for the URL.
 
-`.conduits/readyz` needs no RACM, no token, and never touches the
-underlying sheet — a failure here means the URL itself is wrong (or
-the conduit's inactive), not a transient data-source problem. See
-[Explanation](#explanation) for why it's a separate route.
+2. Make sure that the conduit is available:
 
-**3. Write a record.**
+   ```js
+   const ok = (await fetch(`${conduitUrl}/.conduits/readyz`)).ok
+   ```
 
-```js
-const response = await fetch(conduitUrl, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ fields: { name: 'Ada', email: 'ada@example.com' } }),
-})
-// 201 on success: { id, createdTime, fields }
-```
+   ```sh
+   curl -i "$CONDUIT_URL/.conduits/readyz"   # 204 = available
+   ```
 
-```sh
-curl -i -X POST "$CONDUIT_URL" \
-  -H 'Content-Type: application/json' \
-  -d '{"fields": {"name": "Ada", "email": "ada@example.com"}}'
-```
+   This route needs no RACM and no bearer token, and it does not read
+   the source. A failure means that the URL is wrong or the conduit is
+   inactive.
 
-**4. Read records back.**
+3. Write a record:
 
-```js
-const { records } = await fetch(conduitUrl).then((r) => r.json())
-```
+   ```js
+   const response = await fetch(conduitUrl, {
+     method: 'POST',
+     headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify({ fields: { name: 'Ada', email: 'ada@example.com' } }),
+   })
+   // 201: { id, createdTime, fields }
+   ```
 
-```sh
-curl -s "$CONDUIT_URL" | jq '.records'
-```
+   ```sh
+   curl -i -X POST "$CONDUIT_URL" \
+     -H 'Content-Type: application/json' \
+     -d '{"fields": {"name": "Ada", "email": "ada@example.com"}}'
+   ```
 
-**5. Handle the one write error every client should expect.** A field
-name the sheet doesn't have gets a real, displayable `400` — show it
-as-is rather than a generic failure:
+4. Read the records. A read returns one page. For all pages, see
+   [Read all records](#read-all-records).
 
-```js
-if (!response.ok && response.status < 500) {
-  const { error } = await response.json()
-  showError(error) // e.g. "Unknown field: 'valid'"
-}
-```
+   ```js
+   const { records, nextCursor } = await fetch(conduitUrl).then((r) => r.json())
+   ```
 
-That's the whole loop `library/pages/progressive-enhancement-form/`
-demonstrates, both its plain and fetch-enhanced submission paths.
-`library/pages/contact-validation-flow/` extends it to update-in-place
-and to three conduits with different access levels against the same
-sheet.
+   ```sh
+   curl -s "$CONDUIT_URL" | jq '.records'
+   ```
+
+5. Handle an error. Each error is RFC 9457 Problem Details with a
+   stable `code` (see [Error codes](#error-codes)). An unknown field
+   gets `unknown_field`, and `errors` names each field:
+
+   ```js
+   if (!response.ok) {
+     const problem = await response.json()
+     if (problem.code === 'unknown_field') {
+       for (const { field } of problem.errors) markField(field, 'The sheet has no column for this field.')
+     }
+   }
+   ```
+
+   In your own code, use [`conduitFetch`](#call-a-conduit). It retries
+   a `429` and a `503` and throws the other errors.
+
+`library/pages/progressive-enhancement-form/` shows these steps with a
+plain HTML form and with `fetch`. `library/pages/contact-validation-flow/`
+also updates records, and uses three conduits with different access on
+one sheet.
 
 ## How-to guides
 
-### Wire up a pre-built widget
+### Call a conduit
 
-Every widget in `library/widgets/` is a zero-dependency custom element reading
-its conduit from an attribute:
-
-```html
-<script src="xyz-waitlist.js"></script>
-<xyz-waitlist conduit-url="https://your-domain/XXXXXXXX"></xyz-waitlist>
-```
-
-Copy the file, drop it next to your page, done. Read the widget's own
-file for its exact wire format; each one documents it in a header
-comment. Attributes: see [Reference](#reference) below.
-
-Testing against your own locally running gateway (`npm run gateway` in
-`services/gateway`, default port `8787`)? `conduit-url` is just
-`{origin}/{curi}` — point it at
-`http://localhost:8787/your-curi`, no different from any other origin.
-
-### Accept a bare curi, not just a full URL
-
-Reuse the resolution pattern in `library/widgets/conduit-url-input.js` rather
-than re-deriving it — it also handles a page opened via `file://` (no
-origin to resolve a bare curi against) and an optional
-`localStorage`-backed "remember the last working value" behavior.
-
-### Handle a schema mismatch without a confusing failure
-
-Show the server's own message plus the actionable fix — this is the
-one write failure with a real fix on the conduit owner's side, not
-something a client can work around (see
-[Explanation](#explanation)):
+Copy this function, and send each request through it:
 
 ```js
-if (response.status === 400) {
-  const { error } = await response.json()
-  showBanner(`${error} — ask the conduit owner to add this column under Data source → Change → Schema → + Add field.`)
+// An error from a conduit: the gateway's problem details
+// (status, code, title, detail, errors, retryAfter).
+class ConduitError extends Error {
+  constructor(problem) {
+    super(problem.detail || problem.title)
+    Object.assign(this, problem)
+  }
+}
+
+// Sends a request to a conduit. On rate_limited (429) or source_busy
+// (503), it waits retryAfter seconds and tries again, up to 5 times.
+// On any other error, it throws a ConduitError.
+async function conduitFetch(url, init = {}, attempts = 5) {
+  for (let attempt = 1; ; attempt++) {
+    const response = await fetch(url, init)
+    if (response.ok) return response
+    // A proxy in front of the gateway can send a body that is not JSON.
+    const problem = await response.json().catch(() => ({ status: response.status, title: response.statusText }))
+    const retry = problem.code === 'rate_limited' || problem.code === 'source_busy'
+    if (retry && attempt < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, (problem.retryAfter ?? 1) * 1000))
+      continue
+    }
+    throw new ConduitError(problem)
+  }
 }
 ```
 
-### Pace bulk or looped requests
+Use it like `fetch`:
 
-A conduit throttles at 5 requests/second by default, returning
-`Retry-After: 1` on a `429`. A script firing writes back-to-back will
-hit that well before a human would:
+```js
+try {
+  const response = await conduitFetch(conduitUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: { name: 'Ada' } }),
+  })
+  const record = await response.json()
+} catch (err) {
+  if (err.code === 'unknown_field') {
+    for (const { field } of err.errors) markField(field, 'The sheet has no column for this field.')
+  } else {
+    showError('Something went wrong. Please try again.')
+  }
+}
+```
+
+- A retry after `429` or `503` `source_busy` is safe for each method,
+  also `POST`. The gateway did not do the request.
+- The function does not retry a network error. For a `POST`, the
+  record can exist already. Show an error, and let the user decide.
+
+### Add a widget to a page
+
+Each widget in `library/widgets/` is a custom element with no
+dependencies. It reads its conduit URL from an attribute.
+
+1. Copy the widget's directory next to your page.
+2. Put the stylesheet in `<head>`, and the script and the element in
+   `<body>`:
+
+   ```html
+   <link rel="stylesheet" href="xyz-waitlist/style.css">
+   ```
+
+   ```html
+   <script src="xyz-waitlist/xyz-waitlist.js"></script>
+   <xyz-waitlist conduit-url="https://gateway.example/XXXXXXXX"></xyz-waitlist>
+   ```
+
+Each widget's README lists its attributes and the columns that its
+conduit needs. Widgets handle `429`, `503`, and errors themselves.
+
+To test with a gateway on your computer, set `conduit-url` to
+`http://localhost:8787/<curi>`. The gateway uses port `8787` by default.
+
+### Accept a CURI as well as a full URL
+
+Use `library/widgets/conduit-url-input.js`. Do not write your own
+resolution. It resolves a CURI against the page origin. It also
+handles a page opened from `file://`, which has no origin.
+
+### Show an unknown-field error
+
+The conduit owner must add the column to the source. The client cannot
+correct this error. Mark each field, and tell the user who can correct
+it:
+
+```js
+try {
+  await conduitFetch(conduitUrl, request)
+} catch (err) {
+  if (err.code !== 'unknown_field') throw err
+  for (const { field } of err.errors) markField(field, 'The sheet has no column for this field.')
+  showBanner('Ask the conduit owner to add the marked columns to the sheet.')
+}
+```
+
+In a bulk request, each item's `pointer` also gives the record, for
+example `/records/2/fields/email`.
+
+### Write many records
+
+Use one bulk request for 10 records or fewer:
+
+```js
+await conduitFetch(conduitUrl, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ records: [{ fields: { name: 'Ada' } }, { fields: { name: 'Grace' } }] }),
+})
+```
+
+A bulk request counts as one request for the throttle. For Google
+Sheets, it uses as many calls to Google as one record does. If you must write records one
+at a time, pace the requests. The throttle allows 5 requests each
+second for each conduit:
 
 ```js
 for (const record of records) {
   await write(record)
-  await sleep(220) // stays under 5 req/sec with margin
+  await sleep(220) // fewer than 5 requests each second
 }
 ```
 
-Prefer the API's own bulk shape where you can — a single
-`POST {records: [...]}` (capped at 10) counts as one request against
-the throttle, not one per record.
+### Read all records
 
-### Treat an unset field as falsy, not `null`
-
-A cell that's never been written comes back from a real Google Sheet
-as `''`, never `null`/`undefined`:
+A read returns one page. Follow `nextCursor` until it is `null`. Send
+the cursor back without changes:
 
 ```js
-const isUnprocessed = (record) => !record.fields.status // catches '', null, and undefined alike
+async function readAll(conduitUrl) {
+  const records = []
+  let cursor = null
+  do {
+    const url = new URL(conduitUrl)
+    if (cursor) url.searchParams.set('cursor', cursor)
+    const body = await (await conduitFetch(url)).json()
+    records.push(...body.records)
+    cursor = body.nextCursor
+  } while (cursor)
+  return records
+}
 ```
 
-A check that only matches `null` passes against seeded test data but
-misses the real, empty-string case a live sheet actually returns.
+`?limit=` sets the page size. It must be a positive whole number and
+not more than the gateway's maximum. Without `limit`, the gateway uses
+its default. For the rules, see
+[`docs/gateway-api.md`](gateway-api.md#list-reads).
 
-### Redirect after a plain HTML-form submission
+### Check for an empty field
 
-Add a hidden `_redirect` field naming a same-origin path and a
-successful, non-fetch submission redirects there instead of showing
-the raw JSON response:
+Google Sheets returns `''` for a cell that has no value. It does not
+return `null` or `undefined`. Use a check that catches all three:
+
+```js
+const isUnprocessed = (record) => !record.fields.status
+```
+
+A check for `null` only passes with test data, but fails with a real
+sheet.
+
+### Go to a page after an HTML form submission
+
+Add a hidden `_redirect` field with a path on your site. After a
+successful submission, the gateway sends the browser to that path
+(`303`):
 
 ```html
-<form method="POST" action="https://your-domain/XXXXXXXX">
+<form method="POST" action="https://gateway.example/XXXXXXXX">
   <input type="hidden" name="_redirect" value="/thanks">
 </form>
 ```
 
-Omit it (or submit via `fetch`) to handle the JSON response yourself.
+These rules apply:
+
+- The gateway uses the page's `Referer` header to find your origin.
+  Without a `Referer`, the gateway returns JSON.
+- The path must be on the same origin as the form's page. The gateway
+  ignores any other value.
+- The gateway never stores `_redirect`.
+- It works only when you create one record.
 
 ### Test before you go live
 
-Run through any widget or tutorial page in `library/` against a
-scratch sheet before pointing real traffic at a conduit: submit a
-field the sheet doesn't have yet (confirm you get the `400` from the
-how-to above, not a silent auto-add), and fire a quick burst of
-requests to confirm the `429`/`Retry-After` path actually triggers
-rather than assuming the default throttle is on.
+Use a test sheet. Do these checks before real users can reach the
+conduit:
+
+1. Send a field that the sheet does not have. Make sure that you get
+   the `400`.
+2. Send more than 5 requests in one second. Make sure that you get a
+   `429` with `Retry-After`.
+3. Read a sheet with more records than one page. Make sure that your
+   client gets all of them.
 
 ## Authentication
+
+Send the bearer token in the `Authorization` header:
 
 ```
 Authorization: Bearer <token>
@@ -204,127 +327,106 @@ Authorization: Bearer <token>
 curl "$CONDUIT_URL" -H "Authorization: Bearer $TOKEN"
 ```
 
-Regenerating a token invalidates the old one immediately — a caller
-still using it gets `401` on its very next request, no grace period.
-`GET <route>/.conduits/schema` always requires a token, even for a
-conduit with no method marked token-required at all. Token generation,
-hashing, and the fail-closed behavior when no token has ever been
-issued are covered in
-[`docs/gateway-api.md`](gateway-api.md#bearer-token).
+- When the operator replaces a token, the old token stops at once. The
+  next request with it gets `401`.
+- `GET <route>/.conduits/schema` always requires a token.
+- For token storage and the rules when no token exists, see
+  [`docs/gateway-api.md`](gateway-api.md#bearer-token).
 
 ## Reference
 
 ### Routes
 
-`<route>` means "wherever this conduit is bound" — `/<curi>` by
-default, no `/api` prefix (see
-[`docs/gateway-api.md`](gateway-api.md#routes)).
+`<route>` is the path where the gateway serves the conduit. The
+default is `/<curi>`, with no `/api` prefix.
 
 | Route | Extra auth | Success | Notes |
-|:------|:-----------|:--------|:------|
-| `GET <route>` | — | `200 {records, nextCursor}` | `?cursor=`/`?limit=` |
-| `POST <route>` | — | `201` | single `{fields}` or bulk `{records: [...]}` (max 10), decided by shape |
-| `GET/PUT/PATCH/DELETE <route>/:id` | — | `200` / `200 {id, deleted: true}` | body must not also carry `id` |
-| `PUT/PATCH/DELETE <route>` (bulk) | — | `200 {records}` | atomic — one bad id/field fails the whole batch |
-| `GET <route>/.conduits/readyz` | none at all | `204` | see [Tutorial](#tutorial-your-first-widget-end-to-end) step 2 |
-| `GET <route>/.conduits/schema` | token, always | `200 {fields: [...]}` | field names under their widget-facing names if a field map is set |
-| `OPTIONS <route>[/:id]`, `OPTIONS <route>/.conduits/schema` | — | `204` | CORS preflight, no conduit lookup |
+|:--|:--|:--|:--|
+| `GET <route>` | none | `200 {records, nextCursor}` | One page. `?limit=`, `?cursor=`. See [Read all records](#read-all-records). |
+| `POST <route>` | none | `201` | One record `{fields}`, or 10 or fewer as `{records: [...]}`. |
+| `GET/PUT/PATCH/DELETE <route>/:id` | none | `200`; `DELETE`: `200 {id, deleted: true}` | Do not put an `id` in the body. |
+| `PUT/PATCH/DELETE <route>` | none | `200 {records}` | Bulk. One bad id or field stops the full request. |
+| `GET <route>/.conduits/readyz` | none, and no RACM | `204` | Does not read the source. |
+| `GET <route>/.conduits/schema` | token, always | `200 {fields: [...]}` | Uses the field map names. |
+| `OPTIONS <route>`, `OPTIONS <route>/:id`, `OPTIONS <route>/.conduits/schema` | none | `204` | CORS preflight. |
 
-Full request/response shapes: [`docs/gateway-api.md`](gateway-api.md#routes).
+For each request and response body, see
+[`docs/gateway-api.md`](gateway-api.md#routes).
 
-### Status codes
+### Success statuses
 
-| Status | Meaning | Where |
-|:-------|:--------|:------|
-| `200`/`201` | Success | every route |
-| `204` | No content | `.conduits/readyz` reachable; `OPTIONS` preflight |
-| `400` | Malformed body, duplicate/too-many ids, `id` supplied on create, or `Unknown field: '<name>'` | every write route |
-| `401` | Missing/invalid bearer token | any token-required method; always on `/schema` |
-| `403` | Caller's IP isn't allowlisted | every route but `OPTIONS` |
-| `404` | Unknown/inactive curi, or (bulk/single writes) an id that doesn't resolve | every route |
-| `405` | Method not in this conduit's RACM (`Allow` header lists what is) | every RACM-gated route |
-| `429` | Over *this conduit's own* throttle limit (`Retry-After: 1`) | every throttled route |
-| `502` | Source unreachable, or returned an unexpected error — including Google's own rate limit, a different thing from `429` (see [Explanation](#explanation)) | any route touching the source |
+| Status | Meaning | Routes |
+|:--|:--|:--|
+| `200`, `201` | Success. | All |
+| `204` | Success, no body. | `.conduits/readyz`, `OPTIONS` |
+| `303` | Go to the `_redirect` path. | `POST <route>` with `_redirect` |
 
-### Custom element attributes
+### Error codes
 
-| Widget | Required | Optional |
-|:-------|:----------|:---------|
-| `<xyz-waitlist>` | `conduit-url` | — |
-| `<xyz-reactions>` | `conduit-url` | `subject` (groups reactions when one conduit backs more than one thing being reacted to) |
+Each error is RFC 9457 Problem Details (`application/problem+json`)
+with a stable `code`. Use `code`, not the text, to decide what to do.
+For each code, its status, and what your client does, see
+[`docs/gateway-api.md`](gateway-api.md#codes).
 
 ## Explanation
 
-### Why a write can be rejected for a field that "obviously" should work
+### Why the gateway does not add a field
 
-A conduit's write endpoint is public, so field names are only ever
-accepted, never silently added — full rationale in
-[`docs/gateway-api.md`](gateway-api.md#record-shape). For a client,
-the practical consequence is: this `400` is never worth retrying, and
-never a client-side bug — the fix is always on the conduit owner's
-side (add the column), which is why it's worth its own error message
-rather than folding it into a generic failure handler.
+A conduit is public. If the gateway added each new field name, any
+caller could add columns to your sheet. So the gateway refuses an
+unknown field with `400`. A retry cannot succeed. Only the conduit
+owner can add the column. For the full rule, see
+[`docs/gateway-api.md`](gateway-api.md#record-shape).
 
-### Why allowlist, RACM, and the bearer token are checked in that order
+### The order of the checks
 
 <!-- Mirrors packages/gateway/pipeline.ts's createGatewayMiddleware()
-     array — update this if that array's order changes. -->
+     array. Update this when that order changes. -->
 ```mermaid
 flowchart LR
-    A[Request] --> B{IP allowlisted?}
+    A[Request] --> B{IP on the allowlist?}
     B -- no --> R1[403 Forbidden]
-    B -- yes/none set --> C{Method in RACM?}
+    B -- yes, or no allowlist --> C{Method in RACM?}
     C -- no --> R2[405 + Allow header]
-    C -- yes --> D{Method requires token?}
-    D -- yes, missing/invalid --> R3[401 Unauthorized]
-    D -- no / valid --> E{Under throttle?}
+    C -- yes --> D{Method requires a token?}
+    D -- yes, token missing or wrong --> R3[401 Unauthorized]
+    D -- no, or token correct --> E{Under the throttle?}
     E -- no --> R4[429 + Retry-After]
     E -- yes --> F[Handled]
 ```
 
-Each layer only ever narrows what the layer before it already allowed,
-and a caller only ever learns as much as the first layer it fails
-tells it — a non-allowlisted caller never learns which methods or
-token rules this conduit even has configured. Branch client-side error
-handling on this order: a `403` means the client's own network/IP is
-the problem, not its request shape.
+A caller learns only the result of the first check that fails. For
+example, a caller that is not on the allowlist cannot see the RACM. A
+`403` means that the problem is the caller's network, not the request.
 
-### Why a `429` and a `502` aren't the same kind of limit
+### Two limits: 429 and 503
 
-A conduit's `throttle` and Google's own Sheets API quota are two
-independent things that happen to both be "a rate limit," enforced by
-two different parties:
+Two different limits can refuse a request. Both send `retryAfter` and
+the `Retry-After` header.
 
-- **The conduit's own throttle** (5 requests/second, on by default) is
-  this gateway protecting *its own* public URL from abuse. It's the
-  only one you can see or configure — the `throttle` field in
-  `conduits.yaml` — and the only one reported as `429`.
-- **Google's own per-project quota** on Sheets API calls is external:
-  nothing in this repo sets it, exposes a number for it, or gets
-  warned before hitting it. Bulk writes are batched into one Sheets API call
-  per request specifically to keep well clear of it, not to respect a
-  documented limit — see
-  [`packages/conduit/sheets.ts`](../packages/conduit/sheets.ts)'s own
-  notes on batching. If it's ever hit anyway, the conduit's caller
-  gets the same `502` any other Sheets-side failure produces — never
-  a `429`.
+| Limit | Status and code | What it protects | `Retry-After` |
+|:--|:--|:--|:--|
+| The conduit's throttle | `429` `rate_limited` | The conduit's URL. 5 requests each second. On by default (`throttle` in `conduits.yaml`). | Always `1`. |
+| The gateway's Google Sheets budget | `503` `source_busy` | Google's Sheets quota, which all conduits on the gateway share. The operator sets it (`CONDUITS_SHEETS_REQUESTS_PER_MINUTE`, `CONDUITS_SHEETS_REQUESTS_PER_MINUTE_PER_ACCOUNT`). | Seconds until a request in the last minute stops counting. |
 
-The practical implication: not seeing `429`s doesn't mean a client is
-safe from rate-limit-shaped failures under load — a burst of many
-small, non-bulk writes could still surface as an occasional `502`,
-which is Google's quota, not this gateway's throttle, and isn't fixed
-by pacing against the `Retry-After` header the way a `429` is (there's
-no equivalent signal to pace against; using the API's own bulk shape,
-per the [pacing how-to](#pace-bulk-or-looped-requests), is the actual
-mitigation).
+A `429` means that this caller sent too many requests. A `503` means
+that the source is busy: other callers can use up the budget, so it is
+not this caller's fault. If Google refuses a request anyway, the gateway
+returns `503` `source_busy` with `Retry-After: 60`. Google's quota
+refills each minute.
+
+Your client does the same thing for each: it waits, then retries. To
+use less of the budget, use bulk writes.
 
 ## Known limitations
 
-- **No idempotency key.** A retried `POST` after a dropped or timed-out
-  response can create a duplicate row — dedupe client-side (e.g. a
-  disabled submit button) if that matters for your use case.
-- **No compare-and-swap** on concurrent writes to the same row — see
-  [`docs/gateway-api.md`](gateway-api.md#record-shape) for what that
-  means in practice.
-- **Throttle state is per-process and in-memory** — it resets on
-  restart and doesn't coordinate across multiple server processes.
+- **No idempotency key.** A retried `POST` can create a second record.
+  To prevent duplicates, for example, disable the submit button after
+  the first click.
+- **No protection for concurrent writes.** When two writes change the
+  same row at the same time, the last write wins. See
+  [`docs/gateway-api.md`](gateway-api.md#record-shape).
+- **Paging is by position.** A row added or deleted while you read the
+  pages can make one record appear twice or not at all.
+- **The throttle is local to one process.** It resets when the gateway
+  restarts. Two gateway processes do not share it.

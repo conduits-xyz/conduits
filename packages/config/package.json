@@ -1,6 +1,6 @@
 {
   "name": "@conduits/config",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@conduits/conduit": "*",
     "@conduits/gateway": "*",
     "yaml": "^2.9.0"
   },

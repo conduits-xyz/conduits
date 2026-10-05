@@ -1,5 +1,5 @@
 import type { GatewayContext } from './context.ts'
-import { jsonResponse } from './response.ts'
+import { jsonResponse, problemResponse } from './response.ts'
 import { jsonBodyContext } from './middleware/body.ts'
 import { requireConduitConfig, requireConduitTable } from './require-context.ts'
 import type { ConduitTable } from '@conduits/conduit'
@@ -15,18 +15,18 @@ async function runSingleWrite(
   body: unknown,
   mode: 'update' | 'replace',
 ): Promise<Response> {
-  if (hasBodyId(body)) return jsonResponse({ error: 'Bad Request' }, 400)
+  if (hasBodyId(body)) return problemResponse('id_not_allowed', { detail: 'The id is in the path. Do not put it in the body.' })
 
   const fields = extractFields(body)
-  if (!fields) return jsonResponse({ error: 'Bad Request' }, 400)
+  if (!fields) return problemResponse('invalid_body', { detail: 'Send {fields: {...}}.' })
 
-  checkKnownFields(fields, fieldMap, source)
+  checkKnownFields([fields], fieldMap, source)
   const sourceFields = toSourceFields(fields, fieldMap)
   const record =
     mode === 'update'
       ? await table.updateRecord({ id, fields: sourceFields })
       : await table.replaceRecord({ id, fields: sourceFields })
-  if (!record) return jsonResponse({ error: 'Not Found' }, 404)
+  if (!record) return problemResponse('record_not_found')
   return jsonResponse(wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) }))
 }
 
@@ -49,7 +49,7 @@ export function createGatewayItemActions(): GatewayItemActions {
       // every record.
       const { records } = await table.listRecords()
       const record = records.find((r) => r.id === context.params.id)
-      if (!record) return jsonResponse({ error: 'Not Found' }, 404)
+      if (!record) return problemResponse('record_not_found')
       return jsonResponse(wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) }))
     },
 
@@ -72,7 +72,7 @@ export function createGatewayItemActions(): GatewayItemActions {
     async destroy(context) {
       const table = requireConduitTable(context)
       const ok = await table.deleteRecord(context.params.id)
-      if (!ok) return jsonResponse({ error: 'Not Found' }, 404)
+      if (!ok) return problemResponse('record_not_found')
       return jsonResponse({ id: context.params.id, deleted: true })
     },
   }

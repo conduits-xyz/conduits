@@ -53,7 +53,7 @@ export function createSchemaGatewayMiddleware(deps: GatewayDeps) {
     requireBearerToken(),
     enforceThrottle(),
     handleSourceErrors(deps.runtime),
-    loadConduitTable(deps.runtime),
+    loadConduitTable(deps.runtime, deps.sourceClients),
   ] as const
 }
 

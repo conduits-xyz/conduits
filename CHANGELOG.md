@@ -1,72 +1,123 @@
 # Changelog
 
-All notable changes to the Conduits gateway, provider integrations,
-config tooling, and widgets are documented here.
+This file records the notable changes to the Conduits gateway, the
+provider integrations, the config tools, and the widgets.
 
 ## Unreleased
+
+## 0.6.0 - 2026-10-04
+
+### Breaking
+
+- **Errors are RFC 9457 Problem Details.** Each error response has the
+  content type `application/problem+json`. It has the members `type`,
+  `title`, `status`, and `code`. It also has `detail`, `errors`, and
+  `retryAfter` when they apply. The top-level `error` string is gone. Use `code` to
+  handle an error. See `docs/gateway-api.md#errors` for all codes.
+- **An unknown-field error names all unknown fields.** `errors` has one
+  item for each field, with a JSON Pointer to it, also in bulk requests.
+  `ConduitUnknownFieldError` now takes `fieldNames` (a list), not
+  `fieldName`. `checkKnownFields` now takes a list of records.
+- **A busy source answers `503`, not `429`.** When the Google Sheets
+  request budget is used up, or Google refuses a request for its quota,
+  the gateway returns `503` with the new code `source_busy`, and
+  `retryAfter` and `Retry-After`. `429` `rate_limited` now means only
+  the conduit's throttle: this caller sent too many requests. A
+  `source_busy` request was not done, so a retry is safe, also for a
+  `POST`. In observations, `503` is a `providerError`, not `rejected`.
+
+### Added
+
+- `@conduits/config` reads the gateway settings for any host:
+  - `listLimitsFromEnv()` reads `CONDUITS_LIST_DEFAULT_LIMIT` and
+    `CONDUITS_LIST_MAX_LIMIT`.
+  - `googleSheetsOptionsFromEnv()` reads the `CONDUITS_SHEETS_*`
+    settings for `createGoogleSheetsClient`.
+  - `positiveIntegerFromEnv(name)` reads one required positive whole
+    number.
+
+### Changed
+
+- The self-hosted gateway does not start when
+  `CONDUITS_LIST_DEFAULT_LIMIT` is more than `CONDUITS_LIST_MAX_LIMIT`.
+  Before, it started and returned `400` for each list read without
+  `limit`.
+- The documentation is shorter and uses Simplified Technical English.
+  It now gives the list-read rules (`limit`, `nextCursor`) and the two
+  limits (`429` and `503`), and starts with safe defaults for clients.
+- The widgets and the tutorials read the new error format. A widget
+  asks the visitor to wait after a `429` or a `503`.
+
+### Fixed
+
+- The self-hosted gateway now declares its dependency on
+  `@conduits/conduit`.
+- `/.conduits/schema` uses the source clients given to
+  `createGatewayRouter`. Before, it used the default Google Sheets
+  client, so schema reads were outside the request budget.
+- The `contact-validation-flow` tutorial reads all pages of records.
+  Before, it read only the first page.
 
 ## 0.5.1 - 2026-10-04
 
 ### Changed
 
-- **A list read (`GET` on a conduit) returns pages.** Without `limit` it
-  returns `CONDUITS_LIST_DEFAULT_LIMIT` rows, and `limit` can't exceed
-  `CONDUITS_LIST_MAX_LIMIT`; both are new required settings (1000 in
-  `.env.example`). A client that read a large sheet without `limit`
-  now gets the first page and a `nextCursor`; follow it until it is
+- **A list read (`GET <route>`) returns one page.** Without `limit`, it
+  returns `CONDUITS_LIST_DEFAULT_LIMIT` records. `limit` cannot be more
+  than `CONDUITS_LIST_MAX_LIMIT`. Both settings are new and required
+  (1000 in `.env.example`). A client that reads a large sheet now gets
+  the first page and a `nextCursor`. Follow `nextCursor` until it is
   `null`.
-- **`nextCursor` is opaque.** Pass it back unchanged; a bare row
-  number is no longer accepted.
-- **Google Sheets reads take the whole sheet.** They stopped at row
-  10,000 before.
-- **Repeated reads of one sheet come from a short cache.** A list read
-  reuses a tab's contents for `CONDUITS_SHEETS_READ_CACHE_MS`. A write
-  through the gateway clears the cache at once; an edit made in Google
-  Sheets shows once the cache expires.
-- **Requests to Google Sheets are budgeted per minute,** across the
-  gateway and per Google account (`CONDUITS_SHEETS_REQUESTS_PER_MINUTE`,
-  `CONDUITS_SHEETS_REQUESTS_PER_MINUTE_PER_ACCOUNT`; required). Above the
-  budget, or when Google itself answers 429, the gateway answers `429`
-  with `Retry-After` instead of `502`.
-- **`createGatewayRouter` takes `listLimits`,** and optionally
-  `sourceClients` to replace a source's client, for example one made by
-  `createGoogleSheetsClient` with a cache and budget. Sources can throw
+- **`nextCursor` is opaque.** Send it back without changes. The gateway
+  no longer accepts a row number as a cursor.
+- **Google Sheets reads get the full sheet.** Before, they stopped at
+  row 10,000.
+- **Reads of one sheet use a short cache.** A list read uses a copy of
+  the tab for `CONDUITS_SHEETS_READ_CACHE_MS`. A write through the
+  gateway clears the copy at once. An edit made in Google Sheets shows
+  when the copy expires.
+- **Requests to Google Sheets have a budget for each minute,** for the
+  gateway and for each Google account
+  (`CONDUITS_SHEETS_REQUESTS_PER_MINUTE`,
+  `CONDUITS_SHEETS_REQUESTS_PER_MINUTE_PER_ACCOUNT`; required). Above
+  the budget, or when Google returns `429`, the gateway returns `429`
+  with `Retry-After`. Before, it returned `502`.
+- **`createGatewayRouter` takes `listLimits`.** It also takes an
+  optional `sourceClients`, to replace the client of a source, for
+  example with one from `createGoogleSheetsClient`. Sources can throw
   the new `ConduitRateLimitError`.
-- **The reactions widget counts every reaction,** following `nextCursor`
-  across pages.
+- **The reactions widget counts all reactions.** It follows
+  `nextCursor` through all pages.
 
 ### Security
 
-- The IP allowlist now uses the rightmost `X-Forwarded-For` entry, the
-  one your reverse proxy adds. Before, it trusted the first entry, so a
-  caller could get past the allowlist by sending its own header. Run
-  the gateway behind exactly one proxy that sets `X-Forwarded-For`.
+- The IP allowlist now uses the last `X-Forwarded-For` entry, which
+  your reverse proxy adds. Before, it used the first entry, so a caller
+  could get past the allowlist with its own header. Put exactly one
+  proxy that sets `X-Forwarded-For` in front of the gateway.
 
 ## 0.5.0 - 2026-09-12
 
-Rebuilt from the ground up on Remix 3. The gateway REST API,
-HTTP-method/IP-allowlist access control, and hidden-form-field spam
-filtering all carry over from the previous version — what's below is
-what's new or different in this rebuild.
+A new version, built on Remix 3. The REST API, the access control
+(HTTP methods and IP allowlist), and the hidden-form-field spam
+filters work as before. This list gives what is new or different.
 
 ### Removed
 
-- Airtable support, previously available, has been dropped and isn't
-  planned to return.
+- Airtable support. It will not return.
 
 ### Added
 
-- Send form submissions straight to an email inbox — Fastmail or
-  Gmail — as a data source alongside Google Sheets, with per-conduit
-  recipients and subject line.
-- A bearer token can be required on specific HTTP methods, on top of
-  the existing allowlist/method controls.
-- Field mapping — expose public API field names that differ from the
-  underlying sheet's own column names.
-- Specify a table (tab) for spreadsheets with more than one sheet.
-- Rate-limiting is now actually enforced, not just a stored setting.
-- Plain HTML forms can redirect visitors back to your own page after
-  a successful submission.
-- Two new embeddable widgets — a waitlist signup form and a
-  thumbs-up/thumbs-down reactions widget — alongside the existing
-  contact-form widgets.
+- Fastmail and Gmail as data sources: a submission goes to an email
+  inbox. Each conduit has its own recipients and subject.
+- A bearer token for the HTTP methods that you choose, in addition to
+  the allowlist and the method controls.
+- Field maps: public field names that are different from the column
+  names in the sheet.
+- A `table` (tab) setting for spreadsheets with more than one sheet.
+- A throttle that the gateway enforces. Before, it was only a stored
+  setting.
+- `_redirect` for plain HTML forms: after a successful submission, the
+  browser goes back to your page.
+- Two new widgets: a waitlist signup and thumbs-up/thumbs-down
+  reactions, in addition to the contact-form widgets.

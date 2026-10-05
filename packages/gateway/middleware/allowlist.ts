@@ -1,6 +1,6 @@
 import type { Middleware, RequestContext } from 'remix/router'
 
-import { jsonResponse } from '../response.ts'
+import { problemResponse } from '../response.ts'
 import { conduitConfigContext } from './conduit-config.ts'
 
 // The gateway runs behind one reverse proxy, so the client address comes
@@ -26,7 +26,7 @@ export function enforceAllowlist(): Middleware {
 
     const ip = clientIp(context)
     if (ip == null || !active.some((entry) => entry.ip === ip)) {
-      return jsonResponse({ error: 'Forbidden' }, 403)
+      return problemResponse('forbidden')
     }
     return next()
   }

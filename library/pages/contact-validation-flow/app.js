@@ -18,6 +18,22 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// A read returns one page; follow nextCursor to the last one.
+async function fetchAllRecords(url) {
+  const records = []
+  let cursor = null
+  do {
+    const pageUrl = new URL(url)
+    if (cursor) pageUrl.searchParams.set('cursor', cursor)
+    const response = await fetch(pageUrl)
+    if (!response.ok) throw new Error(`GET returned ${response.status}`)
+    const body = await response.json()
+    records.push(...body.records)
+    cursor = body.nextCursor
+  } while (cursor)
+  return records
+}
+
 // `kind` sets the line's colour (style.css .console-line--*): 'ok' or
 // 'error' for a request's outcome, 'info' otherwise. Each step logs to
 // its own panel (targetId).
@@ -188,18 +204,17 @@ conduitForm.addEventListener('submit', (event) => {
 // columns. pushRecord can add `valid` only to a blank sheet; on a sheet
 // from an earlier run it must be added by hand. Shown as a banner,
 // since few visitors open the request log.
-const SCHEMA_ERROR_PATTERN = /^Unknown field: '(.+)'$/
 
 function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 }
 
-function showSchemaErrorBanner(bannerId, fieldName) {
+function showSchemaErrorBanner(bannerId, fieldNames) {
   const banner = document.getElementById(bannerId)
-  const safeName = escapeHtml(fieldName)
+  const names = fieldNames.map((name) => `<strong>${escapeHtml(name)}</strong>`).join(', ')
   banner.innerHTML =
-    `This sheet doesn't have a <strong>${safeName}</strong> column yet — the public API can't add one silently ` +
-    `(a deliberate security rule, not a bug). Add a column named <strong>${safeName}</strong> directly in the sheet, then retry.`
+    `This sheet has no column for ${names}. The public API does not add columns, so that no caller can change ` +
+    `your sheet. Add the missing columns in the sheet, then retry.`
   banner.hidden = false
 }
 
@@ -213,9 +228,11 @@ async function checkSchemaError(response, bannerId) {
   } catch {
     return false
   }
-  const match = typeof body?.error === 'string' && body.error.match(SCHEMA_ERROR_PATTERN)
-  if (!match) return false
-  showSchemaErrorBanner(bannerId, match[1])
+  // Errors are RFC 9457 Problem Details; an unknown field has code
+  // `unknown_field` and one `errors` item per field
+  // (docs/gateway-api.md#errors).
+  if (body?.code !== 'unknown_field') return false
+  showSchemaErrorBanner(bannerId, [...new Set(body.errors.map((error) => error.field))])
   return true
 }
 
@@ -311,9 +328,7 @@ function isUnvalidated(row) {
 
 async function fetchRows() {
   try {
-    const response = await fetch(conduitUrls['conduit-2'])
-    const body = await response.json()
-    rows = body.records.map(flattenRecord)
+    rows = (await fetchAllRecords(conduitUrls['conduit-2'])).map(flattenRecord)
     log('log-step3', `GET conduit-2 → ${rows.length} row(s)`, 'ok')
   } catch (err) {
     log('log-step3', `GET failed: ${err.message}`, 'error')
@@ -371,10 +386,9 @@ document.getElementById('to-step-4').addEventListener('click', async () => {
   showStep(4)
   log('log-step4', 'Fetching data using conduit-3 for visualization…')
   try {
-    const response = await fetch(conduitUrls['conduit-3'])
-    const body = await response.json()
-    log('log-step4', `GET conduit-3 → ${body.records.length} row(s)`, 'ok')
-    renderChart(body.records.map(flattenRecord))
+    const records = await fetchAllRecords(conduitUrls['conduit-3'])
+    log('log-step4', `GET conduit-3 → ${records.length} row(s)`, 'ok')
+    renderChart(records.map(flattenRecord))
   } catch (err) {
     log('log-step4', `GET failed: ${err.message}`, 'error')
   }

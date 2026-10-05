@@ -1,328 +1,348 @@
 # @conduits/gateway-service
 
-A database-free run of `@conduits/gateway`, configured entirely from a
-YAML file. See `@conduits/config` for the schema this file is parsed
-against, and `packages/gateway`'s own README/types for what the
-gateway itself does with the result.
+This service runs `@conduits/gateway` from one YAML file,
+`conduits.yaml`. It needs no database.
 
-This guide builds one `conduits.yaml` up incrementally, three conduits
-in a row — Google Sheets, then Gmail, then Fastmail — each one a
-complete, working, curl-verified step before you move to the next. If
-you already know what you're doing, `conduits.example.yaml` has the
-end state of all three; copying it is a shortcut through this same
-tutorial.
+This tutorial builds `conduits.yaml` in three parts. Each part adds one
+conduit and tests it:
 
-## How credentials actually flow
+1. A Google Sheet.
+2. Gmail.
+3. Fastmail.
 
-This is the part that's easy to get backwards, so before touching
-anything: **two independent secret mechanisms exist side by side**,
-and `conduits.yaml` uses a different syntax for each.
+`conduits.example.yaml` contains the result of all three parts.
 
-| In `conduits.yaml` | The actual secret lives in | Created by |
+## Secrets: two different places
+
+`conduits.yaml` refers to secrets in two ways. Do not mix them.
+
+| In `conduits.yaml` | The secret is in | You create it with |
 |:--|:--|:--|
-| `credential: env:SOME_NAME` (Fastmail), `bearerToken.value: env:SOME_NAME` | `.env`, as `SOME_NAME=...` | you, typing it in |
-| `credential: google:<name>` (Sheets, Gmail) | `~/.conduits/credentials.json` (a separate file this CLI manages) | `npm run auth:google`, a command you run once per name+purpose |
+| `credential: env:NAME` (Fastmail), `bearerToken.value: env:NAME` | `.env`, as `NAME=...` | A text editor |
+| `credential: google:<name>` (Google Sheets, Gmail) | `~/.conduits/credentials.json` | `npm run auth:google` |
 
-`.env` is read once, at process start (`--env-file-if-exists=.env` in
-every script below), into `process.env`. From there:
+The gateway reads `.env` once, when it starts.
 
-- an `env:` reference is checked at *load time* (a missing variable
-  fails startup immediately, naming it) and read again on every
-  request that needs it;
-- `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are the odd one out: the
-  **running gateway never reads them at all.** They exist in `.env`
-  purely so the one-time `npm run auth:google` command has something
-  to register a Google OAuth client with. Once that command has run,
-  the resulting grant — including the client id/secret it used —
-  is saved into `credentials.json`, and the gateway reads *that* file
-  from then on, restart after restart, never `.env` again for anything
-  Google-related.
+- The gateway checks each `env:` reference at startup. A missing
+  variable stops the startup, and the error gives its name.
+- Only `npm run auth:google` uses `GOOGLE_CLIENT_ID` and
+  `GOOGLE_CLIENT_SECRET`. That command saves them in
+  `credentials.json` with the grant. The running gateway reads Google
+  credentials only from `credentials.json`.
 
-So: **`.env` is the first thing you create, before anything else in
-this directory** — even the one-time Google auth step below needs it.
-`conduits.yaml` comes together piece by piece as you add each conduit.
+Create `.env` first. The Google step needs it:
 
 ```sh
 cp .env.example .env
 ```
 
-## Part 1: your first conduit — a Google Sheet
+`.env.example` also contains the required settings, with values. See
+[Settings](#settings).
 
-**1. Enable the API and create an OAuth client**, once, in a Google
-Cloud Console project:
+## Part 1: a Google Sheet
 
-- **APIs & Services → Library** → enable the **Google Sheets API**. A
-  project with this left disabled gets a clear `PERMISSION_DENIED`
-  from Google on first real use, not a silent failure — easy to miss
-  if you don't know to look for it.
-- **APIs & Services → Credentials → Create Credentials → OAuth client
-  ID**, type **Desktop app** (not "Web application" — a Desktop app
-  client is what lets `http://127.0.0.1:<any port>` work as a redirect
-  URI without registering an exact port in advance). Download it; note
-  the client ID (and secret, if the download includes one — some
-  Desktop client configurations don't).
+### Set up Google Cloud
 
-**2. Put those two values in `.env`:**
+Do these steps one time, in one Google Cloud project:
 
-```
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-```
+1. Go to **APIs & Services → Library**.
+2. Enable the **Google Sheets API**.
+3. Go to **APIs & Services → Credentials → Create Credentials → OAuth
+   client ID**.
+4. Select the type **Desktop app**. Do not select "Web application".
+5. Copy the client ID, and the client secret if there is one.
 
-**3. Authorize once:**
+A Desktop app client accepts `http://127.0.0.1` on any port as the
+redirect URI. If you do not enable the Sheets API, Google returns
+`PERMISSION_DENIED` on the first read or write.
 
-```sh
-npm run auth:google -- --purpose sheets --name personal
-```
+> **WARNING:** A Google Cloud project in "Testing" status gives refresh
+> tokens that expire after 7 days. Then each Google Sheets and Gmail
+> conduit returns `502`. To prevent this, publish the app: **OAuth
+> consent screen → Publish app**. Adding yourself as a test user does
+> not prevent it. Google does not review an app that requests only
+> `drive.file` and `gmail.send`.
 
-Prints a URL — open it in a browser, approve access, and it redirects
-back to this process automatically. This saves the grant (tokens + the
-client id/secret above) to
-`~/.conduits/credentials.json` and prints the exact line to use in
-YAML: `credential: google:personal`.
+### Authorize
 
-> **Before you rely on this for anything real**: a Google Cloud OAuth
-> project left in "Testing" publishing status issues refresh tokens
-> that expire after **7 days**. Adding yourself as a Test user does
-> **not** avoid this — only publishing the app does (Console → OAuth
-> consent screen → Publish, "In production"). `drive.file` and
-> `gmail.send` aren't in Google's sensitive/restricted scope tiers, so
-> publishing an External app that only requests them is a self-service
-> setting, not a submission-and-review process. Skip this and the
-> gateway will work fine for a week, then start 502ing on Sheets/Gmail
-> conduits with no apparent cause — do it now, not after that happens.
+1. Put the two values in `.env`:
 
-**4. Create a sheet the grant can actually use:**
+   ```
+   GOOGLE_CLIENT_ID=...
+   GOOGLE_CLIENT_SECRET=...
+   ```
+
+2. Run:
+
+   ```sh
+   npm run auth:google -- --purpose sheets --name personal
+   ```
+
+3. Open the URL that the command shows. Approve the access.
+
+The command saves the grant in `~/.conduits/credentials.json`. It shows
+the line for your YAML: `credential: google:personal`.
+
+### Create the sheet
+
+> **CAUTION:** Use only a sheet that this command creates. The grant
+> has the `drive.file` scope. This scope gives access only to files
+> that the app created. A sheet that you already have returns `403` on
+> the first read or write.
+
+Run:
 
 ```sh
 npm run sheets:create -- --name personal --title "My Signups"
 ```
 
-Creates a brand-new, blank spreadsheet and prints its
-`spreadsheetId:`. Use *this* id, not one you already have — the grant
-only requests `drive.file` (Google's narrowest Sheets scope), which
-only ever grants access to a file the authorizing app itself created.
-An existing sheet's id looks like it works right up until the first
-real read or write, which 403s.
+The command creates an empty spreadsheet and shows its
+`spreadsheetId`.
 
-**5. Write your first `conduits.yaml`:**
+### Write the conduit
 
-```sh
-cp conduits.example.yaml conduits.yaml
-```
+1. Copy the example:
 
-Then trim it down to just the `newsletter-signup` block for now —
-delete `event-rsvp` and `contact-form`, you'll add each back in its
-own part below — and fill in the id from step 4:
+   ```sh
+   cp conduits.example.yaml conduits.yaml
+   ```
 
-```yaml
-conduits:
-  newsletter-signup:
-    curi: newsletter-signup
-    methods: [POST, GET]
-    source:
-      type: googleSheets
-      credential: google:personal
-      spreadsheetId: <the id sheets:create just printed>
-      # sheet: omitted on purpose — a brand-new spreadsheet's first
-      # (and only) tab is the default when this is unset.
-```
+2. Delete the `event-rsvp` and `contact-form` blocks. You add them
+   again in parts 2 and 3.
+3. Put the `spreadsheetId` in the `newsletter-signup` block:
 
-The map key (`newsletter-signup:`) is only a label for this file —
-`curi:` is the actual public identifier your URL uses. They can differ
-freely; this guide just keeps them matching for clarity.
+   ```yaml
+   conduits:
+     newsletter-signup:
+       curi: newsletter-signup
+       methods: [POST, GET]
+       source:
+         type: googleSheets
+         credential: google:personal
+         spreadsheetId: <the id from sheets:create>
+         # No `sheet:`. The first tab is the default.
+   ```
 
-**6. Start the gateway and verify:**
+The map key (`newsletter-signup:`) is a label in this file only. The
+`curi:` value is the name in the URL. They can be different.
 
-```sh
-npm run start
-```
+### Test
 
-```sh
-curl -i http://localhost:8787/newsletter-signup/.conduits/readyz   # expect 204
-curl -i -X POST http://localhost:8787/newsletter-signup \
-  -H 'Content-Type: application/json' \
-  -d '{"fields": {"email": "ada@example.com"}}'                    # expect 201
-```
+1. Start the gateway:
 
-Open the spreadsheet — the row should be there, with a `conduit-id`
-column the gateway added automatically (needed for later
-read/update/delete; never rename or delete it).
+   ```sh
+   npm run gateway
+   ```
 
-## Part 2: add a second conduit — Gmail
+2. Send the two requests:
 
-Gmail reuses the *same* Google Cloud project and the *same*
-`GOOGLE_CLIENT_ID`/`SECRET` — no second OAuth client. It's a separate
-grant, though: Sheets and Gmail access are never bundled into one
-authorization, even for the same Google account.
+   ```sh
+   curl -i http://localhost:8787/newsletter-signup/.conduits/readyz   # 204
+   curl -i -X POST http://localhost:8787/newsletter-signup \
+     -H 'Content-Type: application/json' \
+     -d '{"fields": {"email": "ada@example.com"}}'                    # 201
+   ```
 
-**1. Enable the API**: **APIs & Services → Library** → **Gmail API**,
-same project as Part 1.
+3. Open the spreadsheet. Make sure that the row is there.
 
-**2. Authorize the `gmail` purpose** — same `--name` is fine, it's
-stored as a separate grant under it:
+The gateway adds a `conduit-id` column. It uses this column to find
+each row.
 
-```sh
-npm run auth:google -- --purpose gmail --name personal
-```
+> **CAUTION:** Do not delete or rename the `conduit-id` column.
 
-**3. Add a second block to the same `conduits.yaml`:**
+## Part 2: Gmail
 
-```yaml
-  event-rsvp:
-    curi: event-rsvp
-    methods: [POST]
-    source:
-      type: gmail
-      credential: google:personal
-      recipients: [owner@example.com]
-      subject: New RSVP
-```
+Gmail uses the same Google Cloud project and the same OAuth client. It
+needs its own grant.
 
-No `identityId` (unlike Fastmail below) — a Gmail send always goes out
-as the connected account's own primary address, there's no "send as"
-choice.
+1. In the same project, go to **APIs & Services → Library**. Enable the
+   **Gmail API**.
+2. Authorize the `gmail` purpose. You can use the same `--name`:
 
-**4. Restart and verify** — editing `conduits.yaml` needs a restart to
-take effect, there's no file watcher:
+   ```sh
+   npm run auth:google -- --purpose gmail --name personal
+   ```
 
-```sh
-npm run start
-curl -i http://localhost:8787/event-rsvp/.conduits/readyz    # expect 204
-curl -i -X POST http://localhost:8787/event-rsvp \
-  -H 'Content-Type: application/json' \
-  -d '{"fields": {"name": "Ada"}}'                            # expect 201, and a real email
-```
+3. Add this block to `conduits.yaml`:
 
-Same 7-day-refresh-token caveat from Part 1 applies here too — one
-published Cloud Console app covers both purposes once you publish it.
+   ```yaml
+     event-rsvp:
+       curi: event-rsvp
+       methods: [POST]
+       source:
+         type: gmail
+         credential: google:personal
+         recipients: [owner@example.com]
+         subject: New RSVP
+   ```
 
-## Part 3: add a third conduit — Fastmail
+4. Stop and start the gateway. The gateway reads `conduits.yaml` only
+   when it starts.
+5. Test:
 
-No OAuth at all — a single, static API token.
+   ```sh
+   curl -i http://localhost:8787/event-rsvp/.conduits/readyz   # 204
+   curl -i -X POST http://localhost:8787/event-rsvp \
+     -H 'Content-Type: application/json' \
+     -d '{"fields": {"name": "Ada"}}'                           # 201, and an email
+   ```
 
-**1. Get a Fastmail API token**: Fastmail Settings → Privacy & Security
-→ Integrations → API tokens → New API token, scoped to **Mail** only
-(`Email` + `Email submission` — never a broader grant).
+Gmail sends from the primary address of the connected account. The
+7-day warning in part 1 also applies to Gmail.
 
-**2. Find your JMAP identity id** — the "send as" address's id. There's
-no lookup tool for this yet; find it via Fastmail's own JMAP
-`Identity/get` call.
+## Part 3: Fastmail
 
-**3. Add both new values to `.env`** — the name on the left is yours to
-choose, it just has to match what you write in `conduits.yaml` next:
+Fastmail uses an API token, not OAuth.
 
-```
-FASTMAIL_TOKEN=...
-CONTACT_FORM_TOKEN=...    # a bearer token YOU pick, e.g. `openssl rand -hex 16`
-```
+1. In Fastmail, go to **Settings → Privacy & Security → Integrations →
+   API tokens → New API token**.
+2. Give the token the **Mail** scope only (`Email` and
+   `Email submission`).
+3. Find your JMAP identity id (the "send as" address). Use Fastmail's
+   JMAP `Identity/get` call. This repository has no tool for it.
+4. Add two values to `.env`. You choose the names:
 
-**4. Add the third block:**
+   ```
+   FASTMAIL_TOKEN=...
+   CONTACT_FORM_TOKEN=...    # a bearer token that you make, for example `openssl rand -hex 16`
+   ```
 
-```yaml
-  contact-form:
-    curi: contact-form
-    methods: [POST, GET]
-    bearerToken:
-      value: env:CONTACT_FORM_TOKEN
-      requiredFor: [GET]        # POST (submitting) stays public; GET (reading back) is gated
-    hiddenFields:
-      - name: website            # a real submitter never fills this in
-        policy: honeypot
-    source:
-      type: fastmail
-      identityId: <from step 2>
-      credential: env:FASTMAIL_TOKEN
-      recipients: [owner@example.com]
-      subject: New contact form submission
-```
+5. Add this block to `conduits.yaml`:
 
-**5. Restart and verify:**
+   ```yaml
+     contact-form:
+       curi: contact-form
+       methods: [POST, GET]
+       bearerToken:
+         value: env:CONTACT_FORM_TOKEN
+         requiredFor: [GET]       # POST stays public. GET requires the token.
+       hiddenFields:
+         - name: website          # people leave this empty; bots fill it
+           policy: honeypot
+       source:
+         type: fastmail
+         identityId: <from step 3>
+         credential: env:FASTMAIL_TOKEN
+         recipients: [owner@example.com]
+         subject: New contact form submission
+   ```
 
-```sh
-npm run start
-curl -i http://localhost:8787/contact-form/.conduits/readyz                  # expect 204
-curl -i -X POST http://localhost:8787/contact-form \
-  -H 'Content-Type: application/json' \
-  -d '{"fields": {"name": "Ada", "email": "ada@example.com"}}'                # expect 201, and a real email
-curl -i http://localhost:8787/contact-form \
-  -H "Authorization: Bearer $CONTACT_FORM_TOKEN"                              # expect 200, without the header expect 401
-```
+6. Stop and start the gateway.
+7. Test:
 
-You now have exactly `conduits.example.yaml`, hand-built one working
-conduit at a time.
+   ```sh
+   curl -i http://localhost:8787/contact-form/.conduits/readyz                  # 204
+   curl -i -X POST http://localhost:8787/contact-form \
+     -H 'Content-Type: application/json' \
+     -d '{"fields": {"name": "Ada", "email": "ada@example.com"}}'                # 201, and an email
+   curl -i http://localhost:8787/contact-form \
+     -H "Authorization: Bearer $CONTACT_FORM_TOKEN"                              # 200; without the header, 401
+   ```
 
-## The credential store
+Your `conduits.yaml` now equals `conduits.example.yaml`.
 
-`~/.conduits/credentials.json` (override with
-`CONDUITS_CREDENTIAL_STORE_PATH`) is a **plain JSON file, not
-encrypted** — protected by filesystem permissions (written `0600`, its
-parent directory `0700`), the same trust model most local CLI
-credential stores use. Treat it like an SSH private key: don't commit
-it, don't copy it somewhere with looser permissions.
+## `conduits.yaml` reference
 
-## Settings
+Each conduit is one entry under `conduits:`.
 
-Besides credentials, `.env` holds five required settings, already set
-in `.env.example`; the gateway won't start without them:
+| Key | Required | Meaning |
+|:--|:--|:--|
+| `curi` | Yes | The conduit's permanent name. The default route is `/<curi>`. |
+| `methods` | Yes | The allowed HTTP methods (RACM), for example `[POST, GET]`. |
+| `throttle` | No | `true` (default) or `false`. 5 requests each second for each conduit. |
+| `allowlist` | No | A list of IPs: `- 203.0.113.7`, or `- {ip: 203.0.113.7, comment: office}`. |
+| `bearerToken.value` | No | `env:NAME`. The token is in `.env`. |
+| `bearerToken.requiredFor` | With `bearerToken` | The methods that require the token. Each must be in `methods`. |
+| `hiddenFields` | No | A list of rules. See below. |
+| `routes` | No | A list of `{path, host}`. `host` is optional. See [Routes](#routes). |
+| `source` | Yes | See [Sources](#sources). |
 
-| variable | what it does |
+### Hidden fields
+
+| YAML | Meaning |
 |:--|:--|
-| `CONDUITS_LIST_DEFAULT_LIMIT` | rows a list read (`GET` on a conduit) returns without `limit` |
-| `CONDUITS_LIST_MAX_LIMIT` | the largest `limit` a list read may ask for |
-| `CONDUITS_SHEETS_READ_CACHE_MS` | how long list reads reuse a sheet tab's contents; a write through the gateway clears it, an edit in Google Sheets shows once it expires |
-| `CONDUITS_SHEETS_REQUESTS_PER_MINUTE` | requests to Google Sheets per minute, reads and writes counted separately; above it callers get `429` with `Retry-After` |
-| `CONDUITS_SHEETS_REQUESTS_PER_MINUTE_PER_ACCOUNT` | the same, per Google account |
+| `{name: website, policy: honeypot}` | Drop the submission when the field has a value. The field is never stored. |
+| `{name: code, policy: mustEqual, value: spring}` | Drop the submission unless the field equals `value`. The field is not stored. |
+| `{name: code, policy: mustEqual, value: spring, forward: true}` | The same, but the field is stored. |
 
-A list read returns one page and a `nextCursor`; pass it back as
-`?cursor=` until it is `null`.
+A dropped submission gets the same `201` as a stored one. In
+[`docs/gateway-api.md`](../../docs/gateway-api.md#hidden-form-fields),
+`honeypot` is `drop-if-filled`, `mustEqual` is `pass-if-match`, and
+`forward` is `include`.
+
+### Sources
+
+| `type` | Keys |
+|:--|:--|
+| `googleSheets` | `credential: google:<name>`, `spreadsheetId` (from `npm run sheets:create` only), optional `sheet` (tab name), optional `fieldMap` |
+| `gmail` | `credential: google:<name>`, `recipients`, `subject` |
+| `fastmail` | `credential: env:NAME`, `identityId`, `recipients`, `subject`, optional `mailbox` |
 
 ## Routes
 
-Every conduit's default route is `/<curi>` — no `/api` prefix, and the
-YAML map key is never the curi (see Part 1's note above). To serve a
-conduit at a different path, or on a specific hostname, add an
-explicit `routes:` list instead:
+The default route of a conduit is `/<curi>`, with no `/api` prefix. To
+use a different path or a specific host, add `routes:`:
 
 ```yaml
   contact-form:
     curi: contact-form
     routes:
       - path: /forms/contact
-    ...
+      - path: /contact
+        host: forms.example.com
 ```
 
-Omitting `routes:` entirely is equivalent to `routes: [{path: /<curi>}]`.
-`/.conduits/` is a reserved path segment — a route's own path may never
-use it, and every conduit's own metadata (`.conduits/schema`) and
-liveness (`.conduits/readyz`) both live under that route's own
-`.conduits/` child path, plus a Gateway-global `/.conduits/readyz`
-independent of any one conduit. See
-[`docs/gateway-api.md`](../../docs/gateway-api.md#routes) for the full
-route reference.
+Without `routes:`, the route is `/<curi>`.
 
-## Source types (reference)
+- `.conduits` is a reserved path segment. A route cannot contain it.
+- Each route has `<route>/.conduits/readyz` and
+  `<route>/.conduits/schema`.
+- The gateway also has its own `/.conduits/readyz`.
 
-- **`fastmail`** — `credential: env:VAR_NAME`, `identityId`,
-  `recipients`, `subject`, optional `mailbox`.
-- **`googleSheets`** — `credential: google:<name>`, `spreadsheetId`
-  (from `npm run sheets:create` only), optional `sheet` (tab name)
-  and `fieldMap`.
-- **`gmail`** — `credential: google:<name>`, `recipients`, `subject`.
+For all routes, see
+[`docs/gateway-api.md`](../../docs/gateway-api.md#routes).
 
-`npm run auth:google` and `npm run sheets:create` are the only CLI
-surfaces here — there's no general conduit-editing command; conduits
-are still authored directly in `conduits.yaml`.
+## Settings
 
-## What isn't here
+`.env` contains these required settings. `.env.example` gives values
+for them. The gateway does not start without them.
 
-- No config-reload watcher: restart the gateway after editing
-  `conduits.yaml`.
-- No conduit-editing commands: conduits are written in
-  `conduits.yaml`.
-- No stored metrics: hit and honeypot counts are logged to stdout;
-  there's no database to keep them in.
-- Google's OAuth client is configured with two environment variables,
-  not the Desktop-client JSON file Google offers to download.
-- A Fastmail identity id isn't looked up for you (see
-  `conduits.example.yaml`).
+| Variable | Meaning |
+|:--|:--|
+| `CONDUITS_LIST_DEFAULT_LIMIT` | The page size of a list read (`GET <route>`) without `limit`. |
+| `CONDUITS_LIST_MAX_LIMIT` | The largest `limit` that a list read accepts. It must not be less than the default. |
+| `CONDUITS_SHEETS_READ_CACHE_MS` | How long reads can use a copy of a sheet tab, in milliseconds. A write through the gateway clears the copy. |
+| `CONDUITS_SHEETS_REQUESTS_PER_MINUTE` | The number of requests each minute to Google Sheets from this gateway. Reads and writes have separate counts. Above it, callers get `503` `source_busy` with `Retry-After`. |
+| `CONDUITS_SHEETS_REQUESTS_PER_MINUTE_PER_ACCOUNT` | The same, for each Google account. |
+
+Keep the two Google Sheets values below Google's quotas. By default,
+Google allows 300 requests each minute for each project, and 60 for
+each user.
+
+These settings are optional:
+
+| Variable | Default |
+|:--|:--|
+| `PORT` | `8787` |
+| `CONDUITS_CONFIG_PATH` | `./conduits.yaml` |
+| `CONDUITS_CREDENTIAL_STORE_PATH` | `~/.conduits/credentials.json` |
+
+## The credential store
+
+`~/.conduits/credentials.json` is a plain JSON file. It is not
+encrypted. File permissions protect it: `0600` for the file and `0700`
+for its directory.
+
+> **WARNING:** Treat this file like an SSH private key. Do not commit
+> it. Do not copy it to a place with less strict permissions.
+
+## Limits of this service
+
+- The gateway does not reload `conduits.yaml`. Stop and start it after
+  each change.
+- There are no commands to edit conduits. Edit `conduits.yaml`.
+- The gateway stores no metrics. It writes hit and honeypot counts to
+  stdout.
+- Google's OAuth client comes from two environment variables. The
+  gateway does not read the JSON file that Google offers.
+- The gateway does not look up a Fastmail identity id for you.

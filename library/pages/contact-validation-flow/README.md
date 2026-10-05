@@ -1,48 +1,45 @@
 # Contact validation flow
 
-A tutorial in composing three conduits with different access levels into
-one moderated submission flow — no framework, no build step, just
-`index.html` + `app.js` + `style.css`.
+This tutorial uses three conduits on one sheet, each with a different
+RACM. Together they make a moderated submission flow. It has no
+framework and no build step: `index.html`, `app.js`, `style.css`.
 
-## What it teaches
+## What it shows
 
-Create 3 conduits pointing at the same underlying sheet, each with a
-different RACM (Request Access Control Map) — the access-control pattern
-behind any moderated submission flow, where whoever's submitting,
-whoever's reviewing, and whoever's reading the published results should
-each only be able to do their own part:
+Each person can do only their own part:
 
-1. **Conduit 1** — write only (`POST`) — what a public submission form posts to
-2. **Conduit 2** — read + update (`GET`, `PATCH`) — what a reviewer uses to mark entries valid/invalid
-3. **Conduit 3** — read only (`GET`) — what a public results view reads from
+| Conduit | RACM | Used by |
+|:--|:--|:--|
+| 1 | `POST` | The public submission form. |
+| 2 | `GET`, `PATCH` | The reviewer, who marks each entry valid or invalid. |
+| 3 | `GET` | The public results page. |
 
-Walk through the 4 steps in the page: enter the 3 conduit URLs (persisted
-in `localStorage`), write entries through Conduit 1 (manually or with
-generated fake data), read and mark validity through Conduit 2, then read
-again through Conduit 3 and see the valid/invalid split as a bar chart. A
-console panel on the right logs every request as it happens.
+The page has four steps:
 
-## Running it
+1. Enter the three conduit URLs. The page keeps them in `localStorage`.
+2. Write entries through conduit 1. Type them, or generate test data.
+3. Read the entries and mark them through conduit 2.
+4. Read the entries through conduit 3. A bar chart shows valid and
+   invalid entries.
 
-Open `index.html` directly in a browser — nothing to install or build.
+A console panel shows each request.
 
-## API shape
+## Run it
 
-The gateway (`packages/gateway`) wraps every record as
-`{id, createdTime, fields: {...}}`, separate from a bare `{records:
-[...]}` list envelope — a generic display component can enumerate a
-record's real data columns (`Object.keys(record.fields)`) without a
-denylist for `id`/`createdTime`, and a user's own column literally
-named `id` can never collide with ours.
+Open `index.html` in a browser. There is nothing to install or build.
 
-- `POST <conduit-1-url>` with `{fields: {name, email}}` — create a row.
-  Returns `201` with `{id, createdTime, fields}`.
-- `GET <conduit-2-url>` — returns `{records: [{id, createdTime, fields},
-  ...]}`.
-- `PATCH <conduit-2-url>/<id>` with `{fields: {valid: 'valid' |
-  'invalid'}}` — partial update, preserves fields not included.
-- `GET <conduit-3-url>` — same shape as Conduit 2's GET.
+## Requests
 
-`app.js` flattens each `{id, fields: {...}}` record to a plain `{id,
-...fields}` object immediately after fetching (`flattenRecord`), so the
-rest of the file's logic never deals with the envelope directly.
+| Request | Body | Response |
+|:--|:--|:--|
+| `POST <conduit-1-url>` | `{fields: {name, email}}` | `201 {id, createdTime, fields}` |
+| `GET <conduit-2-url>` | none | `200 {records, nextCursor}` |
+| `PATCH <conduit-2-url>/<id>` | `{fields: {valid: 'valid' or 'invalid'}}` | `200`. Fields that you do not send do not change. |
+| `GET <conduit-3-url>` | none | The same as conduit 2. |
+
+- `fetchAllRecords` in `app.js` follows `nextCursor`, so the page reads
+  all records, not only the first page.
+- `flattenRecord` changes each `{id, fields}` record to `{id, ...fields}`
+  after the read.
+- The page waits 220 ms between writes. The throttle allows 5 requests
+  each second.

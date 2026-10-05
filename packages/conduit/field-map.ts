@@ -4,15 +4,16 @@ import type { ConduitFields } from './sheets.ts'
 // (suri_config.fieldMap) and back. Names not in fieldMap pass through
 // unchanged. Applies to a record's `fields` only, never its `id`.
 
-// A write named a field outside the conduit's schema. Thrown by
-// ensureColumnsForWrite (sheets.ts) and checkKnownFields below;
-// middleware/source-errors.ts in @conduits/gateway returns 400.
+// A write named fields outside the conduit's schema; `fieldNames` lists
+// every one. Thrown by ensureColumnsForWrite (sheets.ts) and
+// checkKnownFields below; middleware/source-errors.ts in
+// @conduits/gateway returns 400 with one error per field.
 export class ConduitUnknownFieldError extends Error {
   constructor(
     public readonly source: string,
-    public readonly fieldName: string,
+    public readonly fieldNames: readonly string[],
   ) {
-    super(`Unknown field: '${fieldName}'`)
+    super(`Unknown ${fieldNames.length === 1 ? 'field' : 'fields'}: ${fieldNames.map((name) => `'${name}'`).join(', ')}`)
   }
 }
 
@@ -35,14 +36,14 @@ export function toWidgetFields(fields: ConduitFields, fieldMap: Record<string, s
   return Object.fromEntries(Object.entries(fields).map(([name, value]) => [bySourceName[name] ?? name, value]))
 }
 
-// Rejects a field not in fieldMap, before toSourceFields on every write.
-// An empty or missing fieldMap declares no schema and accepts anything.
-// Separate from the header check in ensureColumnsForWrite (sheets.ts).
-export function checkKnownFields(fields: ConduitFields, fieldMap: Record<string, string> | undefined, source: string): void {
+// Rejects fields not in fieldMap, before toSourceFields on every write,
+// naming all of them across the records. An empty or missing fieldMap
+// declares no schema and accepts anything. Separate from the header
+// check in ensureColumnsForWrite (sheets.ts).
+export function checkKnownFields(fieldsList: ConduitFields[], fieldMap: Record<string, string> | undefined, source: string): void {
   if (!fieldMap) return
   const declared = Object.keys(fieldMap)
   if (declared.length === 0) return
-  for (const name of Object.keys(fields)) {
-    if (!declared.includes(name)) throw new ConduitUnknownFieldError(source, name)
-  }
+  const unknown = [...new Set(fieldsList.flatMap((fields) => Object.keys(fields)))].filter((name) => !declared.includes(name))
+  if (unknown.length > 0) throw new ConduitUnknownFieldError(source, unknown)
 }

@@ -1,20 +1,15 @@
 # RSVP widget
 
-A real `<xyz-rsvp>` custom element — a name/email/attending response
-form backed by a conduit, for an already-scheduled event. Zero
-dependencies, no build step, no JavaScript framework: one script tag,
-one element.
+`<xyz-rsvp>` collects an answer to an invitation: a name, an email
+address, and "yes", "no", or "maybe". After "yes", it also asks for the
+number of guests. It writes the answer to a conduit.
 
-A tri-state response, not a linear form: `attending` is one of
-`"yes"`, `"no"`, or `"maybe"` — and the guest-count field only appears
-once someone has actually said yes. Genuinely different from
-`<xyz-waitlist>` ("notify me later," no event to respond to) rather
-than a relabeled variant of it.
+To collect interest in something that has no date yet, use
+[`xyz-waitlist`](../xyz-waitlist/README.md).
 
-## Running it
+## Add it to a page
 
-Open `index.html` directly in a browser, or copy `xyz-rsvp.js` into
-your own page:
+To try it, open `index.html` in a browser. To use it:
 
 ```html
 <head>
@@ -22,45 +17,48 @@ your own page:
 </head>
 <body>
   <script src="./xyz-rsvp.js"></script>
-  <xyz-rsvp conduit-url="https://conduits.xyz/XXXXXXXX"></xyz-rsvp>
+  <xyz-rsvp conduit-url="https://gateway.example/XXXXXXXX"></xyz-rsvp>
 </body>
 ```
 
-The stylesheet link belongs in `<head>`, not next to the script — see
-[`library/widgets/README.md`](../README.md#embedding-put-the-widgets-own-stylesheet-in-head)
-for why.
+Put the `<link>` in `<head>`. See
+[`library/widgets/README.md`](../README.md#add-a-widget-to-a-page).
 
-With no `conduit-url` at all (a real embed that forgot to set it, or this
-file's own demo page before you've entered one — see its own "Conduit
-URL" field), the element renders "Not connected to a conduit yet."
-instead of a form that could only ever fail.
+Without `conduit-url`, the widget shows "Not connected to a conduit
+yet." and no form.
+
+## Conduit setup
+
+- Methods: `POST`.
+- Columns: `name`, `email`, `attending`, `guestCount`. If the sheet is
+  empty, the first answer creates them. Otherwise, add them to the
+  sheet yourself.
 
 ## Wire format
 
-A response is `POST {fields: {name, email, attending, guestCount}}` —
-the same envelope every conduit accepts (see `docs/gateway-api.md`).
-Point `conduit-url` at a sheet with `name`, `email`, `attending`, and
-`guestCount` columns — add them directly to the sheet if it's still
-blank. `guestCount` is submitted as `null`
-whenever `attending` isn't `"yes"`, or when the field was left blank.
+```json
+{ "fields": { "name": "Ada", "email": "ada@example.com", "attending": "yes", "guestCount": 2 } }
+```
 
-## Configuration
+- `attending` is `"yes"`, `"no"`, or `"maybe"`.
+- `guestCount` is `null` when `attending` is not `"yes"`, or when the
+  visitor leaves it empty.
 
-Every optional attribute below is also machine-readable — load this
-file and inspect `customElements.get('xyz-rsvp').configFields` for the
-same list with types, defaults, and requirement info attached
-(`required` / `optional` / `conditional`).
+## Attributes
 
-| Attribute | Default | Notes |
-|---|---|---|
-| `caption` | *(none)* | Shown above the form; also becomes the form's accessible name. |
-| `heading-level` | *(none)* | Only used when `caption` is set. |
-| `unconfigured-message` | `Not connected to a conduit yet.` | Shown before `conduit-url` is set. |
-| `success-message` | `Thanks — your RSVP is in.` | Shown after a successful submission. |
-| `button-text` | `Send RSVP` | The submit button's own label. |
+| Attribute | Required | Default | Meaning |
+|:--|:--|:--|:--|
+| `conduit-url` | Yes | none | The conduit URL. |
+| `caption` | No | none | Text above the form. It is also the form's accessible name. |
+| `heading-level` | Only with `caption` | none | Makes the caption a heading of this level. |
+| `unconfigured-message` | No | `Not connected to a conduit yet.` | The text without `conduit-url`. |
+| `success-message` | No | `Thanks — your RSVP is in.` | The text after an answer. |
+| `button-text` | No | `Send RSVP` | The submit button's label. |
+| `demo` | No | off | Shows the widget without a conduit. Sends nothing. |
 
-## Theming
+`customElements.get('xyz-rsvp').configFields` gives the same list for
+programs.
 
-See [THEME.md](../THEME.md) for the shared `--xyz-*` property reference,
-defaults, and examples for theming all widgets together or overriding
-`xyz-rsvp` on its own.
+## Theme
+
+See [`THEME.md`](../THEME.md).

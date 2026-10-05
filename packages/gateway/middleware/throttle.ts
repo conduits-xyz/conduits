@@ -1,6 +1,6 @@
 import type { Middleware } from 'remix/router'
 
-import { jsonResponse } from '../response.ts'
+import { problemResponse } from '../response.ts'
 import { conduitConfigContext } from './conduit-config.ts'
 
 // In-memory, single-process token bucket per curi: 5 requests/second.
@@ -22,7 +22,7 @@ export function enforceThrottle(): Middleware {
     const timestamps = (hits.get(config.curi) ?? []).filter((t) => t > windowStart)
 
     if (timestamps.length >= MAX_PER_WINDOW) {
-      return jsonResponse({ error: 'Too Many Requests' }, 429, { 'Retry-After': '1' })
+      return problemResponse('rate_limited', { detail: `This conduit allows ${MAX_PER_WINDOW} requests each second.`, retryAfter: WINDOW_MS / 1000 })
     }
 
     timestamps.push(now)

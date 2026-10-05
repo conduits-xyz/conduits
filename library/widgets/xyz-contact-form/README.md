@@ -1,25 +1,15 @@
 # Contact form widget
 
-A real `<xyz-contact-form>` custom element backed by a conduit. The
-default form collects name, email, and message; the built-in
-`qualified-lead` preset adds service and budget questions. Zero
-dependencies, no build step, no JavaScript framework: one script tag, one
-element.
+`<xyz-contact-form>` collects a name, an email address, and a message,
+and writes them to a conduit. The `qualified-lead` preset adds
+questions about services and budget.
 
-No CAPTCHA anywhere in this widget, unlike most contact-form guidance
-elsewhere, which treats one as an optional bolt-on — conduits.xyz's own
-honeypot + pass-if-match spam controls (gateway-level, already on for
-every conduit) make that unnecessary here.
+The fields are fixed. For other fields, use the pattern in
+`library/pages/progressive-enhancement-form`.
 
-The default fields are fixed (`name`, `email`, `message`). Use
-`preset="qualified-lead"` for the built-in lead qualification fields;
-for a different field set, see `library/pages/progressive-enhancement-form`'s
-own plain-form-vs-fetch pattern instead.
+## Add it to a page
 
-## Running it
-
-Open `index.html` directly in a browser, or copy `xyz-contact-form.js`
-into your own page:
+To try it, open `index.html` in a browser. To use it:
 
 ```html
 <head>
@@ -28,27 +18,40 @@ into your own page:
 <body>
   <script src="./xyz-contact-form.js"></script>
   <xyz-contact-form
-    conduit-url="https://conduits.xyz/XXXXXXXX"
+    conduit-url="https://gateway.example/XXXXXXXX"
     preset="qualified-lead"
   ></xyz-contact-form>
 </body>
 ```
 
-The stylesheet link belongs in `<head>`, not next to the script — see
-[`library/widgets/README.md`](../README.md#embedding-put-the-widgets-own-stylesheet-in-head)
-for why.
+Put the `<link>` in `<head>`. See
+[`library/widgets/README.md`](../README.md#add-a-widget-to-a-page).
 
-With no `conduit-url` at all (a real embed that forgot to set it, or this
-file's own demo page before you've entered one — see its own "Conduit
-URL" field), the element renders "Not connected to a conduit yet."
-instead of a form that could only ever fail.
+Without `conduit-url`, the widget shows "Not connected to a conduit
+yet." and no form.
+
+## Conduit setup
+
+- Methods: `POST`. To keep messages private, do not allow `GET`, or
+  require a bearer token for it.
+- Columns: `name`, `email`, `message`. With `qualified-lead`, also
+  `services` and `budget`. If the sheet is empty, the first message
+  creates them. Otherwise, add them to the sheet yourself.
+- Keep the conduit's throttle on.
+
+The widget has no CAPTCHA and no honeypot field.
 
 ## Wire format
 
-A default message is `POST {fields: {name, email, message}}`. The
-`qualified-lead` preset adds `services` and `budget`; selected services
-are sent as a semicolon-separated string so the payload remains friendly
-to spreadsheet columns:
+Default:
+
+```json
+{ "fields": { "name": "Ada Lovelace", "email": "ada@example.com", "message": "I would like to talk." } }
+```
+
+With `qualified-lead`, the body also has `services` and `budget`. The
+selected services are one string, separated by `; `, so they fit in one
+cell:
 
 ```json
 {
@@ -62,28 +65,22 @@ to spreadsheet columns:
 }
 ```
 
-Point `conduit-url` at a sheet with the fields used by the selected
-preset. Add `name`, `email`, `message`, `services`, and `budget` directly
-to the sheet if it is still blank.
+## Attributes
 
-## Configuration
+| Attribute | Required | Default | Meaning |
+|:--|:--|:--|:--|
+| `conduit-url` | Yes | none | The conduit URL. |
+| `preset` | No | none | `qualified-lead` adds required service checkboxes and a required budget choice. |
+| `caption` | No | none | Text above the form. It is also the form's accessible name. |
+| `heading-level` | Only with `caption` | none | Makes the caption a heading of this level. |
+| `unconfigured-message` | No | `Not connected to a conduit yet.` | The text without `conduit-url`. |
+| `success-message` | No | `Thanks — we'll get back to you.` | The text after a message is sent. |
+| `button-text` | No | `Send message` | The submit button's label. |
+| `demo` | No | off | Shows the widget without a conduit. Sends nothing. |
 
-Every optional attribute below is also machine-readable — load this
-file and inspect `customElements.get('xyz-contact-form').configFields`
-for the same list with types, defaults, and requirement info attached
-(`required` / `optional` / `conditional`).
+`customElements.get('xyz-contact-form').configFields` gives the same
+list for programs.
 
-| Attribute | Default | Notes |
-|---|---|---|
-| `caption` | *(none)* | Shown above the form; also becomes the form's accessible name. |
-| `heading-level` | *(none)* | Only used when `caption` is set. |
-| `preset` | *(none)* | `qualified-lead` adds required service checkboxes and a required budget choice. |
-| `unconfigured-message` | `Not connected to a conduit yet.` | Shown before `conduit-url` is set. |
-| `success-message` | `Thanks — we'll get back to you.` | Shown after a successful send. |
-| `button-text` | `Send message` | The submit button's own label. |
+## Theme
 
-## Theming
-
-See [THEME.md](../THEME.md) for the shared `--xyz-*` property reference,
-defaults, and examples for theming all widgets together or overriding
-`xyz-contact-form` on its own.
+See [`THEME.md`](../THEME.md).

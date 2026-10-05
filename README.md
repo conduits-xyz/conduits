@@ -1,83 +1,63 @@
 # Conduits
 
-The open-source gateway that turns Google Sheets, Gmail, or a Fastmail
-inbox into a real REST API — rate limiting, IP allowlists, spam
-honeypots, and bearer-token gating built in, no backend of your own to
-write.
+Conduits is an open-source gateway. It gives a Google Sheet, a Gmail
+account, or a Fastmail inbox a REST API. You do not write a backend.
 
-# What's in this repo
+The gateway includes these controls:
 
-- **The gateway** (`packages/gateway`) — the request pipeline: RACM/
-  allowlist/throttle/bearer-token enforcement, hidden-form-field
-  spam controls, the wire API described in
-  [`docs/gateway-api.md`](docs/gateway-api.md). MIT-licensed.
-- **Every provider integration** (`packages/conduit`) — Google Sheets,
-  Gmail, and Fastmail source clients. See
-  [`packages/conduit/INTEGRATIONS.md`](packages/conduit/INTEGRATIONS.md)
-  for how to add another.
-- **Config and auth tooling** (`packages/config`,
-  `services/gateway`) — compiles a human-facing `conduits.yaml` into
-  the gateway's own config, plus the CLI that authorizes Google
-  (`npm run auth:google`, from `services/gateway`) and runs the
-  service (`npm run gateway`). No database.
-- **The `xyz-*` widgets** (`library/widgets`) — zero-dependency,
-  framework-free custom elements (waitlist signup, reactions, contact
-  form, feedback, RSVP) — copy the script tag onto any page.
-- **`library/pages/`** — integration tutorials to build on.
+- Allowed HTTP methods per conduit (RACM).
+- An IP allowlist.
+- A request throttle.
+- Bearer tokens for the methods you choose.
+- Hidden form fields that stop spam bots.
 
-Point `services/gateway` at your own `conduits.yaml`, your own Fastmail
-token or Google OAuth client, and it runs standalone.
+# Start here
 
-# Using it
+| You want to | Read |
+|:--|:--|
+| Run a gateway | [`services/gateway/README.md`](services/gateway/README.md) |
+| Call a conduit from a page or a script | [`docs/developer-guide.md`](docs/developer-guide.md) |
+| Know every route, status code, and record shape | [`docs/gateway-api.md`](docs/gateway-api.md) |
+| Add a widget to a page | [`library/widgets/README.md`](library/widgets/README.md) |
+| Add a new data source | [`packages/conduit/INTEGRATIONS.md`](packages/conduit/INTEGRATIONS.md) |
 
-[`services/gateway/README.md`](services/gateway/README.md) — the
-fastest path to a running gateway: copy `conduits.example.yaml`, set a
-few environment variables (or run `npm run auth:google` for Sheets/
-Gmail), and start the service. No database.
+# What this repository contains
 
-[`docs/gateway-api.md`](docs/gateway-api.md) — the wire contract every
-conduit exposes (routes, record shape, access control), independent of
-who's running the gateway.
+This repository is an npm workspaces monorepo.
 
-[`docs/developer-guide.md`](docs/developer-guide.md) — building a
-client against a conduit: widgets, custom pages, or scripts.
+| Path | Contents |
+|:--|:--|
+| `packages/gateway` | The request pipeline and the wire API. |
+| `packages/conduit` | The Google Sheets, Gmail, and Fastmail source clients. |
+| `packages/config` | The compiler for `conduits.yaml`, and the readers for the gateway settings. |
+| `packages/credential-store` | The store for provider credentials. |
+| `services/gateway` | The gateway service and its CLI. It needs no database. |
+| `library/widgets` | The `xyz-*` widgets: custom elements with no dependencies. |
+| `library/pages` | Tutorials that show how to build on a conduit. |
 
 # Development
 
-This repository is organized as an npm workspaces monorepo:
-
-- `services/` — deployable backend processes, configured via YAML,
-  no UI of their own. See [`services/README.md`](services/README.md).
-- `packages/` — shared libraries: `gateway` (the request pipeline),
-  `conduit` (provider integrations), `config` (the YAML compiler),
-  `credential-store` (provider credentials).
-- `library/` — copy-paste widgets, integration tutorials, and the public catalog.
-- `library/pages/` — runnable tutorials and reference code to build *on*, not
-  copy as-is.
-
-## Getting started
-
 ```sh
-npm install                          # every workspace
-npm test                             # fast tests, every workspace
-npm run test:all                     # + any browser/e2e tests
-npm run typecheck                    # every workspace
-
-cd services/gateway
-cp .env.example .env
-cp conduits.example.yaml conduits.yaml
-# walk through services/gateway/README.md's three-part tutorial —
-# it builds this same conduits.yaml up one working conduit at a time
-npm run gateway
+npm install         # all workspaces
+npm test            # fast tests, all workspaces
+npm run test:all    # fast tests and browser tests
+npm run typecheck   # all workspaces
 ```
 
-# Contribution
+To run a gateway on your computer:
 
-The gateway, provider integrations, and config tooling (`packages/`,
-`services/`) aren't accepting unsolicited pull requests — open an issue
-first if you'd like to propose a change there. The widget library is
-different: see [`library/CONTRIBUTING.md`](library/CONTRIBUTING.md) to
-submit a widget.
+1. Go to `services/gateway`.
+2. Copy `.env.example` to `.env`.
+3. Copy `conduits.example.yaml` to `conduits.yaml`.
+4. Do the tutorial in [`services/gateway/README.md`](services/gateway/README.md).
+5. Run `npm run gateway`.
+
+# Contributions
+
+- `packages/` and `services/`: we do not accept pull requests that we
+  did not ask for. Open an issue first.
+- `library/`: we accept widget pull requests. Read
+  [`library/CONTRIBUTING.md`](library/CONTRIBUTING.md).
 
 ---
 

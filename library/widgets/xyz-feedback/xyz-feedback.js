@@ -42,13 +42,19 @@
     )
   }
 
-  // A 4xx response's message is shown as is (e.g. a missing sheet
-  // column); a 5xx or network failure gets a generic message.
+  // Errors are RFC 9457 Problem Details (docs/gateway-api.md#errors). A
+  // 429 and 503 ask the visitor to wait (too many requests here; the
+  // conduit's source is busy); another 4xx shows its detail (e.g. a
+  // missing sheet column); another 5xx or a network failure gets a generic
+  // message.
   async function describeSubmitFailure(response) {
+    if (response.status === 429) return 'Too many requests. Please wait a moment and try again.'
+    if (response.status === 503) return 'The service is busy. Please try again in a minute.'
     if (response.status >= 400 && response.status < 500) {
       try {
-        const body = await response.json()
-        if (typeof body.error === 'string' && body.error) return body.error
+        const problem = await response.json()
+        const message = problem.detail || problem.title
+        if (typeof message === 'string' && message) return message
       } catch {
         // Fall through to the generic message below.
       }

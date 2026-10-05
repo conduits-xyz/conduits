@@ -1,14 +1,11 @@
 # Reactions widget
 
-A real `<xyz-reactions>` custom element — a thumbs-up/thumbs-down
-widget backed by a conduit, for a blogger (or anyone) who wants
-somewhere real to store the counts. Zero dependencies, no build step,
-no JavaScript framework: one script tag, one element.
+`<xyz-reactions>` shows two buttons, "Helpful" and "Not helpful". It
+writes each vote to a conduit and shows the counts.
 
-## Running it
+## Add it to a page
 
-Open `index.html` directly in a browser, or copy `xyz-reactions.js`
-into your own page:
+To try it, open `index.html` in a browser. To use it:
 
 ```html
 <head>
@@ -17,74 +14,69 @@ into your own page:
 <body>
   <script src="./xyz-reactions.js"></script>
   <xyz-reactions
-    conduit-url="https://conduits.xyz/XXXXXXXX"
+    conduit-url="https://gateway.example/XXXXXXXX"
     subject="my-post-slug"
   ></xyz-reactions>
 </body>
 ```
 
-The stylesheet link belongs in `<head>`, not next to the script — see
-[`library/widgets/README.md`](../README.md#embedding-put-the-widgets-own-stylesheet-in-head)
-for why.
+Put the `<link>` in `<head>`. See
+[`library/widgets/README.md`](../README.md#add-a-widget-to-a-page).
 
-- `conduit-url` (required) — the conduit's own POST/GET target.
-- `subject` (optional) — identifies what's being reacted to, so one
-  conduit can back reactions for many different pages/posts at once. A
-  single-post site can omit it; every vote then shares one tally.
-- `initial-up` / `initial-down` (optional) — server-rendered starting
-  counts for this `subject`, so the widget doesn't flash `0`/`0` before
-  its own fetch resolves. Leave both off and the widget fetches real
-  counts itself on load — the common case for a static page with no
-  server rendering at all.
+Without `conduit-url`, the widget shows "Not connected to a conduit
+yet." and no buttons.
 
-With no `conduit-url` at all (forgotten on a real embed, or this file's
-own demo page before you've entered one), the element renders "Not
-connected to a conduit yet." instead of buttons that could only ever
-fail.
+> **CAUTION:** When one conduit serves two or more pages, give each
+> page a different `subject`. Without it, the votes of all pages
+> count together, and you cannot separate them later.
+
+## Conduit setup
+
+- Methods: `GET` and `POST`. All votes are public, because `GET` is
+  open.
+- Columns: `subject`, `reaction`, `votedAt`. If the sheet is empty, the
+  first vote creates them. Otherwise, add them to the sheet yourself.
+
+> **CAUTION:** Do not delete the `conduit-id` column after the gateway
+> creates it.
 
 ## Wire format
 
-A vote is `POST {fields: {subject, reaction, votedAt}}` — `reaction` is
-`"up"` or `"down"`, and the same envelope every conduit accepts (see
-`docs/gateway-api.md`). Point `conduit-url` at a Google Sheet with
-`subject`, `reaction`, and `votedAt` columns and a conduit that allows
-both `GET` and `POST`. A completely empty sheet is supported: the first
-vote creates those columns and the gateway's reserved `conduit-id`
-column. If the sheet already has any field columns, add the three widget
-columns directly to the sheet first; the gateway does not silently add
-missing fields to an established sheet. Keep `conduit-id` once the
-gateway has created it. Counts are computed from `GET conduit-url` by
-tallying records whose `subject` matches, so use a different `subject`
-for each page or post when sharing one conduit; otherwise all votes are
-counted together.
+A vote:
 
-## Configuration
+```json
+{ "fields": { "subject": "my-post-slug", "reaction": "up", "votedAt": "2026-10-04T12:00:00.000Z" } }
+```
 
-Every optional attribute below is also machine-readable — load this
-file and inspect `customElements.get('xyz-reactions').configFields`
-for the same list with types, defaults, and requirement info attached
-(`required` / `optional` / `conditional`).
+`reaction` is `"up"` or `"down"`. To show the counts, the widget reads
+all pages of the conduit with `GET`. It counts the records with its
+`subject`.
 
-| Attribute | Default | Notes |
-|---|---|---|
-| `caption` | *(none)* | Shown above the buttons; also becomes their accessible name (replaces the built-in "Was this helpful?" `aria-label`). |
-| `heading-level` | *(none)* | Only used when `caption` is set — same as `xyz-waitlist`'s own. |
-| `unconfigured-message` | `Not connected to a conduit yet.` | Shown before `conduit-url` is set. |
-| `success-message` | `Thanks for the feedback.` | Shown after a vote is recorded. |
-| `up-label` | `Helpful` | The "up" button's own label — this widget is meant for any kind of content, not just blog posts, so the default framing won't always fit (e.g. a recipe might want "Delicious"/"Not for me"). |
-| `down-label` | `Not helpful` | The "down" button's own label. |
+## One vote for each visitor
 
-## Voting once per visitor
+The widget keeps the vote in `localStorage`, for each conduit URL and
+`subject`. On the next visit, it shows the vote and disables the
+buttons. This stops casual repeat votes only. A visitor who clears the
+storage or uses a different browser can vote again.
 
-The widget remembers a vote in `localStorage` (keyed on the conduit URL
-and `subject`) and renders as "already voted" — disabled, the chosen
-option highlighted — on the next load. This is a deterrent against
-casual re-voting, not a security boundary: clearing storage or
-switching browsers resets it, the same honesty this project already
-applies to its hidden-form-field honeypot.
+## Attributes
 
-## Theming
+| Attribute | Required | Default | Meaning |
+|:--|:--|:--|:--|
+| `conduit-url` | Yes | none | The conduit URL. |
+| `subject` | When one conduit serves two or more pages | `""` | The thing that people react to, for example a post slug. |
+| `caption` | No | none | Text above the buttons. It replaces the accessible name "Was this helpful?". |
+| `heading-level` | Only with `caption` | none | Makes the caption a heading of this level. |
+| `unconfigured-message` | No | `Not connected to a conduit yet.` | The text without `conduit-url`. |
+| `success-message` | No | `Thanks for the feedback.` | The text after a vote. |
+| `up-label` | No | `Helpful` | The label of the "up" button. |
+| `down-label` | No | `Not helpful` | The label of the "down" button. |
+| `initial-up`, `initial-down` | Only if your server renders the page | none | Counts to show before the widget reads the conduit. Most pages do not need them. |
+| `demo` | No | off | Shows the widget without a conduit. Sends nothing. |
 
-See [THEME.md](../THEME.md) for the shared `--xyz-*` property reference,
-defaults, and examples for theming all widgets together or overriding
-`xyz-reactions` on its own.
+`customElements.get('xyz-reactions').configFields` gives the same list
+for programs.
+
+## Theme
+
+See [`THEME.md`](../THEME.md).

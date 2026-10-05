@@ -1,220 +1,321 @@
 # Gateway API
 
-The wire contract every conduit exposes, running as `services/gateway`.
-This describes behavior owned entirely by `packages/gateway`; the concepts
-below map directly onto `ConduitConfig` (`packages/gateway/types.ts`)
-and the human-facing YAML shape `packages/config` compiles into it (see
-`services/gateway/README.md`).
+This document gives the rules of the wire API that each conduit has.
+`packages/gateway` implements these rules, and `services/gateway` runs
+them. The terms map to `ConduitConfig` (`packages/gateway/types.ts`)
+and to the YAML that `packages/config` compiles
+(see [`services/gateway/README.md`](../services/gateway/README.md)).
+
+To learn how to call a conduit, start with
+[`docs/developer-guide.md`](developer-guide.md).
 
 ## Access control
 
-**racm + allowlist is the default security model** — every request is
-gated by which HTTP methods are allowed (`racm`) and, optionally, by
-source IP (`allowlist`). No session cookie, no account to log into on
-this API surface at all.
+Each request goes through these checks, in this order:
 
-A conduit's **CURI** ("conduit URI") is its stable, permanent public
-identifier — a proper noun, not itself a URL: the concrete route(s) a
-CURI is reachable at can change (a custom domain, a different
-Gateway) without the CURI itself changing. Choosing a semantic or
-opaque CURI is a usability choice, not a security control — CURI
-opacity is not authentication. Enforce access with racm/allowlist/a
-bearer token, not by relying on a CURI being hard to guess.
+1. **Allowlist** (optional): the caller's IP must be on the list.
+   Otherwise: `403`.
+2. **RACM**: the HTTP method must be allowed. Otherwise: `405` with an
+   `Allow` header.
+3. **Bearer token** (optional, per method): the request must have the
+   correct token. Otherwise: `401`.
+4. **Throttle** (on by default): 5 requests each second for each
+   conduit. Otherwise: `429` with `Retry-After: 1`.
 
-### allowlist shape
+There are no sessions and no cookies on this API.
+
+### CURI
+
+A **CURI** is the permanent name of a conduit. It is not a URL. The
+route where a gateway serves a conduit can change. The CURI does not
+change.
+
+> **WARNING:** A CURI is not a secret. Do not use a CURI that is hard
+> to guess as access control. Use RACM, the allowlist, and bearer
+> tokens.
+
+### Allowlist
+
+Each allowlist entry has this shape:
 
 ```
 {
-  ip: string,       // required
-  comment: string,  // optional
+  ip: string,                      // required
+  comment: string,                 // optional
   status: 'active' | 'inactive'
 }
 ```
 
-An allowlist consisting only of inactive entries allows any IP, same
-as no allowlist at all.
+- An allowlist with no active entries allows all IPs.
+- With active entries, a request without `X-Forwarded-For` gets `403`.
 
-The caller's IP is read from `X-Forwarded-For`, so the gateway must run
-behind exactly one reverse proxy that sets that header. The gateway
-uses the header's rightmost entry, the one that proxy adds; entries to
-its left come from the caller and are never trusted. A proxy that
-replaces the header and one that appends to it both work. Don't expose
-the gateway directly to the internet with an allowlist configured: a
-caller could then send any `X-Forwarded-For` it likes.
+The gateway reads the caller's IP from `X-Forwarded-For`. It uses the
+last entry, which your reverse proxy adds. It ignores the other
+entries, because callers can set them. Proxies that replace the header
+and proxies that append to it both work.
+
+> **WARNING:** Put exactly one reverse proxy in front of a gateway that
+> uses an allowlist. Do not expose the gateway directly to the
+> internet. Without the proxy, a caller can send any
+> `X-Forwarded-For` value.
 
 ### Bearer token
 
-A second, orthogonal gate on top of curi/racm/allowlist, for specific
-methods — e.g. leaving `GET` open to a public widget while requiring a
-secret `Authorization: Bearer <token>` header for `PATCH`. Not a
-replacement for the curi/racm model, and not the mechanism for
-splitting public-write from private-read on the same underlying
-source either — see `library/pages/contact-validation-flow` for that (two
-conduits pointing at the same source, each with its own racm).
+A bearer token protects the methods that you choose. For example,
+`GET` can stay open for a public widget, and `PATCH` can require
+`Authorization: Bearer <token>`.
 
-- The configured set of token-required methods only ever gates a
-  method `racm` already allows.
-- Only a SHA-256 hash of the token is ever kept (`ConduitConfig.bearerTokenHash`)
-  — never the plaintext.
-- If a method is marked token-required but no token hash is configured,
-  the gateway fails closed — every request for that method gets a bare
-  `401`, never treated as ungated.
-- Checked after RACM, before throttle: a method RACM already rejects
-  gets a plain `405`, never a `401` that would leak "this conduit has
-  a token" for a method nobody could call anyway.
+- A token applies only to methods that RACM allows.
+- The gateway keeps only a SHA-256 hash of the token
+  (`ConduitConfig.bearerTokenHash`), never the token.
+- If a method requires a token and no token exists, each request for
+  that method gets `401`.
+- The gateway checks RACM first. A method that RACM refuses gets `405`,
+  not `401`. Thus a caller cannot learn that a token exists.
 
-### hidden_form_field (hff) shape
+A token does not give public write access and private read access on
+one source. For that, use two conduits on the same source, each with
+its own RACM. See `library/pages/contact-validation-flow`.
+
+### Hidden form fields
+
+Each hidden form field rule has one of these shapes:
 
 ```
 { fieldName: string, policy: 'drop-if-filled' }
 | { fieldName: string, policy: 'pass-if-match', value: string, include: boolean }
 ```
 
-Discriminated by policy: `include`/`value` don't mean the same thing
-(or anything) for both. `drop-if-filled` is a honeypot — a field real
-users never see or fill, but form-filling bots do — and it's always
-excluded from the source, unconditionally. `pass-if-match` requires a
-`value` (a submission must equal it to pass) and its own `include`:
-`true` means the field is a deliberate piece of data to keep (e.g. a
-campaign token), `false` means validate it but never store it.
+- **`drop-if-filled`** is a honeypot. People do not see the field, so
+  they leave it empty. Bots fill it. The gateway never stores this
+  field.
+- **`pass-if-match`** requires that the field equals `value`. With
+  `include: true`, the gateway stores the field, for example a campaign
+  code. With `include: false`, the gateway checks the field but does
+  not store it.
 
-Either policy failing behaves identically: the gateway responds
-exactly as if the submission succeeded (`201`, same shape as a real
-success response, so the failure is never distinguishable from
-outside) without writing the row. Hidden-form-field rules only ever
-apply to create (`POST`), never to update or replace.
+When a rule fails, the gateway does not write the record. It returns
+the same `201` and the same body shape as a success. A bot cannot see
+the difference. The rules apply only to `POST`.
 
 ## Routes
 
-A conduit's route defaults to `/<curi>` at whatever host serves it —
-no `/api` prefix. An operator can bind a conduit to a different
-concrete path/host instead (see `services/gateway/README.md`'s own
-routing section); the CURI stays the same identifier either way.
+The default route is `/<curi>`, with no `/api` prefix. An operator can
+bind a conduit to a different path or host (see the routes section of
+[`services/gateway/README.md`](../services/gateway/README.md)). Below,
+`<route>` is the path where the gateway serves the conduit.
 
-Below, `<route>` means "wherever this conduit is actually bound" —
-`/<curi>` by default:
+| Route | Does |
+|:--|:--|
+| `GET <route>` | Reads one page of records. See [List reads](#list-reads). |
+| `POST <route>` | Creates one record or several. See [Record shape](#record-shape). |
+| `PATCH <route>`, `PUT <route>`, `DELETE <route>` | Updates, replaces, or deletes several records. |
+| `GET <route>/:id`, `PUT`, `PATCH`, `DELETE` | Reads, replaces, updates, or deletes one record. |
+| `GET <route>/.conduits/readyz` | Returns `204` when the route has an active conduit. No RACM, no token, and no read of the source. |
+| `GET <route>/.conduits/schema` | Returns the field names and types. Always requires a token. |
+| `OPTIONS <route>`, `OPTIONS <route>/:id`, `OPTIONS <route>/.conduits/schema` | CORS preflight. No conduit lookup and no RACM. |
 
-`GET/POST <route>` (list/create — create accepts single-or-bulk, list
-accepts `?cursor=`/`?limit=`), `PATCH/PUT/DELETE <route>` (bulk
-update/replace/destroy), `GET/PUT/PATCH/DELETE <route>/:id` (single
-read/replace/update/destroy), `GET <route>/.conduits/readyz` (confirms
-the route resolves to an active conduit — no RACM or bearer-token
-gate, and no data-source access at all, so it can't fail because of a
-revoked credential or similar; the widgets call this for their own
-health check before wiring up), `GET <route>/.conduits/schema` (field
-names/types this conduit's table has, under their widget-facing names
-if a `fieldMap` is set — a `drop-if-filled` hff field can never appear
-here, but a `pass-if-match` field with `include: true` does), `OPTIONS
-<route>`, `OPTIONS <route>/:id`, and `OPTIONS <route>/.conduits/schema`
-(CORS preflight, answered directly — no conduit lookup, no RACM
-check).
+The methods that a conduit can allow depend on its source:
 
-`.conduits` is a reserved path segment (visually similar to
-`.well-known`, not claiming to be one) — a conduit's own route can
-never use it as one of its own path segments, and a Gateway process
-also reserves the top-level `/.conduits/readyz` for its own liveness,
-independent of any one conduit.
+| Source | Methods | Bulk create |
+|:--|:--|:--|
+| Google Sheets | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` | Yes |
+| Fastmail | `GET`, `POST`, `DELETE` | No: `400` |
+| Gmail | `POST` | No: `400` |
 
-**`/schema` always requires the bearer token, unconditionally** —
-unlike every other route, which is only token-gated for methods
-explicitly opted into. Schema is a narrower-audience capability
-(third-party tooling built against someone else's conduit, not the
-default copy-paste widget flow, which gets its fields baked in
-directly) and is never public, even for a conduit with no methods
-marked token-required at all. If no bearer token is configured,
-`/schema` is simply unreachable (`401`).
+### List reads
 
-**Every response carries `Access-Control-Allow-Origin: *`.** This API
-is meant to be called directly from a framework-free web component
-embedded on someone else's page, so it has to be readable
-cross-origin. There's no session cookie here to protect, so an
-unrestricted origin carries none of the risk it would on a
-cookie-authenticated route. The preflight response's
-`Access-Control-Allow-Headers` includes `Authorization` alongside
-`Content-Type`, for conduits that use a bearer token.
+`GET <route>` returns one page: `{records, nextCursor}`.
+
+- **`?limit=`** sets the page size. It must be a positive whole number,
+  not more than the gateway's maximum. Otherwise: `400`. Without
+  `limit`, the gateway uses its default. The operator sets both
+  values (`CONDUITS_LIST_DEFAULT_LIMIT`, `CONDUITS_LIST_MAX_LIMIT`).
+- **`nextCursor`** is `null` on the last page. On other pages, send it
+  back without changes as `?cursor=`. You can change `limit` between
+  pages.
+- A cursor is opaque. Do not make, read, or change a cursor. A cursor
+  that the gateway did not issue gets `400`.
+- Records come in the order of the source. For Google Sheets, this is
+  row order.
+- Paging is by position. A row added or deleted while you read the
+  pages can make one record appear twice or not at all.
+- A Google Sheets read can use a copy of the tab for
+  `CONDUITS_SHEETS_READ_CACHE_MS`. Thus a large sheet is read from
+  Google only once for all its pages. A write through the gateway
+  clears the copy at once. An edit made directly in Google Sheets
+  shows when the copy expires. This also applies to `GET <route>/:id`.
+
+### Reserved paths
+
+`.conduits` is a reserved path segment. A conduit's route cannot
+contain it. The gateway also reserves `/.conduits/readyz` for its own
+health check.
+
+### Schema
+
+`GET <route>/.conduits/schema` always requires the bearer token, also
+for a conduit that has no other token rule. It is for tools that
+others build on your conduit. A widget does not need it. Without a
+configured token, the route always returns `401`.
+
+The response uses the field map names. A `drop-if-filled` field never
+appears. A `pass-if-match` field with `include: true` appears.
+
+### CORS
+
+Each response has `Access-Control-Allow-Origin: *`. Widgets on other
+sites call the API directly, so the API must allow all origins. This
+is safe because the API uses no cookies. A preflight allows the
+`Content-Type` and `Authorization` headers.
 
 ## Record shape
 
-**A record is always `{fields: {...}}` on the way in and `{id,
-createdTime, fields: {...}}` on the way out**, never a bare object of
-field values — this keeps `id`/`createdTime` out of a record's actual
-data namespace entirely, so a generic display component can enumerate
-real columns (`Object.keys(record.fields)`) without a denylist, and a
-user's own column literally named `id` can never collide with ours.
-Create returns `201`. A create/update/replace either takes a single
-record (`{fields}`) or a bulk array (`{records: [{fields}, ...]}`, `id`
-required per entry for update/replace, forbidden for create) on the
-*same* endpoint — shape alone decides which. Bulk delete takes `{ids:
-[id1, id2]}` as a JSON body, same as every other write on this API —
-not a query string. A create request supplying its own `id` is
-rejected, duplicate ids within one bulk update/replace/delete are
-rejected, and bulk create/update/delete is capped at 10 records per
-request.
+A record goes in as `{fields: {...}}`. It comes out as
+`{id, createdTime, fields: {...}}`. The `id` and `createdTime` are not
+in `fields`, so a column named `id` causes no conflict.
 
-A single-record PUT/PATCH rejects a body that also carries an `id`
-(path and body must not both specify it). Deleting an id a second time
-404s. A bulk DELETE naming no ids at all 400s. A honeypot/pass-if-match
-drop on create returns the same `201` a real create would — the
-response code itself must not be a signal a bot could use to detect
-the trap.
+### One record or several
 
-**Bulk writes are atomic and issue one API call per request, not one
-per record**, for sources that support it (`ConduitSourceCapabilities.bulkCreate`
-— see `packages/conduit/INTEGRATIONS.md`). If any id in a bulk
-update/replace/delete doesn't resolve to a real row, nothing in the
-batch is written, not just the bad entry; same for a bulk create where
-any record names an unrecognized field.
+The body shape tells the gateway which one you send:
 
-The gateway accepts three request content types —
-`application/json`, `application/x-www-form-urlencoded`, and
-`multipart/form-data` (fields only, no file uploads) — normalizing all
-three to the identical `{fields}`/`{records}` shape. A plain field name
-(`name=Ada`) is treated as that field under `fields` automatically;
-bracket notation (`fields[name]=Ada`, or `records[0][fields][name]=Ada`
-for bulk) works exactly like the JSON shape for anyone who wants it
-explicit.
+| Request | One record | Several records (10 or fewer) |
+|:--|:--|:--|
+| Create (`POST`) | `{fields}` | `{records: [{fields}, ...]}` |
+| Update (`PATCH`), replace (`PUT`) | `{fields}` on `<route>/:id` | `{records: [{id, fields}, ...]}` on `<route>` |
+| Delete (`DELETE`) | `<route>/:id` | `{ids: [id1, id2]}` on `<route>` |
 
-`createdTime` is derived from the id itself — ids are a fixed-width,
-sortable, base-31-encoded string (a timestamp plus a same-millisecond
-tiebreaker counter), not a random suffix, so a client can treat ids as
-opaque but string-sortable-by-creation-order strings.
+These requests get `400`:
 
-**A write can only use field names the source already has, with one
-exception: bootstrapping a genuinely blank source.** Once a source has
-at least one real field column, a write naming a field that isn't
-already a column is rejected with a `400
-{"error": "Unknown field: '...'"}` rather than silently adding it. Any
-other non-2xx from the real source (a deleted/renamed table, the
-provider's own rate limit, a transient 5xx) gets a clean JSON `502`
-instead — a different limit from the conduit's own `throttle`: the
-source's own limit is external, unconfigurable, and reported as `502`,
-not `429`.
+- A create with an `id`.
+- A `PUT` or `PATCH` on `<route>/:id` with an `id` in the body.
+- A bulk request with duplicate ids, or more than 10 records.
+- A bulk `DELETE` with no ids.
 
-Deletes actually remove the row, not just clear its values.
+These requests get `404`:
+
+- An id that does not exist.
+- A second delete of the same id.
+
+A create returns `201`. Other writes return `200`.
+
+### Bulk writes are all or nothing
+
+If one id in a bulk update, replace, or delete does not exist, the
+gateway writes nothing. If one record in a bulk create has an unknown
+field, the gateway writes nothing. For Google Sheets, a bulk write
+reads the tab once and writes once, for all its records.
+
+### Content types
+
+The gateway accepts `application/json`,
+`application/x-www-form-urlencoded`, and `multipart/form-data` (fields
+only, no files). It changes all three into the same `{fields}` or
+`{records}` shape.
+
+- A plain name, for example `name=Ada`, goes into `fields`.
+- Bracket names work like the JSON shape: `fields[name]=Ada`, or
+  `records[0][fields][name]=Ada` for several records.
+
+### Ids
+
+An id is a fixed-length, base-31 string: a timestamp and a counter.
+`createdTime` comes from the id. Treat an id as opaque. You can sort
+ids as strings to get the order of creation.
+
+### Unknown fields
+
+A write can use only the fields that the source has. The gateway does
+not add a column for an unknown field. It returns `400` with the code
+`unknown_field`, and one `errors` item for each unknown field. See
+[Errors](#errors).
+
+There is one exception. When a source has no columns, the first write
+creates them.
+
+A delete removes the row. It does not only clear the values.
+
+## Errors
+
+Each error is RFC 9457 Problem Details, with the content type
+`application/problem+json`:
+
+```json
+{
+  "type": "https://github.com/conduits-xyz/conduits/blob/main/docs/gateway-api.md#unknown-field",
+  "title": "Unknown field",
+  "status": 400,
+  "detail": "The conduit has no fields 'email', 'phone'.",
+  "code": "unknown_field",
+  "errors": [
+    { "code": "unknown_field", "field": "email", "pointer": "/fields/email", "detail": "Unknown field: 'email'" },
+    { "code": "unknown_field", "field": "phone", "pointer": "/fields/phone", "detail": "Unknown field: 'phone'" }
+  ]
+}
+```
+
+| Member | Always | Meaning |
+|:--|:--|:--|
+| `type` | Yes | A link to this code in the table below. |
+| `title` | Yes | A short summary. The same for each occurrence of the code. |
+| `status` | Yes | The HTTP status. It equals the response status. |
+| `code` | Yes | A stable code from the table below. Use it in your code. |
+| `detail` | No | Text about this occurrence, for developers. |
+| `errors` | No | One item for each field at fault: `code`, `field`, `pointer` (a JSON Pointer into the request body), and `detail`. In a bulk request, the pointer has the record index, for example `/records/2/fields/email`. |
+| `retryAfter` | With `429` and `503` | The seconds to wait. The `Retry-After` header has the same value. |
+
+Rules for clients:
+
+- Use `code` to choose what to do and what to show. Do not parse
+  `title` or `detail`; their text can change.
+- Use `errors` to mark each form field. The gateway reports all unknown
+  fields in one response.
+- Codes change only in a new version, and `CHANGELOG.md` records each
+  change. Treat a code that you do not know by its HTTP status.
+
+### Codes
+
+| Code | Status | Meaning | What your client does |
+|:--|:--|:--|:--|
+| <a id="invalid-body"></a>`invalid_body` | `400` | The body is not valid JSON or form data, or it does not have the expected shape. | Correct the request. Do not retry it. |
+| <a id="id-not-allowed"></a>`id_not_allowed` | `400` | The body has an `id` where it must not: on create, or on `<route>/:id`. | Remove the `id` from the body. |
+| <a id="too-many-records"></a>`too_many_records` | `400` | A bulk request has more than 10 records or ids. | Send 10 records or fewer in each request. |
+| <a id="duplicate-ids"></a>`duplicate_ids` | `400` | A bulk request has the same id two times. | Send each id once. |
+| <a id="bulk-not-supported"></a>`bulk_not_supported` | `400` | The source cannot create several records in one request (Fastmail, Gmail). | Send one record in each request. |
+| <a id="invalid-limit"></a>`invalid_limit` | `400` | `limit` is not a whole number from 1 to the gateway's maximum. | Use a `limit` from 1 to the gateway's maximum. |
+| <a id="unknown-cursor"></a>`unknown_cursor` | `400` | The gateway did not issue this cursor. | Read again from the first page. |
+| <a id="unknown-field"></a>`unknown_field` | `400` | A field is not in the conduit's field map, or the source has no column for it. `errors` lists each one. | Mark each field in `errors`. Ask the owner to add it. |
+| <a id="unauthorized"></a>`unauthorized` | `401` | The bearer token is missing or wrong. | Send the correct bearer token. |
+| <a id="forbidden"></a>`forbidden` | `403` | The caller's IP is not on the allowlist. | The caller's network cannot use this conduit. |
+| <a id="not-found"></a>`not_found` | `404` | No active conduit has this route. | Check the conduit URL. |
+| <a id="record-not-found"></a>`record_not_found` | `404` | An id does not exist. A bulk request writes nothing. | The record does not exist. Reload the list. |
+| <a id="method-not-allowed"></a>`method_not_allowed` | `405` | The method is not in the RACM. The `Allow` header lists the allowed methods. | Use a method from the `Allow` header. |
+| <a id="rate-limited"></a>`rate_limited` | `429` | This caller sent too many requests: the conduit's throttle (5 each second). | Wait `retryAfter` seconds, then retry. `conduitFetch` does this. |
+| <a id="internal-error"></a>`internal_error` | `500` | An error in the gateway. | Show a general error. |
+| <a id="source-unavailable"></a>`source_unavailable` | `502` | The source failed, did not answer, or refused the owner's credential. | Show a general error. Do not retry a `POST` automatically. |
+| <a id="source-busy"></a>`source_busy` | `503` | The source is busy: the gateway's request budget for Google Sheets is used up, or Google refused the request for its quota. The gateway did not do the request. | Wait `retryAfter` seconds, then retry, also a `POST`. `conduitFetch` does this. |
 
 ## Source config (`suriConfig`)
 
-Source-specific config: which table/tab to use, and an optional
-field-name mapping — see each `packages/config/sources/*.ts` compiler
-for the exact YAML shape per source type.
+Each source has its own config. For the YAML shape of each source,
+see `packages/config/sources/*.ts`.
 
-**`table`** — which tab/sheet/mailbox a conduit reads and writes.
-Absent/undefined means "the source's own default."
+- **`table`**: the tab, sheet, or mailbox that the conduit uses.
+  Without `table`, the source uses its default.
+- **`fieldMap`**: optional. It maps the field names that clients use to
+  the column names in the source. Thus a column can change its name
+  and clients do not change. For example, clients can use `fullName`
+  for the column `Full Name (Required)`. The gateway translates names
+  on each write and each read. A name that is not in `fieldMap` does
+  not change. `id` cannot be a source or a target in `fieldMap`.
 
-**`fieldMap`** — widget-facing field name → the source's actual column
-name, both directions, entirely optional. A conduit's public API
-surface stays stable even when the underlying column is renamed, and
-never has to expose an awkward real column name (e.g. `"Full Name
-(Required)"`) verbatim to clients. Inbound fields are translated to
-real column names right before every write, and every row read back is
-translated to widget-facing names right before being wrapped into the
-response envelope. A name absent from `fieldMap` passes through
-unchanged. `id` is never a valid mapping target either direction.
+### Google Sheets: the `conduit-id` column
 
-Google Sheets specifically has no native per-row id: the gateway
-requires (and adds, if missing, on first write) a `conduit-id` column
-to locate a row on every subsequent read/update/delete. **This column
-must never be deleted or renamed** — doing so breaks every existing
-row's addressability for that conduit. There's no compare-and-swap: a
-concurrent write racing a delete on the same row is a known
-limitation.
+Google Sheets has no row ids. The gateway adds a `conduit-id` column on
+the first write. It uses this column to find each row.
+
+> **CAUTION:** Do not delete or rename the `conduit-id` column. If you
+> do, the gateway cannot find the existing rows.
+
+There is no protection for concurrent writes. When a write and a
+delete change the same row at the same time, the result can be wrong.

@@ -1,6 +1,6 @@
 import { createContextKey, type Middleware } from 'remix/router'
 
-import { jsonResponse } from '../response.ts'
+import { problemResponse } from '../response.ts'
 import { expandBracketForm } from '@conduits/conduit'
 
 export const jsonBodyContext = createContextKey<Record<string, unknown>>({})
@@ -35,7 +35,7 @@ export function parseJsonBody(): Middleware<{ key: typeof jsonBodyContext; value
         context.set(jsonBodyContext, expandBracketForm(entries))
         return next()
       } catch {
-        return jsonResponse({ error: 'Invalid multipart body' }, 400)
+        return problemResponse('invalid_body', { detail: 'The multipart body cannot be read.' })
       }
     }
 
@@ -53,7 +53,7 @@ export function parseJsonBody(): Middleware<{ key: typeof jsonBodyContext; value
       context.set(jsonBodyContext, parsed)
       return next()
     } catch {
-      return jsonResponse({ error: 'Invalid JSON body' }, 400)
+      return problemResponse('invalid_body', { detail: 'The body must be a JSON object.' })
     }
   }
 }

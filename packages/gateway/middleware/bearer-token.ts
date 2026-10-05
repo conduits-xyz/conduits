@@ -1,7 +1,7 @@
 import type { Middleware } from 'remix/router'
 
 import { verifyBearerToken } from '../bearer-token.ts'
-import { jsonResponse } from '../response.ts'
+import { problemResponse } from '../response.ts'
 import { conduitConfigContext } from './conduit-config.ts'
 import type { ApiKeyRef } from '../types.ts'
 import { apiKeyIdContext } from '../observation.ts'
@@ -39,7 +39,7 @@ export function enforceBearerToken(): Middleware {
     if (!config.tokenRequiredMethods.includes(context.method)) return next()
 
     const key = matchingKeyForContext(context, context.method, config.apiKeys)
-    if (!key) return jsonResponse({ error: 'Unauthorized' }, 401)
+    if (!key) return problemResponse('unauthorized')
     if (key.id != null) context.set(apiKeyIdContext, key.id)
     return next()
   }
@@ -56,7 +56,7 @@ export function requireBearerToken(): Middleware {
 
     const token = presentedToken(context)
     const key = token === null ? null : config.apiKeys.find((candidate) => verifyBearerToken(token, candidate.tokenHash)) ?? null
-    if (!key) return jsonResponse({ error: 'Unauthorized' }, 401)
+    if (!key) return problemResponse('unauthorized')
     if (key.id != null) context.set(apiKeyIdContext, key.id)
     return next()
   }

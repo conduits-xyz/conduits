@@ -50,7 +50,7 @@ export class ConduitSourceError extends Error {
 }
 
 // The source, or this process's budget for it, refused the request for
-// now; retry after `retryAfterSeconds`. The gateway answers 429 with
+// now; retry after `retryAfterSeconds`. The gateway answers 503 with
 // Retry-After.
 export class ConduitRateLimitError extends ConduitSourceError {
   constructor(
@@ -235,9 +235,9 @@ function inferSchema(header: string[], dataRows: string[][]): Map<string, Condui
 // a bad record fails the whole batch, and a batch costs two API calls
 // rather than up to MAX_BULK_RECORDS.
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets'
-const RANGE = 'A1:ZZ10000'
-// Reads take every row; RANGE only anchors appends.
+// Reads take every row; appends name a range only to anchor the table.
 const READ_RANGE = 'A:ZZ'
+const APPEND_RANGE = 'A1:ZZ10000'
 
 async function sheetsFetch(
   path: string,
@@ -400,7 +400,7 @@ async function ensureColumnsForWrite(
 
   const hasAnyFieldColumn = header.some((name) => name !== ID_COLUMN_NAME)
   if (hasAnyFieldColumn && missingFieldNames.length > 0) {
-    throw new ConduitUnknownFieldError(SOURCE, missingFieldNames[0])
+    throw new ConduitUnknownFieldError(SOURCE, missingFieldNames)
   }
 
   const newColumnNames = needsIdColumn ? [ID_COLUMN_NAME, ...missingFieldNames] : missingFieldNames
@@ -471,7 +471,7 @@ async function createFieldsOnSheet(
 
   // Clear the cached field list so the next describeFields sees the new
   // column.
-  sheetMetadataCache.delete(`fields\0${sourceKey}\0${tableName ?? ''}\0${tokenDigest(credential)}`)
+  sheetMetadata.invalidate(`fields\0${tabKey(sourceKey, tableName, credential)}`)
 }
 
 // listTables and describeFields are called as someone switches tabs
@@ -479,7 +479,34 @@ async function createFieldsOnSheet(
 // and tab for 30 seconds, to absorb those bursts without serving stale
 // lists for long.
 const SHEET_METADATA_CACHE_TTL_MS = 30_000
-const sheetMetadataCache = new Map<string, { value: unknown; expiresAt: number }>()
+
+// Values by key for `ttlMs`: this metadata, and list reads' grids
+// (createHttpSheetsClient's readCacheMs). A load in flight is shared; a
+// failed one isn't kept.
+class TtlCache<T> {
+  private readonly entries = new Map<string, { value: Promise<T>; expiresAt: number }>()
+
+  constructor(private readonly ttlMs: number) {}
+
+  get(key: string, load: () => Promise<T>): Promise<T> {
+    const now = Date.now()
+    for (const [k, entry] of this.entries) if (entry.expiresAt <= now) this.entries.delete(k)
+    const hit = this.entries.get(key)
+    if (hit) return hit.value
+    const value = load()
+    this.entries.set(key, { value, expiresAt: now + this.ttlMs })
+    value.catch(() => this.entries.delete(key))
+    return value
+  }
+
+  // Drops every key that starts with `prefix`.
+  invalidate(prefix: string): void {
+    for (const key of this.entries.keys()) if (key.startsWith(prefix)) this.entries.delete(key)
+  }
+}
+
+const sheetMetadata = new TtlCache<unknown>(SHEET_METADATA_CACHE_TTL_MS)
+const cached = <T>(key: string, load: () => Promise<T>) => sheetMetadata.get(key, load) as Promise<T>
 
 // Cache keys include a digest of the access token, so one credential's
 // results are never served to another. The digest is never sent or
@@ -488,13 +515,9 @@ function tokenDigest(credential: string): string {
   return createHash('sha256').update(credential).digest('hex').slice(0, 16)
 }
 
-async function cached<T>(key: string, fetchFresh: () => Promise<T>): Promise<T> {
-  const entry = sheetMetadataCache.get(key)
-  if (entry && entry.expiresAt > Date.now()) return entry.value as T
-  const value = await fetchFresh()
-  sheetMetadataCache.set(key, { value, expiresAt: Date.now() + SHEET_METADATA_CACHE_TTL_MS })
-  return value
-}
+// One tab's key in either cache.
+const tabKey = (sourceKey: string, tableName: string | undefined, credential: string) =>
+  `${sourceKey}\0${tableName ?? ''}\0${tokenDigest(credential)}`
 
 // One grid read and one values.append for the whole batch.
 async function appendRows(
@@ -515,7 +538,7 @@ async function appendRows(
   const header = grid[0]
   const rows = fieldsList.map((fields) => ({ ...fields, id: randomRowId() }))
   const response = await sheetsFetch(
-    `${sourceKey}/values/${rangeFor(tableName, RANGE)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+    `${sourceKey}/values/${rangeFor(tableName, APPEND_RANGE)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
     credential,
     { method: 'POST', body: JSON.stringify({ values: rows.map((row) => gridRowFromFields(header, row)) }) },
     fetchImpl,
@@ -648,7 +671,7 @@ async function deleteFieldsOnSheet(
   await throwForStatus(response, 'delete columns')
 
   // Clear the cached field list, as in createFieldsOnSheet.
-  sheetMetadataCache.delete(`fields\0${sourceKey}\0${tableName ?? ''}\0${tokenDigest(credential)}`)
+  sheetMetadata.invalidate(`fields\0${tabKey(sourceKey, tableName, credential)}`)
 }
 
 function bulkReplaceRows(
@@ -685,11 +708,11 @@ function openHttpTable(
   credential: string,
   tableName: string | undefined,
   fetchImpl: typeof fetch = fetch,
-  gridCache?: GridCache,
+  gridCache?: TtlCache<string[][]>,
 ): ConduitTable {
   const table: ConduitTable = {
     async describeFields() {
-      return cached(`fields\0${sourceKey}\0${tableName ?? ''}\0${tokenDigest(credential)}`, async () => {
+      return cached(`fields\0${tabKey(sourceKey, tableName, credential)}`, async () => {
         const grid = await getGrid(sourceKey, tableName, credential, fetchImpl)
         const [header, ...dataRows] = grid
         if (!header) return []
@@ -715,9 +738,8 @@ function openHttpTable(
     },
 
     async listRecords(page) {
-      const grid = gridCache
-        ? await gridCache.read(sourceKey, tableName, credential, () => getGrid(sourceKey, tableName, credential, fetchImpl))
-        : await getGrid(sourceKey, tableName, credential, fetchImpl)
+      const load = () => getGrid(sourceKey, tableName, credential, fetchImpl)
+      const grid = await (gridCache ? gridCache.get(tabKey(sourceKey, tableName, credential), load) : load())
       const [header, ...dataRows] = grid
       const schema = header ? inferSchema(header, dataRows) : new Map<string, ConduitFieldType>()
       const allRows = rowsFromGrid(grid)
@@ -781,7 +803,7 @@ function openHttpTable(
       try {
         return await write(...args)
       } finally {
-        gridCache.invalidate(sourceKey)
+        gridCache.invalidate(`${sourceKey}\0`)
       }
     }
   }
@@ -803,36 +825,12 @@ const WRITE_METHODS = [
   'deleteRecords',
 ] as const satisfies readonly (keyof ConduitTable)[]
 
-// A tab's contents, reused by list reads for `ttlMs` so paging through a
-// large sheet reads it from Google once. Keys include a digest of the
-// access token, so one credential's rows are never served to another.
-class GridCache {
-  private readonly entries = new Map<string, { grid: Promise<string[][]>; expiresAt: number }>()
-
-  constructor(private readonly ttlMs: number) {}
-
-  read(sourceKey: string, tableName: string | undefined, credential: string, load: () => Promise<string[][]>): Promise<string[][]> {
-    const key = `${sourceKey}\0${tableName ?? ''}\0${tokenDigest(credential)}`
-    const now = Date.now()
-    for (const [k, entry] of this.entries) if (entry.expiresAt <= now) this.entries.delete(k)
-    const hit = this.entries.get(key)
-    if (hit) return hit.grid
-    const grid = load()
-    this.entries.set(key, { grid, expiresAt: now + this.ttlMs })
-    // A failed read isn't cached.
-    grid.catch(() => this.entries.delete(key))
-    return grid
-  }
-
-  invalidate(sourceKey: string): void {
-    for (const key of this.entries.keys()) if (key.startsWith(`${sourceKey}\0`)) this.entries.delete(key)
-  }
-}
-
 // A budget of requests per minute to Google, for the whole process and
-// per access token, kept below Google's own quotas so this process gets
-// a 429 with Retry-After before Google refuses everyone. Reads and
+// per access token, kept below Google's own quotas so callers get a
+// 503 with Retry-After before Google refuses everyone. Reads and
 // writes have separate budgets, as Google's quotas do.
+const BUDGET_WINDOW_MS = 60_000
+
 class RequestBudget {
   private readonly windows = new Map<string, number[]>()
 
@@ -842,12 +840,12 @@ class RequestBudget {
     const now = Date.now()
     // Access tokens change hourly; drop windows with nothing in the last
     // minute so old tokens' windows don't pile up.
-    for (const [key, window] of this.windows) if ((window.at(-1) ?? 0) <= now - 60_000) this.windows.delete(key)
+    for (const [key, window] of this.windows) if ((window.at(-1) ?? 0) <= now - BUDGET_WINDOW_MS) this.windows.delete(key)
     const check = (key: string, limit: number) => {
-      const window = (this.windows.get(key) ?? []).filter((at) => at > now - 60_000)
+      const window = (this.windows.get(key) ?? []).filter((at) => at > now - BUDGET_WINDOW_MS)
       this.windows.set(key, window)
       if (window.length >= limit) {
-        const retryAfterSeconds = Math.max(1, Math.ceil((window[0]! + 60_000 - now) / 1000))
+        const retryAfterSeconds = Math.max(1, Math.ceil((window[0]! + BUDGET_WINDOW_MS - now) / 1000))
         throw new ConduitRateLimitError(SOURCE, `Sheets ${kind} budget used up for this minute`, retryAfterSeconds)
       }
       return window
@@ -871,7 +869,8 @@ export interface GoogleSheetsClientOptions {
 // Exported for its unit test; under NODE_ENV=test googleSheetsClient is
 // the in-memory fake below.
 export function createHttpSheetsClient(options: GoogleSheetsClientOptions = { readCacheMs: 0 }): ConduitSourceClient {
-  const gridCache = options.readCacheMs > 0 ? new GridCache(options.readCacheMs) : undefined
+  // So paging through a large sheet reads it from Google once.
+  const gridCache = options.readCacheMs > 0 ? new TtlCache<string[][]>(options.readCacheMs) : undefined
   const budget = options.budget ? new RequestBudget(options.budget.perMinute, options.budget.perCredentialPerMinute) : undefined
   return {
     // No handshake: connect() only keeps sourceKey and credential for
@@ -969,8 +968,8 @@ function checkFakeSchema(key: string, fieldsList: ConduitFields[]): void {
     fakeSchemas.set(key, new Set(submittedFieldNames))
     return
   }
-  const unknown = submittedFieldNames.find((name) => !known.has(name))
-  if (unknown) throw new ConduitUnknownFieldError(SOURCE, unknown)
+  const unknown = submittedFieldNames.filter((name) => !known.has(name))
+  if (unknown.length > 0) throw new ConduitUnknownFieldError(SOURCE, unknown)
 }
 
 function appendRowsFake(sourceKey: string, tableName: string | undefined, fieldsList: ConduitFields[]): ConduitRecord[] {

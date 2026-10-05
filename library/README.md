@@ -1,15 +1,18 @@
-# Widget Library
+# Widget library
 
-The public library of copy-ready Conduits widgets and integration tutorials.
+Conduits widgets that you can copy, and tutorials that show how to
+build on a conduit.
 
-- Open the catalog at [`index.html`](index.html).
-- Browse reusable widgets under [`widgets/`](widgets/).
-- Browse integration tutorials under [`pages/`](pages/).
+- The catalog: [`index.html`](index.html).
+- The widgets: [`widgets/`](widgets/).
+- The tutorials: [`pages/`](pages/).
 
-## Contributing
+## Contributions
 
-Unlike the rest of this repository, the library welcomes widget
-submissions through pull requests. Read [`CONTRIBUTING.md`](CONTRIBUTING.md)
-for the process and [`GUIDELINES.md`](GUIDELINES.md) for the acceptance
-checklist before submitting one. Catalog metadata is edited by
-authorized maintainers.
+The library accepts widget pull requests. The rest of this repository
+does not.
+
+1. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the process.
+2. Read [`GUIDELINES.md`](GUIDELINES.md) for the acceptance checklist.
+
+Only maintainers edit the catalog metadata.

@@ -18,3 +18,13 @@ export function resolveEnvRef(raw: string): string {
   if (!value) throw new Error(`environment variable ${name} is not set`)
   return value
 }
+
+// A required setting that must be a positive whole number. Throws,
+// naming the variable, when it is missing or isn't one.
+export function positiveIntegerFromEnv(name: string): number {
+  const raw = process.env[name]
+  if (!raw) throw new Error(`${name} is required`)
+  const value = Number(raw)
+  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive whole number, not "${raw}"`)
+  return value
+}

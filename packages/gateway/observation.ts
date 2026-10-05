@@ -9,14 +9,14 @@ export type RouteKind = 'bare' | 'item' | 'schema' | 'readyz' | 'unmatched'
 export type StatusClass = 'success' | 'clientError' | 'rejected' | 'notFound' | 'providerError' | 'serverError'
 
 // From the response status alone. RACM, allowlist, bearer token and
-// throttle return 405, 403, 401 and 429, which make up 'rejected'. 502
-// is handleSourceErrors' response to ConduitAuthError and
-// ConduitSourceError. 404 (the curi resolves to nothing) has its own
-// class.
+// throttle return 405, 403, 401 and 429, which make up 'rejected'.
+// handleSourceErrors returns 502 (ConduitAuthError, ConduitSourceError)
+// and 503 (ConduitRateLimitError), which make up 'providerError'. 404
+// (the curi resolves to nothing) has its own class.
 export function classifyStatus(status: number): StatusClass {
   if (status === 401 || status === 403 || status === 405 || status === 429) return 'rejected'
   if (status === 404) return 'notFound'
-  if (status === 502) return 'providerError'
+  if (status === 502 || status === 503) return 'providerError'
   if (status >= 500) return 'serverError'
   if (status >= 400) return 'clientError'
   return 'success'

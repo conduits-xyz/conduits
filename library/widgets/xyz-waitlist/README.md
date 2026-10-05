@@ -1,15 +1,11 @@
 # Waitlist widget
 
-A real `<xyz-waitlist>` custom element — a first-name-and-email
-capture form backed by a conduit, for a marketer who needs a
-rate-limited, spam-filtered interest-list endpoint live in minutes.
-Zero dependencies, no build step, no JavaScript framework: one script
-tag, one element.
+`<xyz-waitlist>` collects a first name and an email address, and
+writes them to a conduit.
 
-## Running it
+## Add it to a page
 
-Open `index.html` directly in a browser, or copy `xyz-waitlist.js`
-into your own page:
+To try it, open `index.html` in a browser. To use it:
 
 ```html
 <head>
@@ -17,50 +13,49 @@ into your own page:
 </head>
 <body>
   <script src="./xyz-waitlist.js"></script>
-  <xyz-waitlist conduit-url="https://conduits.xyz/XXXXXXXX"></xyz-waitlist>
+  <xyz-waitlist conduit-url="https://gateway.example/XXXXXXXX"></xyz-waitlist>
 </body>
 ```
 
-The stylesheet link belongs in `<head>`, not next to the script — see
-[`library/widgets/README.md`](../README.md#embedding-put-the-widgets-own-stylesheet-in-head)
-for why. The element itself never depends on it (its layout comes from
-its own JS either way), but a `<head>` placement is what keeps your
-page from painting it unstyled for a moment first.
+Put the `<link>` in `<head>`. See
+[`library/widgets/README.md`](../README.md#add-a-widget-to-a-page).
 
-With no `conduit-url` at all (a real embed that forgot to set it, or this
-file's own demo page before you've entered one — see its own "Conduit
-URL" field), the element renders "Not connected to a conduit yet."
-instead of a form that could only ever fail.
+Without `conduit-url`, the widget shows "Not connected to a conduit
+yet." and no form.
+
+## Conduit setup
+
+- Methods: `POST`.
+- Columns: `firstName`, `email`. If the sheet is empty, the first
+  signup creates them. Otherwise, add them to the sheet yourself.
 
 ## Wire format
 
-A signup is `POST {fields: {firstName, email}}` — the same envelope
-every conduit accepts (see `docs/gateway-api.md`). Point `conduit-url`
-at a sheet with `firstName` and `email` columns — add them directly to
-the sheet if it's still blank. The element
-only ever handles the form itself; a running signup count (if you want
-one shown next to it — e.g. a "join N others" line next to the widget)
-is a plain `GET conduit-url` your own page renders however it likes,
-outside the element.
+```json
+{ "fields": { "firstName": "Ada", "email": "ada@example.com" } }
+```
 
-## Configuration
+The widget does not show a count of signups. To show one, read the
+conduit with `GET` on your own page and follow `nextCursor` to the last
+page (see the
+[developer guide](../../../docs/developer-guide.md#read-all-records)).
+For this, the conduit must also allow `GET`.
 
-Every optional attribute below is also machine-readable — load this
-file and inspect `customElements.get('xyz-waitlist').configFields` for
-the same list with types, defaults, and requirement info attached
-(`required` / `optional` / `conditional`), meant for a config-form
-generator, not just this table.
+## Attributes
 
-| Attribute | Default | Notes |
-|---|---|---|
-| `caption` | *(none)* | Shown above the form; also becomes the form's accessible name (`aria-labelledby`). |
-| `heading-level` | *(none)* | Only used when `caption` is set — renders it as an accessible heading of this level instead of plain labeled text. Set this to match your own page's outline; the widget can't know it on its own. |
-| `unconfigured-message` | `Not connected to a conduit yet.` | Shown instead of the form before `conduit-url` is set. |
-| `success-message` | `You're on the list — we'll be in touch.` | Shown after a successful signup. |
-| `button-text` | `Join the waitlist` | The submit button's own label. |
+| Attribute | Required | Default | Meaning |
+|:--|:--|:--|:--|
+| `conduit-url` | Yes | none | The conduit URL. |
+| `caption` | No | none | Text above the form. It is also the form's accessible name. |
+| `heading-level` | Only with `caption` | none | Makes the caption a heading of this level. Use your page's outline. |
+| `unconfigured-message` | No | `Not connected to a conduit yet.` | The text without `conduit-url`. |
+| `success-message` | No | `You're on the list — we'll be in touch.` | The text after a signup. |
+| `button-text` | No | `Join the waitlist` | The submit button's label. |
+| `demo` | No | off | Shows the widget without a conduit. Sends nothing. |
 
-## Theming
+`customElements.get('xyz-waitlist').configFields` gives the same list
+for programs.
 
-See [THEME.md](../THEME.md) for the shared `--xyz-*` property reference,
-defaults, and examples for theming all widgets together or overriding
-`xyz-waitlist` on its own.
+## Theme
+
+See [`THEME.md`](../THEME.md).

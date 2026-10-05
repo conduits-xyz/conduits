@@ -111,8 +111,9 @@
           } else {
             let detail = `(${response.status})`
             try {
-              const body = await response.json()
-              if (body?.error) detail = body.error
+              // Errors are RFC 9457 Problem Details (docs/gateway-api.md#errors).
+              const problem = await response.json()
+              detail = problem?.detail || problem?.title || detail
             } catch {
               // Not a JSON body — the bare status code above is all we have.
             }

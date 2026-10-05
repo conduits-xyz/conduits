@@ -1,7 +1,7 @@
 import { createContextKey, type Middleware } from 'remix/router'
 import { sourceClients, type ConduitSourceClient, type ConduitTable } from '@conduits/conduit'
 
-import { jsonResponse } from '../response.ts'
+import { problemResponse } from '../response.ts'
 import type { GatewayRuntime } from '../types.ts'
 import { providerBytesContext } from '../observation.ts'
 import { conduitConfigContext } from './conduit-config.ts'
@@ -22,11 +22,11 @@ export function loadConduitTable(
 
     const client = overrides[config.suriType] ?? sourceClients[config.suriType]
     if (!client) {
-      return jsonResponse({ error: `Unsupported source: '${config.suriType}'` }, 500)
+      return problemResponse('internal_error', { detail: `Unsupported source: '${config.suriType}'` })
     }
 
     const credential = await runtime.getCredential(config)
-    if (!credential) return jsonResponse({ error: 'Service Unavailable' }, 502)
+    if (!credential) return problemResponse('source_unavailable', { detail: 'The conduit has no usable credential.' })
 
     // Undefined without instrumentFetch; connect() then uses the global
     // fetch.

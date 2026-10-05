@@ -7,7 +7,7 @@ import { createGatewayActions } from './controller.ts'
 import { createGatewayItemActions } from './item-controller.ts'
 import { gatewaySchemaAction } from './schema-controller.ts'
 import { gatewayReadyzAction } from './readyz-controller.ts'
-import { jsonResponse } from './response.ts'
+import { problemResponse } from './response.ts'
 import { conduitConfigContext } from './middleware/conduit-config.ts'
 import { providerBytesContext, honeypotDropCountContext, apiKeyIdContext, classifyStatus, type RouteKind, type GatewayObservation } from './observation.ts'
 
@@ -26,7 +26,7 @@ function answerPreflight(): Response {
 }
 
 function methodNotAllowed(allowed: readonly string[]): Response {
-  return jsonResponse({ error: 'Method Not Allowed' }, 405, { Allow: allowed.join(', ') })
+  return problemResponse('method_not_allowed', { headers: { Allow: allowed.join(', ') } })
 }
 
 // Resolves a request to a conduit as docs/data-model.md "route binding"
@@ -47,10 +47,10 @@ export function createGatewayDispatcher(deps: GatewayDeps): (context: GatewayCon
   // 'unmatched' when no binding resolves, and then there is no curi.
   async function route(context: GatewayContext, routeKind: { current: RouteKind }): Promise<Response> {
     const match = await deps.resolveRoute(context.url.hostname, context.url.pathname)
-    if (!match) return jsonResponse({ error: 'Not Found' }, 404)
+    if (!match) return problemResponse('not_found')
 
     const action = classifyConduitAction(match.suffix)
-    if (!action) return jsonResponse({ error: 'Not Found' }, 404)
+    if (!action) return problemResponse('not_found')
 
     context.params.curi = match.binding.curi
     routeKind.current = action.kind
@@ -115,7 +115,7 @@ export function createGatewayDispatcher(deps: GatewayDeps): (context: GatewayCon
       // The same 500 as server.ts's fallback in services/gateway, caught
       // here so the request is still observed.
       console.error(err)
-      response = jsonResponse({ error: 'Internal Server Error' }, 500)
+      response = problemResponse('internal_error')
     }
 
     const config = context.get(conduitConfigContext)

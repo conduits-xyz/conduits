@@ -27,21 +27,21 @@ describe('field-map', () => {
   describe('checkKnownFields', () => {
     it('accepts anything when fieldMap is undefined or empty — no schema declared at all', () => {
       // Passes if nothing throws.
-      checkKnownFields({ anything: 'x', goes: 'y' }, undefined, 'gmail')
-      checkKnownFields({ anything: 'x' }, {}, 'gmail')
+      checkKnownFields([{ anything: 'x', goes: 'y' }], undefined, 'gmail')
+      checkKnownFields([{ anything: 'x' }], {}, 'gmail')
     })
 
     it('rejects a field outside a declared, non-empty schema — for every suri_type alike, not just Sheets', () => {
       const fieldMap = { name: 'name', email: 'email' }
-      checkKnownFields({ name: 'Ada', email: 'ada@example.com' }, fieldMap, 'gmail') // every declared field: no throw
-      assert.throws(() => checkKnownFields({ name: 'Ada', phone: '555-0100' }, fieldMap, 'gmail'), ConduitUnknownFieldError)
-      assert.throws(() => checkKnownFields({ name: 'Ada', phone: '555-0100' }, fieldMap, 'fastmail'), ConduitUnknownFieldError)
+      checkKnownFields([{ name: 'Ada', email: 'ada@example.com' }], fieldMap, 'gmail') // every declared field: no throw
+      assert.throws(() => checkKnownFields([{ name: 'Ada', phone: '555-0100' }], fieldMap, 'gmail'), ConduitUnknownFieldError)
+      assert.throws(() => checkKnownFields([{ name: 'Ada', phone: '555-0100' }], fieldMap, 'fastmail'), ConduitUnknownFieldError)
     })
 
     it('carries the offending field name and the given source on the thrown error', () => {
       assert.throws(
-        () => checkKnownFields({ phone: '555-0100' }, { name: 'name' }, 'gmail'),
-        (err: unknown) => err instanceof ConduitUnknownFieldError && err.fieldName === 'phone' && err.source === 'gmail' && /'phone'/.test(err.message),
+        () => checkKnownFields([{ phone: '555-0100' }], { name: 'name' }, 'gmail'),
+        (err: unknown) => err instanceof ConduitUnknownFieldError && err.fieldNames.join() === 'phone' && err.source === 'gmail' && /'phone'/.test(err.message),
       )
     })
   })

@@ -1,6 +1,6 @@
 import type { GatewayContext } from './context.ts'
 import type { GatewayDeps } from './pipeline.ts'
-import { jsonResponse } from './response.ts'
+import { jsonResponse, problemResponse } from './response.ts'
 import type { ConduitTable } from '@conduits/conduit'
 import { jsonBodyContext } from './middleware/body.ts'
 import { requireConduitConfig, requireConduitTable } from './require-context.ts'
@@ -21,9 +21,12 @@ import {
   hasBodyId,
   hasDuplicateIds,
   exceedsBulkLimit,
+  MAX_BULK_RECORDS,
   sourceClients,
   type WireRecord,
 } from '@conduits/conduit'
+
+const TOO_MANY_RECORDS = { detail: `Send ${MAX_BULK_RECORDS} records or ids or fewer.` }
 
 // A reserved field a plain HTML <form> (e.g.
 // library/pages/progressive-enhancement-form) can include as a hidden
@@ -66,19 +69,17 @@ async function runBulkWrite(
   body: unknown,
   mode: 'update' | 'replace',
 ): Promise<Response> {
-  if (!isBulkBody(body)) return jsonResponse({ error: 'Bad Request' }, 400)
-  if (exceedsBulkLimit(body.records.length)) return jsonResponse({ error: 'Bad Request' }, 400)
+  if (!isBulkBody(body)) return problemResponse('invalid_body', { detail: 'Send {records: [{id, fields}, ...]}.' })
+  if (exceedsBulkLimit(body.records.length)) return problemResponse('too_many_records', TOO_MANY_RECORDS)
   const entries = extractBulkRecords(body.records, true)
-  if (!entries) return jsonResponse({ error: 'Bad Request' }, 400)
-  if (hasDuplicateIds(entries.map((entry) => entry.id))) return jsonResponse({ error: 'Bad Request' }, 400)
+  if (!entries) return problemResponse('invalid_body', { detail: 'Each record needs an id and fields.' })
+  if (hasDuplicateIds(entries.map((entry) => entry.id))) return problemResponse('duplicate_ids')
 
-  const toWrite: ConduitRecord[] = entries.map((entry) => {
-    checkKnownFields(entry.fields, fieldMap, source)
-    return { id: entry.id, fields: toSourceFields(entry.fields, fieldMap) }
-  })
+  checkKnownFields(entries.map((entry) => entry.fields), fieldMap, source)
+  const toWrite: ConduitRecord[] = entries.map((entry) => ({ id: entry.id, fields: toSourceFields(entry.fields, fieldMap) }))
 
   const written = mode === 'update' ? await table.updateRecords(toWrite) : await table.replaceRecords(toWrite)
-  if (written === null) return jsonResponse({ error: 'Not Found' }, 404)
+  if (written === null) return problemResponse('record_not_found', { detail: 'An id does not exist. Nothing was written.' })
 
   const records: WireRecord[] = written.map((record) =>
     wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) }),
@@ -106,11 +107,12 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
 
       const cursorParam = context.url.searchParams.get('cursor')
       const cursor = cursorParam === null ? undefined : decodeListCursor(cursorParam)
-      if (cursor === null) return jsonResponse({ error: 'Bad Request: unknown cursor' }, 400)
+      if (cursor === null) return problemResponse('unknown_cursor', { detail: 'Send nextCursor from the previous page without changes.' })
       const limitParam = context.url.searchParams.get('limit')
       const limit = limitParam === null ? deps.listLimits.default : Number(limitParam)
-      if (!Number.isInteger(limit) || limit <= 0) return jsonResponse({ error: 'Bad Request' }, 400)
-      if (limit > deps.listLimits.max) return jsonResponse({ error: `Bad Request: limit must be at most ${deps.listLimits.max}` }, 400)
+      if (!Number.isInteger(limit) || limit <= 0 || limit > deps.listLimits.max) {
+        return problemResponse('invalid_limit', { detail: `limit must be a whole number from 1 to ${deps.listLimits.max}.` })
+      }
 
       const { records, nextCursor } = await table.listRecords({ cursor, limit })
       return jsonResponse({
@@ -132,11 +134,11 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
         // Refused for sources whose records are emails that can't be
         // unsent (ConduitSourceCapabilities.bulkCreate).
         if (!sourceClients[config.suriType]?.capabilities().bulkCreate) {
-          return jsonResponse({ error: 'Bad Request' }, 400)
+          return problemResponse('bulk_not_supported', { detail: 'Send one record at a time to this conduit.' })
         }
-        if (exceedsBulkLimit(body.records.length)) return jsonResponse({ error: 'Bad Request' }, 400)
+        if (exceedsBulkLimit(body.records.length)) return problemResponse('too_many_records', TOO_MANY_RECORDS)
         const entries = extractBulkRecords(body.records, false)
-        if (!entries) return jsonResponse({ error: 'Bad Request' }, 400)
+        if (!entries) return problemResponse('invalid_body', { detail: 'Each record needs fields and no id.' })
 
         // _redirect is reserved here too, so it is never stored.
         for (const entry of entries) {
@@ -146,13 +148,9 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
         // Dropped records are not written; the rest go in one
         // createRecords call.
         const outcomes = entries.map((entry) => checkHiddenFormField(rules, entry))
-        const toAppend: ConduitFields[] = []
-        for (const outcome of outcomes) {
-          if (outcome.outcome === 'ok') {
-            checkKnownFields(outcome.fields, fieldMap, config.suriType)
-            toAppend.push(toSourceFields(outcome.fields, fieldMap))
-          }
-        }
+        const kept = outcomes.flatMap((outcome) => (outcome.outcome === 'ok' ? [outcome.fields] : []))
+        checkKnownFields(kept, fieldMap, config.suriType)
+        const toAppend: ConduitFields[] = kept.map((fields) => toSourceFields(fields, fieldMap))
         const appended = toAppend.length === 0 ? [] : await table.createRecords(toAppend)
 
         let cursor = 0
@@ -169,7 +167,7 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
       }
 
       // Callers can't set an id on create (record-shape.ts).
-      if (hasBodyId(body)) return jsonResponse({ error: 'Bad Request' }, 400)
+      if (hasBodyId(body)) return problemResponse('id_not_allowed', { detail: 'The gateway makes the id of a new record.' })
 
       // Removed from the fields before extractFields(), so it isn't
       // stored.
@@ -178,7 +176,7 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
       if (rawFields && REDIRECT_FIELD in rawFields) delete rawFields[REDIRECT_FIELD]
 
       const fields = extractFields(body)
-      if (!fields) return jsonResponse({ error: 'Bad Request' }, 400)
+      if (!fields) return problemResponse('invalid_body', { detail: 'Send {fields: {...}}.' })
 
       const outcome = checkHiddenFormField(rules, fields)
       if (outcome.outcome === 'dropped') {
@@ -189,7 +187,7 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
         return jsonResponse(wrapRecord({ id: randomRowId(), fields: outcome.fields }), 201)
       }
 
-      checkKnownFields(outcome.fields, fieldMap, config.suriType)
+      checkKnownFields([outcome.fields], fieldMap, config.suriType)
       const record = await table.createRecord(toSourceFields(outcome.fields, fieldMap))
       if (redirectTarget) return Response.redirect(redirectTarget, 303)
       return jsonResponse(wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) }), 201)
@@ -215,14 +213,14 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
       const table = requireConduitTable(context)
       const body = context.get(jsonBodyContext)
       const ids = extractIds(body)
-      if (!ids) return jsonResponse({ error: 'Bad Request' }, 400)
-      if (exceedsBulkLimit(ids.length)) return jsonResponse({ error: 'Bad Request' }, 400)
-      if (hasDuplicateIds(ids)) return jsonResponse({ error: 'Bad Request' }, 400)
+      if (!ids) return problemResponse('invalid_body', { detail: 'Send {ids: [id, ...]} with one id or more.' })
+      if (exceedsBulkLimit(ids.length)) return problemResponse('too_many_records', TOO_MANY_RECORDS)
+      if (hasDuplicateIds(ids)) return problemResponse('duplicate_ids')
 
       // One deleteRecords call, so the batch is deleted entirely or not
       // at all.
       const ok = await table.deleteRecords(ids)
-      if (!ok) return jsonResponse({ error: 'Not Found' }, 404)
+      if (!ok) return problemResponse('record_not_found', { detail: 'An id does not exist. Nothing was deleted.' })
       return jsonResponse({ records: ids.map((id) => ({ id, deleted: true })) })
     },
   }
