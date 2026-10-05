@@ -7,8 +7,9 @@ export {
   GOOGLE_SHEETS_SCOPES,
   GMAIL_SCOPES,
   GOOGLE_AUTHORIZATION_PARAMS,
-  GOOGLE_REVOKED_GRANT_MESSAGE,
   scopesForPurpose,
 } from './google-scopes.ts'
 export type { GooglePurpose } from './google-scopes.ts'
+export { refreshGoogleTokens } from './google-oauth.ts'
+export type { GoogleClient, GoogleRefreshResult, GoogleTokenEndpoint, RefreshableTokens } from './google-oauth.ts'
 export type { SourceCompileResult } from './source-compiler.ts'

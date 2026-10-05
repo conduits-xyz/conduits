@@ -36,22 +36,21 @@ function decodeBase31(token: string): number {
   return value
 }
 
-// Per process, like the throttle (middleware/throttle.ts).
-let lastTimestamp = -1
-let counter = 0
-
-function nextCounter(timestampMs: number): number {
-  if (timestampMs !== lastTimestamp) {
-    lastTimestamp = timestampMs
-    counter = 0
-  } else {
-    counter += 1
+// Makes row ids from `now` (milliseconds since the epoch). The counter
+// belongs to the maker: give each client one maker.
+export function createRowIdMaker(now: () => number): () => string {
+  let lastTimestamp = -1
+  let counter = 0
+  return () => {
+    const timestamp = now()
+    if (timestamp !== lastTimestamp) {
+      lastTimestamp = timestamp
+      counter = 0
+    } else {
+      counter += 1
+    }
+    return encodeBase31(timestamp, TIMESTAMP_LENGTH) + encodeBase31(counter % BASE ** COUNTER_LENGTH, COUNTER_LENGTH)
   }
-  return counter % BASE ** COUNTER_LENGTH
-}
-
-export function randomRowId(now: number = Date.now()): string {
-  return encodeBase31(now, TIMESTAMP_LENGTH) + encodeBase31(nextCounter(now), COUNTER_LENGTH)
 }
 
 /** null for an id not in this format, rather than throwing. */

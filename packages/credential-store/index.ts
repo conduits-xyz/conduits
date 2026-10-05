@@ -1,7 +1,6 @@
 export { writeJsonFileAtomic, readJsonFileOrDefault } from './atomic-file.ts'
 
 export {
-  credentialStorePath,
   loadGoogleGrant,
   saveGoogleGrant,
   deleteGoogleGrant,

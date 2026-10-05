@@ -9,11 +9,11 @@ export type {
   RouteKind,
   StatusClass,
 } from './types.ts'
-export type { GatewayDeps } from './pipeline.ts'
+export type { GatewayDeps, GatewayClock } from './pipeline.ts'
 export type { GatewayContext } from './context.ts'
 
 export { createGatewayRouter } from './router.ts'
-export { resetThrottle } from './middleware/throttle.ts'
+export { generateRequestId } from './middleware/request-id.ts'
 export { generateBearerToken, hashBearerToken, verifyBearerToken } from './bearer-token.ts'
 
 // Problem Details (RFC 9457) for any host's own API, built the same way

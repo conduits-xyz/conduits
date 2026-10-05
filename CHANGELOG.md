@@ -3,7 +3,64 @@
 This file records the notable changes to the Conduits gateway, the
 provider integrations, the config tools, and the widgets.
 
-## Unreleased
+## 0.6.2 - 2026-10-05
+
+### Changed
+
+- **The packages take their dependencies from the caller.** The
+  gateway, the source clients and the credential store no longer name a
+  provider URL, read the clock, or call the global `fetch` on their own:
+  - `createGatewayRouter` requires `sourceClients`, `clock` (`now`,
+    `monotonicMs`) and `requestId`. Each router has its own throttle;
+    `resetThrottle` is gone.
+  - The source clients are `createGoogleSheetsClient`,
+    `createGmailClient` and `createFastmailClient` (before:
+    `createHttpSheetsClient`, `createGmailApiClient`,
+    `createJmapFastmailClient`). Each takes its API URL and `fetch`; the
+    Sheets client also takes `now`. `listFastmailIdentities` takes the
+    session URL, `fetch` and `now` (before: `listJmapIdentities`).
+    `sourceCapabilities` gives each source's capabilities without a
+    client.
+  - The `sourceClients` registry is gone, and with it the clients that
+    switched to in-memory or Mailpit fakes under `NODE_ENV=test`. No
+    package reads `NODE_ENV`, and the tests no longer need Mailpit.
+  - Test doubles are in `@conduits/conduit/testing`: an in-memory Google
+    Sheets (`createFakeSheets`) and a source that records what it is
+    asked to create (`createRecordingSource`). `seedFakeSheet`,
+    `resetFakeSheets`, `simulateFakeAuthFailure` and the Gmail
+    equivalents are gone.
+  - `getFreshGoogleAccessToken` takes the store's path, the token
+    endpoint, `fetch` and `now`. `credentialStorePath` moved to the
+    gateway service, which reads `CONDUITS_CREDENTIAL_STORE_PATH`. The refresh is `refreshGoogleTokens` in `@conduits/config`,
+    which recognizes a dead grant by Google's `invalid_grant` code
+    instead of its message; `GOOGLE_REVOKED_GRANT_MESSAGE` is gone.
+  - The gateway service names every provider URL in one file,
+    `services/gateway/providers.ts`, and builds the clients there.
+
+### Added
+
+- **`@m5nv/mail`** (`packages/mail`) sends email through JMAP (Fastmail)
+  or the Gmail API: `createMailSender` with `jmapTransport` or
+  `gmailTransport`, and a credential, `fixedToken` (an API token or an
+  access token) or `googleServiceAccount` (a Workspace service account
+  with domain-wide delegation). A send returns `auth_failed`,
+  `rejected`, `rate_limited` or `unavailable` (both with `retryAfter`),
+  or `outcome_unknown`, which is never retried. See its README.
+- The Fastmail and Gmail conduits send through it. A sending limit is
+  now `503` `source_busy` with `Retry-After`; a send whose outcome is
+  unknown is `502` without one. A Gmail token without the send scope is
+  treated as a refused credential. `createFastmailClient` and
+  `createGmailClient` take `now` and `makeId`. A Fastmail connection
+  looks the account up once, through the mail transport, so each read,
+  send or delete makes three requests.
+
+### Fixed
+
+- A Fastmail conduit no longer answers `502` after sending a message.
+  Fastmail answers a submission with two responses that share a call
+  id, as RFC 8621 (§7.5) requires; the client read the second, found no
+  submission and reported a failure, though the message was sent. A
+  client that retried sent it again.
 
 ## 0.6.1 - 2026-10-05
 

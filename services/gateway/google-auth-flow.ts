@@ -3,10 +3,6 @@ import { randomBytes, createHash } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import type { OAuthTokens } from 'remix/auth'
 
-const AUTHORIZATION_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
-const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
-const USERINFO_ENDPOINT = 'https://openidconnect.googleapis.com/v1/userinfo'
-
 const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000
 
 function base64url(input: Buffer): string {
@@ -19,7 +15,17 @@ function generatePkce(): { verifier: string; challenge: string } {
   return { verifier, challenge }
 }
 
+// Google's OAuth endpoints (providers.ts).
+export interface GoogleAuthEndpoints {
+  authorizationUrl: string
+  tokenUrl: string
+  userinfoUrl: string
+  fetch: typeof fetch
+}
+
 export interface GoogleAuthorizeOptions {
+  endpoints: GoogleAuthEndpoints
+  now: () => number
   clientId: string
   clientSecret?: string
   scopes: readonly string[]
@@ -78,9 +84,9 @@ function waitForCallback(server: http.Server, expectedState: string): Promise<st
   })
 }
 
-async function fetchEmailBestEffort(accessToken: string): Promise<string | undefined> {
+async function fetchEmailBestEffort(endpoints: GoogleAuthEndpoints, accessToken: string): Promise<string | undefined> {
   try {
-    const response = await fetch(USERINFO_ENDPOINT, { headers: { authorization: `Bearer ${accessToken}` } })
+    const response = await endpoints.fetch(endpoints.userinfoUrl, { headers: { authorization: `Bearer ${accessToken}` } })
     if (!response.ok) return undefined
     const body = (await response.json()) as { email?: string }
     return body.email
@@ -92,8 +98,8 @@ async function fetchEmailBestEffort(accessToken: string): Promise<string | undef
 // The installed-app OAuth flow (authorization code with PKCE) against
 // Google's endpoints directly. remix/auth's startExternalAuth and
 // finishExternalAuth need a request context with sessions, and its
-// lower-level functions aren't exported. Refreshing doesn't need this:
-// runtime.ts uses createGoogleAuthProvider and refreshExternalAuth.
+// lower-level functions aren't exported. Refreshing is
+// refreshGoogleTokens in @conduits/config.
 export async function authorizeGoogle(options: GoogleAuthorizeOptions): Promise<GoogleAuthorizeResult> {
   const { verifier, challenge } = generatePkce()
   const state = base64url(randomBytes(16))
@@ -103,7 +109,7 @@ export async function authorizeGoogle(options: GoogleAuthorizeOptions): Promise<
   const { port } = server.address() as AddressInfo
   const redirectUri = `http://127.0.0.1:${port}/callback`
 
-  const authUrl = new URL(AUTHORIZATION_ENDPOINT)
+  const authUrl = new URL(options.endpoints.authorizationUrl)
   authUrl.searchParams.set('client_id', options.clientId)
   authUrl.searchParams.set('redirect_uri', redirectUri)
   authUrl.searchParams.set('response_type', 'code')
@@ -121,7 +127,7 @@ export async function authorizeGoogle(options: GoogleAuthorizeOptions): Promise<
 
   const code = await waitForCallback(server, state)
 
-  const tokenResponse = await fetch(TOKEN_ENDPOINT, {
+  const tokenResponse = await options.endpoints.fetch(options.endpoints.tokenUrl, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -155,7 +161,7 @@ export async function authorizeGoogle(options: GoogleAuthorizeOptions): Promise<
     accessToken: body.access_token,
     refreshToken: body.refresh_token,
     tokenType: body.token_type,
-    expiresAt: body.expires_in ? new Date(Date.now() + body.expires_in * 1000) : undefined,
+    expiresAt: body.expires_in ? new Date(options.now() + body.expires_in * 1000) : undefined,
     scope: body.scope ? body.scope.split(' ') : undefined,
     idToken: body.id_token,
   }
@@ -168,6 +174,6 @@ export async function authorizeGoogle(options: GoogleAuthorizeOptions): Promise<
     )
   }
 
-  const email = await fetchEmailBestEffort(tokens.accessToken)
+  const email = await fetchEmailBestEffort(options.endpoints, tokens.accessToken)
   return { tokens, email }
 }

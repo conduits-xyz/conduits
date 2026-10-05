@@ -1,16 +1,18 @@
 import * as assert from 'remix/assert'
 import { describe, it, afterEach } from 'remix/test'
 
-import { createHttpSheetsClient, ConduitAuthError, ConduitRateLimitError, ConduitSourceError } from '../sheets.ts'
+import { createGoogleSheetsClient, ConduitAuthError, ConduitRateLimitError, ConduitSourceError } from '../sheets.ts'
 import { ConduitUnknownFieldError } from '../field-map.ts'
 import { jsonResponse } from './helpers.ts'
 
-// The HTTP Sheets client with a mocked fetch: request building, error
-// mapping and the metadata cache. Under NODE_ENV=test googleSheetsClient
-// is the in-memory fake, so this calls createHttpSheetsClient()
-// directly.
+// The Sheets client with a mocked fetch: request building, error
+// mapping and the metadata cache.
 
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets'
+
+// The client's options, with a fetch that calls whatever global fetch
+// mockFetch has installed when the request is made.
+const sheetsOptions = () => ({ apiUrl: SHEETS_API, fetch: ((input, init) => globalThis.fetch(input, init)) as typeof fetch, now: Date.now, readCacheMs: 0 })
 
 type Call = { url: string; method: string; body: unknown; authorization: string | undefined }
 
@@ -50,7 +52,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
       })
       restore = mock.restore
 
-      const client = createHttpSheetsClient()
+      const client = createGoogleSheetsClient(sheetsOptions())
       const source = await client.connect('sheet-1', 'good-token')
       const { records } = await source.open().listRecords()
 
@@ -66,7 +68,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
       })
       restore = mock.restore
 
-      const client = createHttpSheetsClient()
+      const client = createGoogleSheetsClient(sheetsOptions())
       const source = await client.connect('sheet-1', 'good-token')
       await source.open(JSON.stringify({ table: "Q&A's" })).listRecords()
     })
@@ -78,7 +80,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
       })
       restore = mock.restore
 
-      const client = createHttpSheetsClient()
+      const client = createGoogleSheetsClient(sheetsOptions())
       const source = await client.connect('sheet-1', 'good-token')
       const tables = await source.listTables()
       assert.deepEqual(tables, ['Sheet1', 'Archive'])
@@ -118,7 +120,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
       })
       restore = mock.restore
 
-      const client = createHttpSheetsClient()
+      const client = createGoogleSheetsClient(sheetsOptions())
       const source = await client.connect('sheet-1', 'good-token')
       const record = await source.open().createRecord({ name: 'Ada' })
       assert.equal(record.fields.name, 'Ada')
@@ -132,7 +134,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
       })
       restore = mock.restore
 
-      const client = createHttpSheetsClient()
+      const client = createGoogleSheetsClient(sheetsOptions())
       const source = await client.connect('sheet-1', 'good-token')
       await assert.rejects(() => source.open().createRecord({ unknownField: 'x' }), ConduitUnknownFieldError)
     })
@@ -159,7 +161,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
       })
       restore = mock.restore
 
-      const client = createHttpSheetsClient()
+      const client = createGoogleSheetsClient(sheetsOptions())
       const source = await client.connect('sheet-1', 'good-token')
       const ok = await source.open().deleteRecords(['r1', 'r2', 'r3'])
       assert.equal(ok, true)
@@ -179,7 +181,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
       })
       restore = mock.restore
 
-      const client = createHttpSheetsClient()
+      const client = createGoogleSheetsClient(sheetsOptions())
       const source = await client.connect('sheet-1', 'good-token')
       const ok = await source.open().deleteRecords(['r1', 'r2'])
       assert.equal(ok, false)
@@ -192,7 +194,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
       const mock = mockFetch(() => new Response('', { status: 401 }))
       restore = mock.restore
 
-      const client = createHttpSheetsClient()
+      const client = createGoogleSheetsClient(sheetsOptions())
       const source = await client.connect('sheet-1', 'bad-token')
       await assert.rejects(() => source.open().listRecords(), ConduitAuthError)
     })
@@ -201,7 +203,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
       const mock = mockFetch(() => new Response('', { status: 503 }))
       restore = mock.restore
 
-      const client = createHttpSheetsClient()
+      const client = createGoogleSheetsClient(sheetsOptions())
       const source = await client.connect('sheet-1', 'good-token')
       await assert.rejects(
         () => source.open().listRecords(),
@@ -213,7 +215,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
       const mock = mockFetch(() => jsonResponse({ error: { code: 400, message: 'Unable to parse range: A1:ZZ10000' } }, 400))
       restore = mock.restore
 
-      const client = createHttpSheetsClient()
+      const client = createGoogleSheetsClient(sheetsOptions())
       const source = await client.connect('sheet-1', 'good-token')
       await assert.rejects(
         () => source.open().listRecords(),
@@ -226,7 +228,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
 
     it('still surfaces a plain ConduitAuthError/ConduitSourceError, not a JSON-parsing error, for an empty or non-JSON error body', async () => {
       const emptyBody = mockFetch(() => new Response('', { status: 401 }))
-      const client = createHttpSheetsClient()
+      const client = createGoogleSheetsClient(sheetsOptions())
       await assert.rejects(() => client.connect('sheet-1', 'bad-token').then((s) => s.open().listRecords()), ConduitAuthError)
       emptyBody.restore()
 
@@ -248,7 +250,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
       })
       restore = mock.restore
 
-      const client = createHttpSheetsClient()
+      const client = createGoogleSheetsClient(sheetsOptions())
       const source = await client.connect('cache-test-1', 'same-token')
       await source.listTables()
       await source.listTables()
@@ -265,7 +267,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
       })
       restore = mock.restore
 
-      const client = createHttpSheetsClient()
+      const client = createGoogleSheetsClient(sheetsOptions())
       const sourceA = await client.connect('cache-test-2', 'token-a')
       const sourceB = await client.connect('cache-test-2', 'token-b')
       await sourceA.listTables()
@@ -275,7 +277,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
 
     it('invalidates the describeFields cache immediately when a field is created through it', async () => {
       let gridVersion: 'before' | 'after' = 'before'
-      const mock = mockFetch((url, method, body) => {
+      const mock = mockFetch((url, method) => {
         if (method === 'GET') {
           return gridVersion === 'before'
             ? jsonResponse({ values: [['conduit-id', 'name'], ['r1', 'Ada']] })
@@ -289,7 +291,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
       })
       restore = mock.restore
 
-      const client = createHttpSheetsClient()
+      const client = createGoogleSheetsClient(sheetsOptions())
       const source = await client.connect('cache-test-3', 'good-token')
       const table = source.open()
 
@@ -305,7 +307,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
 
   describe('capabilities()', () => {
     it('reports every RACM method and bulkCreate: true — one atomic batched API call per bulk write', () => {
-      const client = createHttpSheetsClient()
+      const client = createGoogleSheetsClient(sheetsOptions())
       assert.deepEqual(client.capabilities(), { methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], bulkCreate: true })
     })
   })
@@ -323,18 +325,18 @@ describe('Sheets HTTP client — read cache and request budget', () => {
   it('reads the whole sheet, not a fixed number of rows', async () => {
     const mock = mockFetch(() => jsonResponse(grid))
     restore = mock.restore
-    const source = await createHttpSheetsClient().connect('sheet-1', 'good-token')
+    const source = await createGoogleSheetsClient(sheetsOptions()).connect('sheet-1', 'good-token')
     await source.open().listRecords()
     assert.match(mock.calls[0]!.url, /\/values\/A:ZZ$/)
   })
 
   it('pages from one read while the cache lasts, and reads again after a write through the client', async () => {
-    const mock = mockFetch((url, method) => {
+    const mock = mockFetch((_url, method) => {
       if (method === 'GET') return jsonResponse(grid)
       return jsonResponse({ updates: { updatedRange: 'Sheet1!A4:B4' } })
     })
     restore = mock.restore
-    const table = (await createHttpSheetsClient({ readCacheMs: 60_000 }).connect('sheet-1', 'good-token')).open()
+    const table = (await createGoogleSheetsClient({ ...sheetsOptions(), readCacheMs: 60_000 }).connect('sheet-1', 'good-token')).open()
 
     const first = await table.listRecords({ limit: 1 })
     await table.listRecords({ cursor: first.nextCursor!, limit: 1 })
@@ -349,7 +351,7 @@ describe('Sheets HTTP client — read cache and request budget', () => {
   it('never serves one access token the rows read with another', async () => {
     const mock = mockFetch(() => jsonResponse(grid))
     restore = mock.restore
-    const client = createHttpSheetsClient({ readCacheMs: 60_000 })
+    const client = createGoogleSheetsClient({ ...sheetsOptions(), readCacheMs: 60_000 })
     await (await client.connect('sheet-1', 'token-a')).open().listRecords()
     await (await client.connect('sheet-1', 'token-b')).open().listRecords()
     assert.equal(mock.calls.length, 2)
@@ -358,7 +360,7 @@ describe('Sheets HTTP client — read cache and request budget', () => {
   it('refuses with a retry time once the per-account budget is used, without calling Google', async () => {
     const mock = mockFetch(() => jsonResponse(grid))
     restore = mock.restore
-    const client = createHttpSheetsClient({ readCacheMs: 1, budget: { perMinute: 100, perCredentialPerMinute: 2 } })
+    const client = createGoogleSheetsClient({ ...sheetsOptions(), readCacheMs: 1, budget: { perMinute: 100, perCredentialPerMinute: 2 } })
     const table = (await client.connect('sheet-1', 'good-token')).open()
     await table.listRecords()
     await new Promise((resolve) => setTimeout(resolve, 5))
@@ -373,7 +375,7 @@ describe('Sheets HTTP client — read cache and request budget', () => {
   it("turns Google's own 429 into a rate-limit error", async () => {
     const mock = mockFetch(() => jsonResponse({ error: { message: 'Quota exceeded' } }, 429))
     restore = mock.restore
-    const table = (await createHttpSheetsClient().connect('sheet-1', 'good-token')).open()
+    const table = (await createGoogleSheetsClient(sheetsOptions()).connect('sheet-1', 'good-token')).open()
     await assert.rejects(table.listRecords(), (err: unknown) => err instanceof ConduitRateLimitError && /Quota exceeded/.test(err.message))
   })
 })

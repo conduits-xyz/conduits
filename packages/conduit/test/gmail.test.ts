@@ -1,13 +1,15 @@
 import * as assert from 'remix/assert'
 import { describe, it, afterEach } from 'remix/test'
 
-import { createGmailApiClient } from '../gmail.ts'
-import { ConduitAuthError, ConduitSourceError } from '../sheets.ts'
+import { createGmailClient } from '../gmail.ts'
+import { ConduitAuthError, ConduitRateLimitError, ConduitSourceError } from '../sheets.ts'
+
+// The endpoint, with a fetch that calls whatever global fetch the
+// test's mock has installed.
+const GMAIL = { apiUrl: 'https://gmail.googleapis.com/gmail/v1', fetch: ((input, init) => globalThis.fetch(input, init)) as typeof fetch, now: () => Date.parse('2026-10-05T12:00:00.000Z'), makeId: () => 'id' }
 import { jsonResponse } from './helpers.ts'
 
-// The Gmail API client with a mocked fetch. Under NODE_ENV=test
-// gmailClient is the Mailpit-backed client, so this calls
-// createGmailApiClient() directly.
+// The Gmail API client with a mocked fetch.
 
 const SEND_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send'
 
@@ -38,28 +40,28 @@ describe('Gmail API client (mocked fetch — real request/response shapes)', () 
 
   it('a rejected send (401) surfaces as ConduitAuthError, not a generic failure', async () => {
     restore = mockFetch(() => new Response('', { status: 401 }))
-    const client = createGmailApiClient()
+    const client = createGmailClient(GMAIL)
     const source = await client.connect('', 'bad-token')
     const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
     await assert.rejects(() => table.createRecord({ name: 'Ada' }), ConduitAuthError)
   })
 
-  it('a non-2xx response surfaces as ConduitSourceError, carrying Gmail\'s own error message', async () => {
+  it('a rate limit surfaces as ConduitRateLimitError, carrying Gmail\'s own error message', async () => {
     restore = mockFetch(() => jsonResponse({ error: { message: 'quota exceeded' } }, 429))
-    const client = createGmailApiClient()
+    const client = createGmailClient(GMAIL)
     const source = await client.connect('', 'good-token')
     const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
     // Gmail's error message is kept, since source-errors.ts logs only
     // the error's message.
     await assert.rejects(
       () => table.createRecord({ name: 'Ada' }),
-      (error: unknown) => error instanceof ConduitSourceError && error.message.includes('quota exceeded'),
+      (error: unknown) => error instanceof ConduitRateLimitError && error.retryAfterSeconds === 30 && error.message.includes('quota exceeded'),
     )
   })
 
   it('a 2xx response with no message id is a real failure, not a silent partial success', async () => {
     restore = mockFetch(() => jsonResponse({}))
-    const client = createGmailApiClient()
+    const client = createGmailClient(GMAIL)
     const source = await client.connect('', 'good-token')
     const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
     await assert.rejects(() => table.createRecord({ name: 'Ada' }), ConduitSourceError)
@@ -72,30 +74,30 @@ describe('Gmail API client (mocked fetch — real request/response shapes)', () 
       return jsonResponse({ id: 'msg-1' })
     })
 
-    const client = createGmailApiClient()
+    const client = createGmailClient(GMAIL)
     const source = await client.connect('', 'good-token')
     const table = source.open(JSON.stringify({ recipients: ['owner@example.com', 'teammate@example.com'], subject: 'Contact form' }))
     const record = await table.createRecord({ name: 'Ada', email: 'ada@example.com' })
 
     assert.equal(record.id, 'msg-1')
-    assert.equal((capturedInit?.headers as Record<string, string>)?.Authorization, 'Bearer good-token')
+    assert.equal((capturedInit?.headers as Record<string, string>)?.authorization, 'Bearer good-token')
     const decoded = decodeRaw(capturedInit)
     assert.match(decoded, /^To: owner@example\.com, teammate@example\.com\r\n/)
     assert.match(decoded, /Subject: Contact form\r\n/)
-    assert.match(decoded, /name: Ada/)
-    assert.match(decoded, /email: ada@example\.com/)
+    const body = Buffer.from(decoded.split('\r\n\r\n')[1]!, 'base64').toString('utf8')
+    assert.equal(body, 'name: Ada\nemail: ada@example.com')
   })
 
   it('a conduit with no recipients/subject configured refuses to send', async () => {
     restore = mockFetch(() => jsonResponse({ id: 'msg-1' }))
-    const client = createGmailApiClient()
+    const client = createGmailClient(GMAIL)
     const source = await client.connect('', 'good-token')
     const table = source.open(JSON.stringify({}))
     await assert.rejects(() => table.createRecord({ name: 'Ada' }), ConduitSourceError)
   })
 
   it('listRecords/deleteRecord refuse cleanly — not supported, and never reachable via RACM regardless', async () => {
-    const client = createGmailApiClient()
+    const client = createGmailClient(GMAIL)
     const source = await client.connect('', 'good-token')
     const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
     await assert.rejects(() => table.listRecords(), ConduitSourceError)
@@ -103,7 +105,7 @@ describe('Gmail API client (mocked fetch — real request/response shapes)', () 
   })
 
   it('capabilities() only ever offers POST, and never allows bulk create', () => {
-    const client = createGmailApiClient()
+    const client = createGmailClient(GMAIL)
     assert.deepEqual(client.capabilities(), { methods: ['POST'], bulkCreate: false })
   })
 })

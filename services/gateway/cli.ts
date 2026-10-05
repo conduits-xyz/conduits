@@ -1,9 +1,11 @@
 import { GOOGLE_AUTHORIZATION_PARAMS, scopesForPurpose, type GooglePurpose } from '@conduits/config'
 
 import { authorizeGoogle } from './google-auth-flow.ts'
-import { credentialStorePath, saveGoogleGrant, getFreshGoogleAccessToken, type GoogleTokenResult } from '@conduits/credential-store'
+import { saveGoogleGrant, getFreshGoogleAccessToken, type GoogleTokenResult } from '@conduits/credential-store'
+import { credentialStorePath } from './config.ts'
 import { createGoogleSheet } from './sheets-create.ts'
 import { parseFlags, isGooglePurpose } from './cli-flags.ts'
+import { GOOGLE_ENDPOINTS, googleTokenOptions } from './providers.ts'
 
 // Three commands: authorize Google (once), create a Google Sheet a
 // drive.file grant can use (see sheets-create.ts), and start the
@@ -27,6 +29,8 @@ async function runAuthGoogle(args: string[]): Promise<void> {
   }
 
   const { tokens, email } = await authorizeGoogle({
+    endpoints: { ...GOOGLE_ENDPOINTS, fetch },
+    now: Date.now,
     clientId,
     clientSecret,
     scopes: scopesForPurpose(flags.purpose),
@@ -55,7 +59,7 @@ function accessTokenOrThrow(result: GoogleTokenResult, name: string, purpose: Go
         `Google credential '${name}' (${purpose}) was revoked or expired and has been removed — run: conduits auth google --purpose ${purpose} --name ${name}`,
       )
     case 'refresh-failed':
-      throw new Error(`Google token refresh failed for '${name}' (${purpose}): ${result.error instanceof Error ? result.error.message : result.error}`)
+      throw new Error(`Google token refresh failed for '${name}' (${purpose}): ${result.error.message}`)
   }
 }
 
@@ -64,10 +68,10 @@ async function runSheetsCreate(args: string[]): Promise<void> {
   const name = flags.name ?? 'default'
   const title = flags.title ?? `Conduits — ${name}`
 
-  const result = await getFreshGoogleAccessToken(name, 'sheets')
+  const result = await getFreshGoogleAccessToken(credentialStorePath(), name, 'sheets', googleTokenOptions)
   const accessToken = accessTokenOrThrow(result, name, 'sheets')
 
-  const { spreadsheetId, url } = await createGoogleSheet(accessToken, title)
+  const { spreadsheetId, url } = await createGoogleSheet({ apiUrl: GOOGLE_ENDPOINTS.sheetsApiUrl, fetch }, accessToken, title)
 
   console.log(`\nCreated "${title}".`)
   console.log(url)

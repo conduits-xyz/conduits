@@ -166,7 +166,8 @@ throw new ConduitUnknownFieldError(SOURCE, fieldNames)              // a write u
 | `ConduitSourceError` | `502`, code `source_unavailable`. The gateway logs the error. |
 
 - `SOURCE` is a constant that names your integration. It must equal
-  your key in `sourceClients`.
+  the source type a runtime gives your client under in
+  `GatewayDeps.sourceClients`.
 - Catch provider errors and fetch errors. Translate them to these
   types. Do not let another error type out.
 - A bad credential usually appears in `connect()`. Throw
@@ -246,17 +247,15 @@ it. A `GatewayRuntime` does that, with `getCredential(config)` and
 
 ## Register your integration
 
-1. Add your client to `sourceClients` in `packages/conduit/index.ts`.
-   Put the client in its own file in `packages/conduit`.
-
+1. Put the client in its own file in `packages/conduit`, as a factory
+   that takes its endpoint (the API URL and `fetch`) and anything else
+   it reads from outside, such as the clock. Export it from `index.ts`,
+   and add its capabilities to `sourceCapabilities` there.
    ```ts
-   export const sourceClients: Record<string, ConduitSourceClient> = {
-     googleSheets: googleSheetsClient,
-     fastmail: fastmailClient,
-     gmail: gmailClient,
-     yourSource: yourSourceClient,
-   }
+   export function createYourSourceClient(endpoint: YourSourceEndpoint): ConduitSourceClient
    ```
+   Then build it in each runtime's composition, with the provider's
+   URL: `services/gateway/providers.ts` for the self-hosted gateway.
 
 2. Handle your credential in `getCredential` and
    `invalidateCredential` in `services/gateway/runtime.ts`.
@@ -271,10 +270,11 @@ not need other endpoints.
 
 ## Tests without live credentials
 
-- When `NODE_ENV === 'test'`, `googleSheetsClient` is an in-memory fake
-  (`createFakeSheetsClient()` in `sheets.ts`). It has helpers:
-  `seedFakeSheet`, `simulateFakeAuthFailure`, `resetFakeSheets`. Write
-  the same kind of fake for your source.
-- `packages/conduit/test/` has unit tests against a fake client.
-- `services/gateway/test/gateway.test.ts` tests Fastmail end to end
-  against a local Mailpit.
+- `packages/conduit/test/` tests each client with a mocked `fetch`.
+- `@conduits/conduit/testing` has test doubles that tests inject in
+  place of a client: an in-memory Google Sheets (`createFakeSheets`,
+  with `seed`, `records`, `failAuth` and `forbid`) and a source that
+  records what it is asked to create (`createRecordingSource`). Add one
+  for your source if other packages' tests need it.
+- `services/gateway/test/gateway.test.ts` tests the self-hosted
+  gateway's composition with a recording Fastmail source.

@@ -1,5 +1,3 @@
-import * as path from 'node:path'
-import * as os from 'node:os'
 import type { OAuthTokens } from 'remix/auth'
 import type { GooglePurpose } from '@conduits/config'
 
@@ -26,15 +24,6 @@ export interface StoredGoogleGrant {
 }
 
 type StoreFile = Record<string, Partial<Record<GooglePurpose, StoredGoogleGrant>>>
-
-const DEFAULT_PATH = path.join(os.homedir(), '.conduits', 'credentials.json')
-
-// CONDUITS_CREDENTIAL_STORE_PATH overrides the default. The default is
-// outside the project directory, so committing the config directory
-// doesn't commit tokens.
-export function credentialStorePath(): string {
-  return process.env.CONDUITS_CREDENTIAL_STORE_PATH ?? DEFAULT_PATH
-}
 
 // expiresAt is stored as an ISO string; this turns it back into a Date
 // for every grant.

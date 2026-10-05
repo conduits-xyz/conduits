@@ -3,6 +3,7 @@ import { describe, it } from 'remix/test'
 
 import { createGatewayRouter } from '../router.ts'
 import type { ConduitConfig, GatewayRuntime } from '../types.ts'
+import { testDeps } from './test-deps.ts'
 import { createStaticRouteResolver } from '../route-binding.ts'
 
 const config: ConduitConfig = {
@@ -26,7 +27,7 @@ const runtime: GatewayRuntime = {
   async invalidateCredential() {},
 }
 
-const router = createGatewayRouter({
+const router = createGatewayRouter({ ...testDeps(),
   resolveConfig: async (curi) => (curi === 'allowlisted' ? config : null),
   resolveRoute: createStaticRouteResolver([{ path: '/allowlisted', curi: 'allowlisted' }]),
   runtime,

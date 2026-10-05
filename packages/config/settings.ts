@@ -18,8 +18,9 @@ export function listLimitsFromEnv(): GatewayDeps['listLimits'] {
 // The Google Sheets client's read cache and request budget
 // (createGoogleSheetsClient), from CONDUITS_SHEETS_READ_CACHE_MS,
 // CONDUITS_SHEETS_REQUESTS_PER_MINUTE and
-// CONDUITS_SHEETS_REQUESTS_PER_MINUTE_PER_ACCOUNT, all required.
-export function googleSheetsOptionsFromEnv(): GoogleSheetsClientOptions {
+// CONDUITS_SHEETS_REQUESTS_PER_MINUTE_PER_ACCOUNT, all required. The
+// composition root adds the endpoint, fetch and clock.
+export function googleSheetsOptionsFromEnv(): Pick<GoogleSheetsClientOptions, 'readCacheMs' | 'budget'> {
   return {
     readCacheMs: positiveIntegerFromEnv('CONDUITS_SHEETS_READ_CACHE_MS'),
     budget: {

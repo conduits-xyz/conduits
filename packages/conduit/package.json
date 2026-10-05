@@ -1,19 +1,21 @@
 {
   "name": "@conduits/conduit",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "private": true,
   "license": "MIT",
   "type": "module",
   "main": "./index.ts",
   "exports": {
-    ".": "./index.ts"
+    ".": "./index.ts",
+    "./testing": "./testing.ts"
   },
   "scripts": {
-    "test": "NODE_ENV=test remix test",
-    "test:all": "NODE_ENV=test remix test",
+    "test": "remix test",
+    "test:all": "remix test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@m5nv/mail": "*",
     "remix": "^3.0.0-rc.3"
   },
   "devDependencies": {

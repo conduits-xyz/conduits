@@ -3,6 +3,7 @@ import { describe, it } from 'remix/test'
 
 import { createGatewayRouter } from '../router.ts'
 import type { ConduitConfig, GatewayRuntime } from '../types.ts'
+import { testDeps } from './test-deps.ts'
 import { createStaticRouteResolver, type RouteBinding } from '../route-binding.ts'
 
 // A smoke test of createGatewayRouter() alone: a ConduitConfig, a
@@ -38,13 +39,13 @@ const LIST_LIMITS = { default: 1000, max: 1000 }
 
 describe('createGatewayRouter (package smoke test)', () => {
   it('404s for a path with no matching route binding', async () => {
-    const router = createGatewayRouter({ resolveConfig: async () => null, resolveRoute: createStaticRouteResolver([]), runtime, listLimits: LIST_LIMITS })
+    const router = createGatewayRouter({ ...testDeps(), resolveConfig: async () => null, resolveRoute: createStaticRouteResolver([]), runtime, listLimits: LIST_LIMITS })
     const response = await router.fetch(new Request('http://localhost/does-not-exist'))
     assert.equal(response.status, 404)
   })
 
   it('500s for a known curi whose source type has no registered client', async () => {
-    const router = createGatewayRouter({
+    const router = createGatewayRouter({ ...testDeps(),
       resolveConfig: async (curi) => (curi === 'smoke-test' ? config : null),
       resolveRoute: createStaticRouteResolver(bindings),
       runtime,
@@ -56,7 +57,7 @@ describe('createGatewayRouter (package smoke test)', () => {
 
   it('answers a CORS preflight without ever calling resolveConfig at all', async () => {
     let called = false
-    const router = createGatewayRouter({
+    const router = createGatewayRouter({ ...testDeps(),
       resolveConfig: async () => {
         called = true
         return null
@@ -71,13 +72,13 @@ describe('createGatewayRouter (package smoke test)', () => {
   })
 
   it('answers the Gateway-global readyz without any route binding at all', async () => {
-    const router = createGatewayRouter({ resolveConfig: async () => null, resolveRoute: createStaticRouteResolver([]), runtime, listLimits: LIST_LIMITS })
+    const router = createGatewayRouter({ ...testDeps(), resolveConfig: async () => null, resolveRoute: createStaticRouteResolver([]), runtime, listLimits: LIST_LIMITS })
     const response = await router.fetch(new Request('http://localhost/.conduits/readyz'))
     assert.equal(response.status, 204)
   })
 
   it('routes an item path (/<curi>/<id>) through the same pipeline as the bare path', async () => {
-    const router = createGatewayRouter({
+    const router = createGatewayRouter({ ...testDeps(),
       resolveConfig: async (curi) => (curi === 'smoke-test' ? config : null),
       resolveRoute: createStaticRouteResolver(bindings),
       runtime,
@@ -90,7 +91,7 @@ describe('createGatewayRouter (package smoke test)', () => {
   })
 
   it('405s a method this conduit-path shape never supports', async () => {
-    const router = createGatewayRouter({
+    const router = createGatewayRouter({ ...testDeps(),
       resolveConfig: async (curi) => (curi === 'smoke-test' ? config : null),
       resolveRoute: createStaticRouteResolver(bindings),
       runtime,
@@ -102,7 +103,7 @@ describe('createGatewayRouter (package smoke test)', () => {
   })
 
   it('404s an unrecognized path under the reserved .conduits segment, never treating it as an item id', async () => {
-    const router = createGatewayRouter({
+    const router = createGatewayRouter({ ...testDeps(),
       resolveConfig: async (curi) => (curi === 'smoke-test' ? config : null),
       resolveRoute: createStaticRouteResolver(bindings),
       runtime,

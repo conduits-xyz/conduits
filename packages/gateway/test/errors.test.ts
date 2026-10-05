@@ -1,8 +1,7 @@
 import * as assert from 'remix/assert'
-import { beforeEach, describe, it } from 'remix/test'
-import { resetFakeSheets, seedFakeSheet, type ConduitSourceClient } from '@conduits/conduit'
+import { describe, it } from 'remix/test'
+import type { ConduitSourceClient } from '@conduits/conduit'
 
-import { resetThrottle } from '../middleware/throttle.ts'
 import { classifyStatus } from '../observation.ts'
 import { createFakeGateway } from './fake-gateway.ts'
 
@@ -30,15 +29,10 @@ async function problem(response: Response): Promise<Problem> {
 const json = (body: unknown, method = 'POST') => ({ method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 
 describe('error responses', () => {
-  beforeEach(() => {
-    resetFakeSheets()
-    resetThrottle()
-  })
-
   it('names each unknown field of a bulk create, with the record it is in', async () => {
     const curi = `errors-${Math.random().toString(36).slice(2)}`
     const gateway = createFakeGateway(curi)
-    seedFakeSheet(gateway.suriObjectKey, [{ name: 'Ada' }])
+    gateway.sheets.seed(gateway.suriObjectKey, [{ name: 'Ada' }])
     const router = gateway.makeRouter(gateway.baseConfig())
     const response = await router.fetch(
       new Request(`http://gateway.test/${curi}`, json({ records: [{ fields: { name: 'Ada' } }, { fields: { name: 'Grace', phone: '1' } }, { fields: { phone: '2' } }] })),
@@ -52,7 +46,7 @@ describe('error responses', () => {
   it('names an unknown field as the client sent it, through a field map', async () => {
     const curi = `errors-${Math.random().toString(36).slice(2)}`
     const gateway = createFakeGateway(curi)
-    seedFakeSheet(gateway.suriObjectKey, [{ name: 'Ada' }])
+    gateway.sheets.seed(gateway.suriObjectKey, [{ name: 'Ada' }])
     const send = async (fieldMap: Record<string, string>, fields: Record<string, string>) =>
       problem(await gateway.makeRouter(gateway.baseConfig({ suriConfig: { fieldMap } })).fetch(new Request(`http://gateway.test/${curi}`, json({ fields }))))
 
@@ -82,7 +76,7 @@ describe('error responses', () => {
   it('gives each refusal its own code', async () => {
     const curi = `errors-${Math.random().toString(36).slice(2)}`
     const gateway = createFakeGateway(curi)
-    seedFakeSheet(gateway.suriObjectKey, [{ name: 'Ada' }])
+    gateway.sheets.seed(gateway.suriObjectKey, [{ name: 'Ada' }])
     const router = gateway.makeRouter(gateway.baseConfig(), { listLimits: { default: 2, max: 3 } })
     const send = (path: string, init?: RequestInit) => router.fetch(new Request(`http://gateway.test${path}`, init))
 
@@ -101,7 +95,7 @@ describe('error responses', () => {
   it('refuses every unknown member of a body, also in each record, and writes nothing', async () => {
     const curi = `errors-${Math.random().toString(36).slice(2)}`
     const gateway = createFakeGateway(curi)
-    seedFakeSheet(gateway.suriObjectKey, [{ name: 'Ada' }])
+    gateway.sheets.seed(gateway.suriObjectKey, [{ name: 'Ada' }])
     const router = gateway.makeRouter(gateway.baseConfig({ racm: ['GET', 'POST', 'DELETE'] }))
     const send = async (body: unknown, method = 'POST') => problem(await router.fetch(new Request(`http://gateway.test/${curi}`, json(body, method))))
 
@@ -120,7 +114,7 @@ describe('error responses', () => {
   it('gives each response a Request-Id, and a problem the same id as instance, never cached', async () => {
     const curi = `errors-${Math.random().toString(36).slice(2)}`
     const gateway = createFakeGateway(curi)
-    seedFakeSheet(gateway.suriObjectKey, [{ name: 'Ada' }])
+    gateway.sheets.seed(gateway.suriObjectKey, [{ name: 'Ada' }])
     let n = 0
     const router = gateway.makeRouter(gateway.baseConfig(), { requestId: () => `test-${++n}` })
 
@@ -157,6 +151,26 @@ describe('error responses', () => {
     const body = await problem(response)
     assert.equal(body.code, 'internal_error')
     assert.equal(body.instance, 'urn:request:boom')
+  })
+
+  it("asks the injected client whether bulk create is supported, not the package's own", async () => {
+    const curi = `errors-${Math.random().toString(36).slice(2)}`
+    const gateway = createFakeGateway(curi)
+    const sheets = gateway.sheets.client
+    const noBulk: ConduitSourceClient = { ...sheets, capabilities: () => ({ ...sheets.capabilities(), bulkCreate: false }) }
+    const router = gateway.makeRouter(gateway.baseConfig(), { sourceClients: { googleSheets: noBulk } })
+    const body = await problem(await router.fetch(new Request(`http://gateway.test/${curi}`, json({ records: [{ fields: { name: 'A' } }] }))))
+    assert.equal(body.code, 'bulk_not_supported')
+  })
+
+  it('keeps a separate throttle for each router', async () => {
+    const curi = `errors-${Math.random().toString(36).slice(2)}`
+    const gateway = createFakeGateway(curi)
+    const config = gateway.baseConfig({ throttle: true })
+    const first = gateway.makeRouter(config)
+    for (let i = 0; i < 5; i++) await first.fetch(new Request(`http://gateway.test/${curi}`))
+    assert.equal((await first.fetch(new Request(`http://gateway.test/${curi}`))).status, 429)
+    assert.equal((await gateway.makeRouter(config).fetch(new Request(`http://gateway.test/${curi}`))).status, 200)
   })
 
   it("counts the throttle's 429 as the caller's, and a busy source's 503 as the provider's", () => {

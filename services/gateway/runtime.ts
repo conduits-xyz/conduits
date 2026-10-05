@@ -1,7 +1,7 @@
 import { resolveEnvRef, parseGoogleRef, type GooglePurpose } from '@conduits/config'
 import type { ConduitConfig, GatewayObservation, GatewayRuntime } from '@conduits/gateway'
 
-import { credentialStorePath, deleteGoogleGrant, getFreshGoogleAccessToken } from '@conduits/credential-store'
+import { deleteGoogleGrant, getFreshGoogleAccessToken, type GoogleTokenOptions } from '@conduits/credential-store'
 
 // This service's GatewayRuntime. Fastmail tokens come from the
 // environment and are replaced by editing it and restarting (see
@@ -24,7 +24,7 @@ async function getFastmailCredential(config: ConduitConfig): Promise<string | nu
 
 // Refresh and revocation are @conduits/credential-store's (shared with
 // `conduits sheets create`); this adds per-conduit logging.
-async function getGoogleCredential(config: ConduitConfig): Promise<string | null> {
+async function getGoogleCredential(config: ConduitConfig, storePath: string, google: GoogleTokenOptions): Promise<string | null> {
   if (config.credentialRef == null) return null
 
   let name: string
@@ -36,7 +36,7 @@ async function getGoogleCredential(config: ConduitConfig): Promise<string | null
   }
 
   const purpose = purposeForSuriType(config.suriType)
-  const result = await getFreshGoogleAccessToken(name, purpose)
+  const result = await getFreshGoogleAccessToken(storePath, name, purpose, google)
 
   switch (result.status) {
     case 'ok':
@@ -56,24 +56,18 @@ async function getGoogleCredential(config: ConduitConfig): Promise<string | null
     case 'refresh-failed':
       console.error(
         `[gateway-service] Google token refresh failed for '${name}' (${purpose}):`,
-        result.error instanceof Error ? result.error.message : result.error,
+        result.error.message,
       )
       return null
   }
 }
 
-async function getCredential(config: ConduitConfig): Promise<string | null> {
-  if (config.suriType === 'googleSheets' || config.suriType === 'gmail') {
-    return getGoogleCredential(config)
-  }
-  return getFastmailCredential(config)
-}
 
 // Fastmail: a token from the environment can't be revoked from here, so
 // the rejection is logged. Google: a token that looked fresh was
 // rejected (a grant revoked elsewhere), so the grant is removed and the
 // next request fails with a clear message.
-async function invalidateCredential(config: ConduitConfig): Promise<void> {
+async function invalidateCredential(config: ConduitConfig, storePath: string): Promise<void> {
   if (config.suriType !== 'googleSheets' && config.suriType !== 'gmail') {
     console.error(
       `[gateway-service] credential for conduit '${config.curi}' (${config.suriType}) was rejected — check ${config.credentialRef ?? '(no credentialRef)'} and restart`,
@@ -84,7 +78,7 @@ async function invalidateCredential(config: ConduitConfig): Promise<void> {
   try {
     const name = parseGoogleRef(config.credentialRef)
     const purpose = purposeForSuriType(config.suriType)
-    deleteGoogleGrant(credentialStorePath(), name, purpose)
+    deleteGoogleGrant(storePath, name, purpose)
     console.error(
       `[gateway-service] Google credential '${name}' (${purpose}) was rejected by ${config.suriType} and has been removed — run: conduits auth google --purpose ${purpose} --name ${name}`,
     )
@@ -100,8 +94,14 @@ function recordObservation(observation: GatewayObservation): void {
   console.log(`[gateway-service] ${observation.statusClass} curi=${observation.curi ?? '(unmatched)'}`)
 }
 
-export const gatewayServiceRuntime: GatewayRuntime = {
-  getCredential,
-  invalidateCredential,
-  recordObservation,
+// Google grants are stored at `storePath` (credentialStorePath in
+// config.ts) and refreshed at `google`'s token endpoint, on its clock
+// (providers.ts).
+export function createGatewayServiceRuntime(storePath: string, google: GoogleTokenOptions): GatewayRuntime {
+  return {
+    getCredential: (config) =>
+      config.suriType === 'googleSheets' || config.suriType === 'gmail' ? getGoogleCredential(config, storePath, google) : getFastmailCredential(config),
+    invalidateCredential: (config) => invalidateCredential(config, storePath),
+    recordObservation,
+  }
 }

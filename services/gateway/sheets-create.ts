@@ -6,15 +6,19 @@
 // This repo has no picker, so a sheet must be created with `conduits
 // sheets create`; another sheet's id in conduits.yaml gets 403 or 404
 // on first use.
-const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets'
 
 export interface CreatedSheet {
   spreadsheetId: string
   url: string
 }
 
-export async function createGoogleSheet(accessToken: string, title: string): Promise<CreatedSheet> {
-  const response = await fetch(SHEETS_API, {
+export interface SheetsApi {
+  apiUrl: string
+  fetch: typeof fetch
+}
+
+export async function createGoogleSheet(api: SheetsApi, accessToken: string, title: string): Promise<CreatedSheet> {
+  const response = await api.fetch(api.apiUrl, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ properties: { title } }),

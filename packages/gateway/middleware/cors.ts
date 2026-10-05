@@ -7,7 +7,7 @@ import type { Middleware } from 'remix/router'
 // Applied on the router (router.ts), so every response gets it,
 // including 404 and 405 fallbacks.
 export function addCorsHeaders(): Middleware {
-  return async (context, next) => {
+  return async (_context, next) => {
     const response = await next()
     const headers = new Headers(response.headers)
     headers.set('Access-Control-Allow-Origin', '*')

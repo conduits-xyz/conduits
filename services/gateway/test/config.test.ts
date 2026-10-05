@@ -4,7 +4,7 @@ import * as os from 'node:os'
 import * as assert from 'remix/assert'
 import { describe, it } from 'remix/test'
 
-import { loadConduitConfigs } from '../config.ts'
+import { credentialStorePath, loadConduitConfigs } from '../config.ts'
 
 function thrownMessage(fn: () => unknown): string {
   try {
@@ -27,5 +27,20 @@ describe('loadConduitConfigs', () => {
   it('still surfaces a non-ENOENT filesystem error unchanged (e.g. a directory given instead of a file)', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'conduits-config-test-'))
     assert.throws(() => loadConduitConfigs(dir), /EISDIR/)
+  })
+})
+
+describe('credentialStorePath', () => {
+  it('honors CONDUITS_CREDENTIAL_STORE_PATH, defaulting to ~/.conduits/credentials.json', () => {
+    const original = process.env.CONDUITS_CREDENTIAL_STORE_PATH
+    try {
+      delete process.env.CONDUITS_CREDENTIAL_STORE_PATH
+      assert.equal(credentialStorePath(), path.join(os.homedir(), '.conduits', 'credentials.json'))
+      process.env.CONDUITS_CREDENTIAL_STORE_PATH = '/tmp/custom-credentials.json'
+      assert.equal(credentialStorePath(), '/tmp/custom-credentials.json')
+    } finally {
+      if (original === undefined) delete process.env.CONDUITS_CREDENTIAL_STORE_PATH
+      else process.env.CONDUITS_CREDENTIAL_STORE_PATH = original
+    }
   })
 })

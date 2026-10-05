@@ -1,37 +1,40 @@
 import * as assert from 'remix/assert'
 import { describe, it } from 'remix/test'
 
-import { randomRowId, createdTimeFromRowId } from '../row-id.ts'
+import { createRowIdMaker, createdTimeFromRowId } from '../row-id.ts'
 
 const ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz'
+const AT = Date.UTC(2026, 9, 5, 12)
+
+// A maker whose clock the test sets.
+function maker() {
+  let now = AT
+  return { make: createRowIdMaker(() => now), set: (ms: number) => (now = ms) }
+}
 
 describe('row ids', () => {
   it('uses only the specified alphabet end to end, including the counter', () => {
+    const { make } = maker()
     for (let i = 0; i < 50; i++) {
-      const id = randomRowId()
-      for (const char of id) {
-        assert.ok(ALPHABET.includes(char), `unexpected character "${char}" in id "${id}"`)
-      }
+      const id = make()
+      for (const char of id) assert.ok(ALPHABET.includes(char), `unexpected character "${char}" in id "${id}"`)
     }
   })
 
-  it('decodes back to the timestamp it was generated from', () => {
-    const now = Date.now()
-    const id = randomRowId(now)
-    assert.equal(createdTimeFromRowId(id), new Date(now).toISOString())
+  it('decodes back to the timestamp it was made at', () => {
+    assert.equal(createdTimeFromRowId(maker().make()), new Date(AT).toISOString())
   })
 
-  it('two ids generated in the same millisecond are still different', () => {
-    const now = Date.now()
-    assert.notEqual(randomRowId(now), randomRowId(now))
+  it('two ids made in the same millisecond are still different', () => {
+    const { make } = maker()
+    assert.notEqual(make(), make())
   })
 
   it('sorts lexically in creation order, including ties within the same millisecond', () => {
-    const now = Date.now()
-    const sameMillisecond = [randomRowId(now), randomRowId(now), randomRowId(now)]
-    const nextMillisecond = randomRowId(now + 1)
-    const inCreationOrder = [...sameMillisecond, nextMillisecond]
-
+    const { make, set } = maker()
+    const sameMillisecond = [make(), make(), make()]
+    set(AT + 1)
+    const inCreationOrder = [...sameMillisecond, make()]
     assert.deepEqual([...inCreationOrder].sort(), inCreationOrder)
   })
 

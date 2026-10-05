@@ -1,12 +1,12 @@
 {
   "name": "@conduits/widgets",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "private": true,
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "test:e2e": "NODE_ENV=test remix test -t e2e",
-    "test:all": "NODE_ENV=test remix test",
+    "test:e2e": "remix test -t e2e",
+    "test:all": "remix test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

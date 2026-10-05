@@ -1,4 +1,6 @@
 import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
 
 import { compileConduits } from '@conduits/config'
 import type { ConduitConfig, RouteBinding } from '@conduits/gateway'
@@ -8,6 +10,13 @@ import type { ConduitConfig, RouteBinding } from '@conduits/gateway'
 // runs.
 const SUPPORTED_SOURCE_TYPES = ['fastmail', 'googleSheets', 'gmail'] as const
 
+// Where Google grants are stored: CONDUITS_CREDENTIAL_STORE_PATH, or
+// ~/.conduits/credentials.json, outside the project directory, so
+// committing the config directory doesn't commit tokens.
+export function credentialStorePath(): string {
+  return process.env.CONDUITS_CREDENTIAL_STORE_PATH || path.join(os.homedir(), '.conduits', 'credentials.json')
+}
+
 export interface LoadedConduits {
   configs: Map<string, ConduitConfig>
   bindings: RouteBinding[]
@@ -15,13 +24,13 @@ export interface LoadedConduits {
 
 // Read once at startup; edit and restart to reload. A bad config stops
 // the process (see compileConduits in @conduits/config).
-export function loadConduitConfigs(path: string): LoadedConduits {
+export function loadConduitConfigs(configPath: string): LoadedConduits {
   let yamlText: string
   try {
-    yamlText = fs.readFileSync(path, 'utf8')
+    yamlText = fs.readFileSync(configPath, 'utf8')
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      throw new Error(`conduits.yaml not found at '${path}' — copy conduits.example.yaml to conduits.yaml (or set CONDUITS_CONFIG_PATH), then fill it in. See README.md.`)
+      throw new Error(`conduits.yaml not found at '${configPath}' — copy conduits.example.yaml to conduits.yaml (or set CONDUITS_CONFIG_PATH), then fill it in. See README.md.`)
     }
     throw err
   }

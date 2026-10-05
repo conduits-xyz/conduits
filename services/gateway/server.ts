@@ -1,11 +1,11 @@
 import * as http from 'node:http'
 import { createRequestListener } from 'remix/node-fetch-server'
-import { createGatewayRouter, createStaticRouteResolver, problemResponse } from '@conduits/gateway'
-import { createGoogleSheetsClient } from '@conduits/conduit'
+import { createGatewayRouter, createStaticRouteResolver, generateRequestId, problemResponse } from '@conduits/gateway'
 import { googleSheetsOptionsFromEnv, listLimitsFromEnv } from '@conduits/config'
 
-import { loadConduitConfigs } from './config.ts'
-import { gatewayServiceRuntime } from './runtime.ts'
+import { credentialStorePath, loadConduitConfigs } from './config.ts'
+import { createSourceClients, googleTokenOptions } from './providers.ts'
+import { createGatewayServiceRuntime } from './runtime.ts'
 
 const configPath = process.env.CONDUITS_CONFIG_PATH ?? './conduits.yaml'
 const port = process.env.PORT ? Number.parseInt(process.env.PORT, 10) : 8787
@@ -18,9 +18,11 @@ console.log(`[gateway-service] loaded ${configs.size} conduit(s) from ${configPa
 const gatewayRouter = createGatewayRouter({
   resolveConfig: async (curi) => configs.get(curi) ?? null,
   resolveRoute: createStaticRouteResolver(bindings),
-  runtime: gatewayServiceRuntime,
+  runtime: createGatewayServiceRuntime(credentialStorePath(), googleTokenOptions),
   listLimits: listLimitsFromEnv(),
-  sourceClients: { googleSheets: createGoogleSheetsClient(googleSheetsOptionsFromEnv()) },
+  sourceClients: createSourceClients(googleSheetsOptionsFromEnv()),
+  clock: { now: () => new Date(), monotonicMs: () => performance.now() },
+  requestId: generateRequestId,
 })
 
 const server = http.createServer(

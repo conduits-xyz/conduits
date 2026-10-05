@@ -2,30 +2,22 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
 import * as assert from 'remix/assert'
-import { describe, it, afterEach } from 'remix/test'
+import { describe, it } from 'remix/test'
 
 import type { ConduitConfig } from '@conduits/gateway'
-import { gatewayServiceRuntime } from '../runtime.ts'
+import { createGatewayServiceRuntime } from '../runtime.ts'
 import { loadGoogleGrant, saveGoogleGrant } from '@conduits/credential-store'
 import type { StoredGoogleGrant } from '@conduits/credential-store'
 
-// The runtime's getCredential() and invalidateCredential() against a
-// mocked token endpoint, using createGoogleAuthProvider and
-// refreshExternalAuth and a local file.
-const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
+// The runtime's getCredential() and invalidateCredential() against an
+// injected token endpoint and clock, and a local file.
+const NOW = Date.parse('2026-10-05T12:00:00.000Z')
 
-function mockTokenEndpoint(handler: () => Response): () => void {
-  const original = globalThis.fetch
-  globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-    if (url === TOKEN_ENDPOINT) return handler()
-    // Nothing else should be called (userinfo is only in
-    // google-auth-flow.ts).
-    throw new Error(`unexpected fetch in runtime-google.test.ts: ${url}`)
-  }) as typeof fetch
-  return () => {
-    globalThis.fetch = original
-  }
+// A runtime whose token endpoint answers with `handler`; without one,
+// any refresh fails the test.
+function runtime(storePath: string, handler: () => Response = () => assert.fail('unexpected token refresh')) {
+  const fetchImpl = (async () => handler()) as typeof fetch
+  return createGatewayServiceRuntime(storePath, { endpoint: { tokenUrl: 'https://oauth.example/token', fetch: fetchImpl }, now: () => NOW })
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -63,97 +55,71 @@ function expiredGrant(overrides: Partial<StoredGoogleGrant> = {}): StoredGoogleG
     tokens: {
       accessToken: 'stale-access-token',
       refreshToken: 'real-refresh-token',
-      expiresAt: new Date(Date.now() - 1000),
+      expiresAt: new Date(NOW - 1000),
     },
     ...overrides,
   }
 }
 
-describe('gatewayServiceRuntime.getCredential — googleSheets/gmail', () => {
-  let restore: (() => void) | undefined
-  afterEach(() => {
-    restore?.()
-    restore = undefined
-    delete process.env.CONDUITS_CREDENTIAL_STORE_PATH
-  })
+describe('the service runtime: getCredential — googleSheets/gmail', () => {
 
   it('returns the cached access token directly when it is not expiring soon (no refresh call at all)', async () => {
     const storePath = tempStorePath()
-    process.env.CONDUITS_CREDENTIAL_STORE_PATH = storePath
-    saveGoogleGrant(storePath, expiredGrant({ tokens: { accessToken: 'fresh-token', expiresAt: new Date(Date.now() + 3_600_000) } }))
+    saveGoogleGrant(storePath, expiredGrant({ tokens: { accessToken: 'fresh-token', expiresAt: new Date(NOW + 3_600_000) } }))
 
-    // No mock installed, so any fetch goes to the network and fails the
-    // test; getCredential() must not refresh.
-    const token = await gatewayServiceRuntime.getCredential(conduitConfig())
+    const token = await runtime(storePath).getCredential(conduitConfig())
     assert.equal(token, 'fresh-token')
   })
 
   it('refreshes and persists a new access token when the stored one is expiring, for suriType googleSheets (purpose sheets)', async () => {
     const storePath = tempStorePath()
-    process.env.CONDUITS_CREDENTIAL_STORE_PATH = storePath
     saveGoogleGrant(storePath, expiredGrant({ purpose: 'sheets' }))
-    restore = mockTokenEndpoint(() => jsonResponse({ access_token: 'fresh-access-token', expires_in: 3600, token_type: 'Bearer' }))
-
-    const token = await gatewayServiceRuntime.getCredential(conduitConfig({ suriType: 'googleSheets' }))
+    const token = await runtime(storePath, () => jsonResponse({ access_token: 'fresh-access-token', expires_in: 3600, token_type: 'Bearer' })).getCredential(conduitConfig({ suriType: 'googleSheets' }))
     assert.equal(token, 'fresh-access-token')
 
     const reloaded = loadGoogleGrant(storePath, 'personal', 'sheets')
     assert.equal(reloaded?.tokens.accessToken, 'fresh-access-token')
-    assert.ok((reloaded?.tokens.expiresAt?.getTime() ?? 0) > Date.now() + 60_000)
+    assert.equal(reloaded?.tokens.expiresAt?.toISOString(), '2026-10-05T13:00:00.000Z')
   })
 
   it('derives purpose "gmail" for suriType gmail — a grant saved only under "sheets" is not found', async () => {
     const storePath = tempStorePath()
-    process.env.CONDUITS_CREDENTIAL_STORE_PATH = storePath
     saveGoogleGrant(storePath, expiredGrant({ purpose: 'sheets' }))
 
-    const token = await gatewayServiceRuntime.getCredential(conduitConfig({ suriType: 'gmail', suriObjectKey: '' }))
+    const token = await runtime(storePath).getCredential(conduitConfig({ suriType: 'gmail', suriObjectKey: '' }))
     assert.equal(token, null, 'a sheets-purpose grant must not satisfy a gmail-purpose lookup')
   })
 
   it('deletes the local grant when Google reports the grant as expired or revoked', async () => {
     const storePath = tempStorePath()
-    process.env.CONDUITS_CREDENTIAL_STORE_PATH = storePath
     saveGoogleGrant(storePath, expiredGrant())
-    restore = mockTokenEndpoint(() =>
-      jsonResponse({ error: 'invalid_grant', error_description: 'Token has been expired or revoked.' }, 400),
-    )
-
-    const token = await gatewayServiceRuntime.getCredential(conduitConfig())
+    const token = await runtime(storePath, () => jsonResponse({ error: 'invalid_grant', error_description: 'Token has been expired or revoked.' }, 400)).getCredential(conduitConfig())
     assert.equal(token, null)
     assert.equal(loadGoogleGrant(storePath, 'personal', 'sheets'), null, 'a confirmed-dead grant must be removed, not left to fail forever')
   })
 
   it('does not delete the grant on an ambiguous or transient failure', async () => {
     const storePath = tempStorePath()
-    process.env.CONDUITS_CREDENTIAL_STORE_PATH = storePath
     saveGoogleGrant(storePath, expiredGrant())
-    restore = mockTokenEndpoint(() => new Response('', { status: 503 }))
-
-    const token = await gatewayServiceRuntime.getCredential(conduitConfig())
+    const token = await runtime(storePath, () => new Response('', { status: 503 })).getCredential(conduitConfig())
     assert.equal(token, null)
     assert.ok(loadGoogleGrant(storePath, 'personal', 'sheets'), 'a transient failure must not force a real reconnect for what might just be a blip')
   })
 
   it('returns null with no throw when no credential is stored under that name/purpose', async () => {
     const storePath = tempStorePath()
-    process.env.CONDUITS_CREDENTIAL_STORE_PATH = storePath
-    const token = await gatewayServiceRuntime.getCredential(conduitConfig({ credentialRef: 'google:nobody-authorized-this' }))
+    const token = await runtime(storePath).getCredential(conduitConfig({ credentialRef: 'google:nobody-authorized-this' }))
     assert.equal(token, null)
   })
 })
 
-describe('gatewayServiceRuntime.invalidateCredential — googleSheets/gmail', () => {
-  afterEach(() => {
-    delete process.env.CONDUITS_CREDENTIAL_STORE_PATH
-  })
+describe('the service runtime: invalidateCredential — googleSheets/gmail', () => {
 
   it('removes the local grant a live source rejection was traced back to', async () => {
     const storePath = tempStorePath()
-    process.env.CONDUITS_CREDENTIAL_STORE_PATH = storePath
     saveGoogleGrant(storePath, expiredGrant({ purpose: 'sheets' }))
 
-    await gatewayServiceRuntime.invalidateCredential(conduitConfig({ suriType: 'googleSheets' }))
+    await runtime(storePath).invalidateCredential(conduitConfig({ suriType: 'googleSheets' }))
 
     assert.equal(loadGoogleGrant(storePath, 'personal', 'sheets'), null)
   })

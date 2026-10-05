@@ -1,24 +1,31 @@
 import * as assert from 'remix/assert'
 import { describe, it, afterEach } from 'remix/test'
 
-import { createJmapFastmailClient, listJmapIdentities } from '../fastmail.ts'
-import { ConduitAuthError, ConduitSourceError } from '../sheets.ts'
+import { createFastmailClient, listFastmailIdentities } from '../fastmail.ts'
+import { ConduitAuthError, ConduitRateLimitError, ConduitSourceError } from '../sheets.ts'
+
+// The endpoint, with a fetch that calls whatever global fetch the
+// test's mock has installed.
+const FASTMAIL = { sessionUrl: 'https://api.fastmail.com/jmap/session', fetch: ((input, init) => globalThis.fetch(input, init)) as typeof fetch, now: () => Date.parse('2026-10-05T12:00:00.000Z'), makeId: () => 'id' }
 import { jsonResponse } from './helpers.ts'
 
-// The JMAP client with a mocked fetch. Under NODE_ENV=test
-// fastmailClient is the Mailpit-backed client, so this calls
-// createJmapFastmailClient() directly.
+// The JMAP client with a mocked fetch.
 
 const API_URL = 'https://api.fastmail.example/jmap/api/'
 const ACCOUNT_ID = 'u1'
+
+// Every URL the mock was asked for, in order.
+let fetched: string[] = []
 
 function mockFetch(handlers: {
   session?: () => Response
   jmap?: (method: string, body: unknown) => Response
 }): () => void {
   const original = globalThis.fetch
+  fetched = []
   globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    fetched.push(url)
     if (url.endsWith('/jmap/session')) {
       return handlers.session?.() ?? new Response('not mocked', { status: 500 })
     }
@@ -43,142 +50,121 @@ describe('Fastmail JMAP client (mocked fetch — real request/response shapes)',
 
   it('a rejected session fetch (401) surfaces as ConduitAuthError, not a generic failure', async () => {
     restore = mockFetch({ session: () => new Response('', { status: 401 }) })
-    const client = createJmapFastmailClient()
+    const client = createFastmailClient(FASTMAIL)
     await assert.rejects(() => client.connect('ident-1', 'bad-token'), ConduitAuthError)
   })
 
-  it('a JMAP-level error response surfaces as ConduitSourceError', async () => {
+  it('a JMAP-level error in the account lookup surfaces from connect() as ConduitSourceError', async () => {
     restore = mockFetch({
       session: () =>
         jsonResponse({ apiUrl: API_URL, primaryAccounts: { 'urn:ietf:params:jmap:mail': ACCOUNT_ID } }),
-      // Mailbox/get fails at the JMAP level, not HTTP. connect() makes no
-      // Identity/get call: the identity is sourceKey.
-      jmap: () => jsonResponse({ methodResponses: [['error', { type: 'accountNotFound' }, '0']] }),
+      // The lookup fails at the JMAP level, not HTTP.
+      jmap: () => jsonResponse({ methodResponses: [['error', { type: 'accountNotFound' }, 'identities'], ['error', { type: 'accountNotFound' }, 'mailboxes']] }),
     })
-    const client = createJmapFastmailClient()
-    const source = await client.connect('ident-1', 'good-token')
-    await assert.rejects(() => source.listTables(), ConduitSourceError)
+    const client = createFastmailClient(FASTMAIL)
+    await assert.rejects(() => client.connect('ident-1', 'good-token'), (error: unknown) => error instanceof ConduitSourceError && /accountNotFound/.test(error.message))
   })
 
-  it('sends a message via Email/set + EmailSubmission/set with the configured recipients/subject, and the identity connect() was given — never a re-derived or guessed one', async () => {
-    let capturedSend: { methodCalls: Array<[string, Record<string, unknown>, string]> } | undefined
-    restore = mockFetch({
-      session: () =>
-        jsonResponse({ apiUrl: API_URL, primaryAccounts: { 'urn:ietf:params:jmap:mail': ACCOUNT_ID } }),
+  // The JMAP server for a send through @m5nv/mail's transport: the
+  // lookup, then the send, answered by `onSend`.
+  function sendServer(onSend: (body: { methodCalls: Array<[string, Record<string, unknown>, string]> }) => Response) {
+    return mockFetch({
+      session: () => jsonResponse({ apiUrl: API_URL, primaryAccounts: { 'urn:ietf:params:jmap:mail': ACCOUNT_ID } }),
       jmap: (method, body) => {
-        if (method === 'Mailbox/get') {
+        if (method === 'Identity/get') {
           return jsonResponse({
             methodResponses: [
-              ['Mailbox/get', { list: [{ id: 'drafts-1', name: 'Drafts', role: 'drafts' }] }, '0'],
+              ['Identity/get', { list: [{ id: 'ident-1', email: 'you@fastmail.com', name: 'Ada' }, { id: 'ident-2', email: 'sales@yourdomain.com', name: '' }] }, 'identities'],
+              ['Mailbox/get', { list: [{ id: 'drafts-1', role: 'drafts' }] }, 'mailboxes'],
             ],
           })
         }
-        if (method === 'Email/set') {
-          capturedSend = body as typeof capturedSend
-          return jsonResponse({
-            methodResponses: [
-              ['Email/set', { created: { draft: { id: 'email-1' } } }, '0'],
-              ['EmailSubmission/set', { created: { sendIt: { id: 'sub-1' } } }, '1'],
-            ],
-          })
-        }
+        if (method === 'Email/set') return onSend(body as Parameters<typeof onSend>[0])
         return jsonResponse({ methodResponses: [['error', { type: 'unknownMethod' }, '0']] })
       },
     })
+  }
 
-    const client = createJmapFastmailClient()
+  it('sends the configured recipients and subject, with the submitted fields as the body, as the identity connect() was given', async () => {
+    let captured: { methodCalls: Array<[string, Record<string, unknown>, string]> } | undefined
+    restore = sendServer((body) => {
+      captured = body
+      return jsonResponse({
+        methodResponses: [
+          ['Email/set', { created: { draft: { id: 'email-1' } } }, 'draft'],
+          ['EmailSubmission/set', { created: { send: { id: 'sub-1' } } }, 'send'],
+        ],
+      })
+    })
+
     // 'ident-2', not the first identity, to show the one from connect()
     // is used.
-    const source = await client.connect('ident-2', 'good-token')
+    const source = await createFastmailClient(FASTMAIL).connect('ident-2', 'good-token')
     const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
     const record = await table.createRecord({ name: 'Ada', email: 'ada@example.com' })
 
     assert.equal(record.id, 'email-1')
-    assert.ok(capturedSend, 'expected Email/set to have been called')
-    const [, emailSetArgs] = capturedSend!.methodCalls[0]!
-    const draft = (emailSetArgs as { create: { draft: { to: Array<{ email: string }>; subject: string } } }).create.draft
-    assert.deepEqual(draft.to.map((r) => r.email), ['owner@example.com'])
+    // The session and the account lookup at connect(), then the send.
+    assert.equal(fetched.length, 3)
+    const draft = (captured!.methodCalls[0]![1] as { create: { draft: { from: { email: string }[]; to: { email: string }[]; subject: string; bodyValues: { text: { value: string } } } } }).create.draft
+    assert.deepEqual(draft.from, [{ email: 'sales@yourdomain.com' }])
+    assert.deepEqual(draft.to, [{ email: 'owner@example.com' }])
     assert.equal(draft.subject, 'Contact form')
-
-    const [, submissionArgs] = capturedSend!.methodCalls[1]!
-    assert.equal(
-      (submissionArgs as { create: { sendIt: { identityId: string } } }).create.sendIt.identityId,
-      'ident-2',
-    )
+    assert.equal(draft.bodyValues.text.value, 'name: Ada\nemail: ada@example.com')
+    assert.equal((captured!.methodCalls[1]![1] as { create: { send: { identityId: string } } }).create.send.identityId, 'ident-2')
   })
 
-  it('a draft created but never submitted is a real failure, not a silent partial success', async () => {
-    restore = mockFetch({
-      session: () =>
-        jsonResponse({ apiUrl: API_URL, primaryAccounts: { 'urn:ietf:params:jmap:mail': ACCOUNT_ID } }),
-      jmap: (method) => {
-        if (method === 'Mailbox/get') {
-          return jsonResponse({
-            methodResponses: [
-              ['Mailbox/get', { list: [{ id: 'drafts-1', name: 'Drafts', role: 'drafts' }] }, '0'],
-            ],
-          })
-        }
-        if (method === 'Email/set') {
-          return jsonResponse({
-            methodResponses: [
-              ['Email/set', { created: { draft: { id: 'email-1' } } }, '0'],
-              // The submission created nothing: the email exists but was
-              // never sent.
-              ['EmailSubmission/set', { created: {} }, '1'],
-            ],
-          })
-        }
-        return jsonResponse({ methodResponses: [['error', { type: 'unknownMethod' }, '0']] })
-      },
-    })
-
-    const client = createJmapFastmailClient()
-    const source = await client.connect('ident-1', 'good-token')
+  it('a draft created but never submitted fails with a 502, after removing the draft', async () => {
+    restore = sendServer(() =>
+      jsonResponse({
+        methodResponses: [
+          ['Email/set', { created: { draft: { id: 'email-1' } } }, 'draft'],
+          ['EmailSubmission/set', { notCreated: { send: { type: 'invalidRecipients' } } }, 'send'],
+        ],
+      }),
+    )
+    const source = await createFastmailClient(FASTMAIL).connect('ident-1', 'good-token')
     const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
-    await assert.rejects(() => table.createRecord({ name: 'Ada' }), ConduitSourceError)
+    await assert.rejects(() => table.createRecord({ name: 'Ada' }), (error: unknown) => error instanceof ConduitSourceError && error.status === 502)
+  })
+
+  it('a send Fastmail refuses for a sending limit is busy, with a Retry-After', async () => {
+    restore = sendServer(() =>
+      jsonResponse({
+        methodResponses: [
+          ['Email/set', { created: { draft: { id: 'email-1' } } }, 'draft'],
+          ['EmailSubmission/set', { notCreated: { send: { type: 'forbiddenToSend' } } }, 'send'],
+        ],
+      }),
+    )
+    const source = await createFastmailClient(FASTMAIL).connect('ident-1', 'good-token')
+    const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
+    await assert.rejects(() => table.createRecord({ name: 'Ada' }), (error: unknown) => error instanceof ConduitRateLimitError && error.retryAfterSeconds === 30)
+  })
+
+  it('an identity no longer on the account fails clearly', async () => {
+    restore = sendServer(() => jsonResponse({}))
+    const source = await createFastmailClient(FASTMAIL).connect('ident-gone', 'good-token')
+    const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
+    await assert.rejects(() => table.createRecord({ name: 'Ada' }), /no longer on the Fastmail account/)
   })
 
   it("connect()'s own account has no sending identity — requireSendable() fails clearly instead of guessing one", async () => {
-    restore = mockFetch({
-      session: () =>
-        jsonResponse({ apiUrl: API_URL, primaryAccounts: { 'urn:ietf:params:jmap:mail': ACCOUNT_ID } }),
-    })
-    const client = createJmapFastmailClient()
+    restore = sendServer(() => jsonResponse({}))
+    const client = createFastmailClient(FASTMAIL)
     // No identity (empty sourceKey).
     const source = await client.connect('', 'good-token')
     const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
     await assert.rejects(() => table.createRecord({ name: 'Ada' }), ConduitSourceError)
   })
 
-  it('listJmapIdentities returns every identity on the account, for a "Send as" picker', async () => {
-    restore = mockFetch({
-      session: () =>
-        jsonResponse({ apiUrl: API_URL, primaryAccounts: { 'urn:ietf:params:jmap:mail': ACCOUNT_ID } }),
-      jmap: (method) => {
-        if (method === 'Identity/get') {
-          return jsonResponse({
-            methodResponses: [
-              [
-                'Identity/get',
-                {
-                  list: [
-                    { id: 'ident-1', email: 'you@fastmail.com', name: 'Ada' },
-                    { id: 'ident-2', email: 'sales@yourdomain.com', name: null },
-                  ],
-                },
-                '0',
-              ],
-            ],
-          })
-        }
-        return jsonResponse({ methodResponses: [['error', { type: 'unknownMethod' }, '0']] })
-      },
-    })
-    const identities = await listJmapIdentities('good-token')
+  it('listFastmailIdentities returns every identity on the account, for a "Send as" picker', async () => {
+    restore = sendServer(() => jsonResponse({}))
+    const identities = await listFastmailIdentities(FASTMAIL, 'good-token')
     assert.deepEqual(identities, [
       { id: 'ident-1', email: 'you@fastmail.com', name: 'Ada' },
       { id: 'ident-2', email: 'sales@yourdomain.com', name: null },
     ])
+    assert.equal(fetched.length, 2, 'the session, then one lookup')
   })
 })

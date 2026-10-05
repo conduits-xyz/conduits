@@ -1,0 +1,7 @@
+export type { Credential, MailMessage, MailSender, SendFailure, SendingAccount, SendResult, TokenResult, Transport, TransportSend } from './types.ts'
+export { DEFAULT_RETRY_AFTER_SECONDS } from './types.ts'
+export { createMailSender, type MailSenderOptions } from './sender.ts'
+export { fixedToken, googleServiceAccount, retryAfterSeconds, type GoogleServiceAccountOptions, type ServiceAccountKey } from './credentials.ts'
+export { gmailTransport, type GmailTransportOptions } from './gmail.ts'
+export { jmapTransport, type JmapAccount, type JmapIdentity, type JmapMailbox, type JmapTransport, type JmapTransportOptions } from './jmap.ts'
+export { buildMessage, encodeHeader, formatDate, messageIdFor } from './message.ts'

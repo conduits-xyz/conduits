@@ -9,6 +9,7 @@ import { gatewaySchemaAction } from './schema-controller.ts'
 import { gatewayReadyzAction } from './readyz-controller.ts'
 import { problemResponse } from './response.ts'
 import { finishResponse, requestIdContext } from './middleware/request-id.ts'
+import { enforceThrottle } from './middleware/throttle.ts'
 import { conduitConfigContext } from './middleware/conduit-config.ts'
 import { providerBytesContext, honeypotDropCountContext, apiKeyIdContext, classifyStatus, type RouteKind, type GatewayObservation } from './observation.ts'
 
@@ -37,9 +38,11 @@ function methodNotAllowed(allowed: readonly string[]): Response {
 // itself, then runs the middleware and actions in controller.ts,
 // item-controller.ts, schema-controller.ts and readyz-controller.ts.
 export function createGatewayDispatcher(deps: GatewayDeps): (context: GatewayContext) => Promise<Response> {
-  const gatewayMiddleware = createGatewayMiddleware(deps)
-  const schemaMiddleware = createSchemaGatewayMiddleware(deps)
-  const readyzMiddleware = createReadyzGatewayMiddleware(deps)
+  // One throttle for all of this router's routes.
+  const throttle = enforceThrottle(deps.clock)
+  const gatewayMiddleware = createGatewayMiddleware(deps, throttle)
+  const schemaMiddleware = createSchemaGatewayMiddleware(deps, throttle)
+  const readyzMiddleware = createReadyzGatewayMiddleware(deps, throttle)
 
   const actions = createGatewayActions(deps)
   const itemActions = createGatewayItemActions()
@@ -101,7 +104,8 @@ export function createGatewayDispatcher(deps: GatewayDeps): (context: GatewayCon
   }
 
   return async function dispatch(context: GatewayContext): Promise<Response> {
-    const start = Date.now()
+    const start = deps.clock.monotonicMs()
+    const timestamp = deps.clock.now()
     const routeKind = { current: 'unmatched' as RouteKind }
     let response: Response
     try {
@@ -123,8 +127,8 @@ export function createGatewayDispatcher(deps: GatewayDeps): (context: GatewayCon
     const clientResponseBytes = Number(response.headers.get('content-length')) || 0
 
     const observation: GatewayObservation = {
-      timestamp: new Date(start).toISOString(),
-      latencyMs: Date.now() - start,
+      timestamp: timestamp.toISOString(),
+      latencyMs: deps.clock.monotonicMs() - start,
       curi: context.params.curi || undefined,
       apiKeyId: context.get(apiKeyIdContext),
       routeKind: routeKind.current,

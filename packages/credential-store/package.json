@@ -1,6 +1,6 @@
 {
   "name": "@conduits/credential-store",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -9,8 +9,8 @@
     ".": "./index.ts"
   },
   "scripts": {
-    "test": "NODE_ENV=test remix test",
-    "test:all": "NODE_ENV=test remix test",
+    "test": "remix test",
+    "test:all": "remix test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

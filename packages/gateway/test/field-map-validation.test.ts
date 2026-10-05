@@ -1,8 +1,6 @@
 import * as assert from 'remix/assert'
 import { describe, it, beforeEach } from 'remix/test'
-import { resetFakeSheets } from '@conduits/conduit'
 
-import { resetThrottle } from '../middleware/throttle.ts'
 import { createFakeGateway } from './fake-gateway.ts'
 
 // checkKnownFields (packages/conduit/field-map.ts) through dispatch,
@@ -10,9 +8,10 @@ import { createFakeGateway } from './fake-gateway.ts'
 // the same for every suri_type.
 const CURI = 'field-map-smoke'
 
-const { baseConfig, makeRouter } = createFakeGateway(CURI)
+// A new gateway, with an empty sheet, for each test.
+let gateway = createFakeGateway(CURI)
 
-async function postFields(router: ReturnType<typeof makeRouter>, fields: Record<string, unknown>) {
+async function postFields(router: ReturnType<typeof gateway.makeRouter>, fields: Record<string, unknown>) {
   return router.fetch(
     new Request(`http://localhost/${CURI}`, {
       method: 'POST',
@@ -24,14 +23,13 @@ async function postFields(router: ReturnType<typeof makeRouter>, fields: Record<
 
 describe('gateway-wide field schema enforcement (checkKnownFields, wired)', () => {
   beforeEach(() => {
-    resetFakeSheets()
-    resetThrottle()
+    gateway = createFakeGateway(CURI)
   })
 
   it('rejects a field outside a declared, non-empty schema — even on a genuinely blank source with no columns of its own yet', async () => {
     // A blank sheet, which ensureColumnsForWrite would accept (it adds
     // the columns), so the rejection comes from checkKnownFields.
-    const router = makeRouter(baseConfig({ suriConfig: { fieldMap: { name: 'name' } } }))
+    const router = gateway.makeRouter(gateway.baseConfig({ suriConfig: { fieldMap: { name: 'name' } } }))
     const response = await postFields(router, { phone: '555-0100', fax: '555-0101' })
     assert.equal(response.status, 400)
     assert.equal(response.headers.get('content-type'), 'application/problem+json')
@@ -49,13 +47,13 @@ describe('gateway-wide field schema enforcement (checkKnownFields, wired)', () =
   })
 
   it('still accepts anything when no schema is declared at all — the existing passthrough default, unchanged', async () => {
-    const router = makeRouter(baseConfig({ suriConfig: {} }))
+    const router = gateway.makeRouter(gateway.baseConfig({ suriConfig: {} }))
     const response = await postFields(router, { anything: 'x', goes: 'y' })
     assert.equal(response.status, 201)
   })
 
   it('accepts every field that is part of the declared schema', async () => {
-    const router = makeRouter(baseConfig({ suriConfig: { fieldMap: { name: 'name', email: 'email' } } }))
+    const router = gateway.makeRouter(gateway.baseConfig({ suriConfig: { fieldMap: { name: 'name', email: 'email' } } }))
     const response = await postFields(router, { name: 'Ada', email: 'ada@example.com' })
     assert.equal(response.status, 201)
   })

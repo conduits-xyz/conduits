@@ -5,27 +5,18 @@ import { createTestServer } from 'remix/node-fetch-server/test'
 import { createRouter } from 'remix/router'
 import { staticFiles } from 'remix/middleware/static'
 
-import { createGatewayRouter, createStaticRouteResolver, type GatewayRuntime, type ConduitConfig } from '@conduits/gateway'
+import { createGatewayRouter, createStaticRouteResolver, generateRequestId, type GatewayRuntime, type ConduitConfig } from '@conduits/gateway'
+import { FASTMAIL_CAPABILITIES } from '@conduits/conduit'
+import { createRecordingSource } from '@conduits/conduit/testing'
 import { compileConduits, resolveEnvRef } from '@conduits/config'
 
 // conduit-url-input.js resolves a bare curi against location.origin,
 // which works when the demo pages and the Gateway share an origin, as
 // in a self-hosted deployment. This checks that in a browser against a
-// running Gateway, with a Fastmail conduit delivering to Mailpit (as in
-// services/gateway/test/gateway.test.ts).
+// running Gateway, with a Fastmail conduit whose source records what it
+// is asked to send (as in services/gateway/test/gateway.test.ts).
 
-const MAILPIT_API_URL = process.env.MAILPIT_API_URL ?? 'http://localhost:8025'
-type MailpitMessage = { To: Array<{ Address: string }>; Subject: string }
-async function mailpitMessagesWithSubject(subject: string): Promise<MailpitMessage[]> {
-  const response = await fetch(`${MAILPIT_API_URL}/api/v1/messages?limit=250`)
-  const body = (await response.json()) as { messages: MailpitMessage[] }
-  return body.messages.filter((message) => message.Subject === subject)
-}
-function uniqueSubject(label: string): string {
-  return `${label} ${Math.random().toString(36).slice(2)}`
-}
-
-// A minimal GatewayRuntime that sends through Mailpit. Not imported from
+// A minimal GatewayRuntime. Not imported from
 // services/gateway/runtime.ts: a library package can't depend on a
 // service.
 const testRuntime: GatewayRuntime = {
@@ -52,7 +43,7 @@ function createCombinedServer(gatewayRouter: { fetch: (request: Request) => Resp
 // A named conduit path can be used directly as a bare value.
 const CURI = 'widgttest001'
 
-function buildGatewayRouter(subject: string) {
+function buildGatewayRouter() {
   const { configs, bindings } = compileConduits(
     `
 conduits:
@@ -64,25 +55,29 @@ conduits:
       identityId: widget-e2e-identity
       credential: env:WIDGET_E2E_FASTMAIL_TOKEN
       recipients: [owner@example.com]
-      subject: ${subject}
+      subject: Waitlist
 `,
     { supportedSourceTypes: ['fastmail'] },
   )
   const byCuri = new Map(configs.map((config) => [config.curi, config]))
-  return createGatewayRouter({
+  const fastmail = createRecordingSource(FASTMAIL_CAPABILITIES)
+  const router = createGatewayRouter({
+    sourceClients: { fastmail: fastmail.client },
+    clock: { now: () => new Date(), monotonicMs: () => performance.now() },
+    requestId: generateRequestId,
     resolveConfig: async (curi) => byCuri.get(curi) ?? null,
     resolveRoute: createStaticRouteResolver(bindings),
     runtime: testRuntime,
     listLimits: { default: 1000, max: 1000 },
   })
+  return { router, sent: fastmail.created }
 }
 
 describe('conduit-url-input.js — bare curi resolved against the current origin (e2e)', () => {
   it('shows this origin as the prefix, resolves a bare curi against it, and completes a real signup', async (t) => {
     process.env.WIDGET_E2E_FASTMAIL_TOKEN = 'widget-e2e-fastmail-token'
-    const subject = uniqueSubject('conduit-url-input bare-curi')
-    const gatewayRouter = buildGatewayRouter(subject)
-    const server = await createTestServer(createCombinedServer(gatewayRouter))
+    const gateway = buildGatewayRouter()
+    const server = await createTestServer(createCombinedServer(gateway.router))
     const page = await t.serve(server)
 
     await page.goto(server.baseUrl + '/xyz-waitlist/')
@@ -100,15 +95,13 @@ describe('conduit-url-input.js — bare curi resolved against the current origin
     await page.getByRole('button', { name: 'Join the waitlist' }).click()
     await page.getByText("You're on the list", { exact: false }).waitFor()
 
-    const messages = await mailpitMessagesWithSubject(subject)
-    assert.equal(messages.length, 1)
-    assert.equal(messages[0]?.To[0]?.Address, 'owner@example.com')
+    assert.equal(gateway.sent.length, 1)
+    assert.equal(gateway.sent[0]!.fields.email, 'ada@example.com')
   })
 
   it('rejects a value that is not a valid conduit path, still against a known (non-file://) origin', async (t) => {
     process.env.WIDGET_E2E_FASTMAIL_TOKEN = 'widget-e2e-fastmail-token'
-    const gatewayRouter = buildGatewayRouter(uniqueSubject('conduit-url-input malformed'))
-    const server = await createTestServer(createCombinedServer(gatewayRouter))
+    const server = await createTestServer(createCombinedServer(buildGatewayRouter().router))
     const page = await t.serve(server)
 
     await page.goto(server.baseUrl + '/xyz-waitlist/')
@@ -124,8 +117,7 @@ describe('conduit-url-input.js — bare curi resolved against the current origin
   // origins; knownOrigin() prefixes "run." instead of using
   // location.origin, where a bare curi would 404.
   it('on a *.conduits.xyz marketing host, prefixes with the sibling run.* data-plane host, never this same origin', async (t) => {
-    const gatewayRouter = buildGatewayRouter(uniqueSubject('conduit-url-input run-prefix'))
-    const server = await createTestServer(createCombinedServer(gatewayRouter))
+    const server = await createTestServer(createCombinedServer(buildGatewayRouter().router))
     const page = await t.serve(server)
 
     // Playwright answers the navigation itself, so no DNS lookup

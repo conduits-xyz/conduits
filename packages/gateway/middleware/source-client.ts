@@ -1,5 +1,5 @@
 import { createContextKey, type Middleware } from 'remix/router'
-import { sourceClients, type ConduitSourceClient, type ConduitTable } from '@conduits/conduit'
+import type { ConduitSourceClient, ConduitTable } from '@conduits/conduit'
 
 import { problemResponse } from '../response.ts'
 import type { GatewayRuntime } from '../types.ts'
@@ -8,19 +8,19 @@ import { conduitConfigContext } from './conduit-config.ts'
 
 export const conduitTableContext = createContextKey<ConduitTable>()
 
-// Opens the source for the config's suriType (integrations are
-// registered in `sourceClients` in packages/conduit): gets the
+// Opens the source for the config's suriType, with the client the
+// host gave for it (GatewayDeps.sourceClients): gets the
 // credential from runtime.getCredential(), connects and opens once per
 // request, and disconnects when the request is done.
 export function loadConduitTable(
   runtime: GatewayRuntime,
-  overrides: Record<string, ConduitSourceClient> = {},
+  sourceClients: Record<string, ConduitSourceClient>,
 ): Middleware<{ key: typeof conduitTableContext; value: ConduitTable }> {
   return async (context, next) => {
     const config = context.get(conduitConfigContext)
     if (!config) throw new Error('loadConduitTable() requires resolveConduitConfig() middleware to run first')
 
-    const client = overrides[config.suriType] ?? sourceClients[config.suriType]
+    const client = sourceClients[config.suriType]
     if (!client) {
       return problemResponse('internal_error', { detail: `Unsupported source: '${config.suriType}'` })
     }

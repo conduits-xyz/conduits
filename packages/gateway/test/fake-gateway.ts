@@ -1,11 +1,14 @@
 import { createGatewayRouter } from '../router.ts'
 import type { ConduitConfig, GatewayRuntime } from '../types.ts'
 import type { GatewayDeps } from '../pipeline.ts'
+import { testDeps } from './test-deps.ts'
 import { createStaticRouteResolver, type RouteBinding } from '../route-binding.ts'
 
-// A test harness: createGatewayRouter over a plain ConduitConfig and the
-// fake googleSheets client, with no database, files or network.
+// A test harness: createGatewayRouter over a plain ConduitConfig and an
+// in-memory Google Sheets (`sheets`), with no database, files or
+// network. Every router it makes shares the one set of dependencies.
 export function createFakeGateway(curi: string) {
+  const { sheets, ...shared } = testDeps()
   const suriObjectKey = `${curi}-sheet`
   const bindings: RouteBinding[] = [{ path: `/${curi}`, curi }]
   const runtime: GatewayRuntime = {
@@ -36,6 +39,7 @@ export function createFakeGateway(curi: string) {
   // listLimits or sourceClients.
   function makeRouter(config: ConduitConfig, deps: Partial<GatewayDeps> = {}) {
     return createGatewayRouter({
+      ...shared,
       resolveConfig: async (requested) => (requested === curi ? config : null),
       resolveRoute: createStaticRouteResolver(bindings),
       runtime,
@@ -44,5 +48,5 @@ export function createFakeGateway(curi: string) {
     })
   }
 
-  return { suriObjectKey, baseConfig, makeRouter }
+  return { suriObjectKey, sheets, baseConfig, makeRouter }
 }

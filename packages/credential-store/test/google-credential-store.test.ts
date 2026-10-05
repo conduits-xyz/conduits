@@ -4,7 +4,7 @@ import * as os from 'node:os'
 import * as assert from 'remix/assert'
 import { describe, it } from 'remix/test'
 
-import { loadGoogleGrant, saveGoogleGrant, deleteGoogleGrant, markGoogleGrantInvalid, credentialStorePath } from '../google-credential-store.ts'
+import { loadGoogleGrant, saveGoogleGrant, deleteGoogleGrant, markGoogleGrantInvalid } from '../google-credential-store.ts'
 import type { StoredGoogleGrant } from '../google-credential-store.ts'
 
 function tempStorePath(): string {
@@ -89,20 +89,6 @@ describe('google-credential-store', () => {
     saveGoogleGrant(storePath, grant())
     const dirEntries = fs.readdirSync(path.dirname(storePath))
     assert.deepEqual(dirEntries, ['credentials.json'], 'the rename must leave exactly the final file, no .tmp leftovers')
-  })
-
-  it('credentialStorePath() honors CONDUITS_CREDENTIAL_STORE_PATH, defaulting to ~/.conduits/credentials.json', () => {
-    const original = process.env.CONDUITS_CREDENTIAL_STORE_PATH
-    try {
-      delete process.env.CONDUITS_CREDENTIAL_STORE_PATH
-      assert.equal(credentialStorePath(), path.join(os.homedir(), '.conduits', 'credentials.json'))
-
-      process.env.CONDUITS_CREDENTIAL_STORE_PATH = '/tmp/custom-credentials.json'
-      assert.equal(credentialStorePath(), '/tmp/custom-credentials.json')
-    } finally {
-      if (original === undefined) delete process.env.CONDUITS_CREDENTIAL_STORE_PATH
-      else process.env.CONDUITS_CREDENTIAL_STORE_PATH = original
-    }
   })
 
   it('round-trips generation/status, defaulting to undefined for a grant that never set them', () => {

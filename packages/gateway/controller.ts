@@ -8,7 +8,7 @@ import { checkHiddenFormField } from './middleware/hidden-form-field.ts'
 import { honeypotDropCountContext } from './observation.ts'
 import { refuseUnknownMembers } from './request-members.ts'
 import {
-  randomRowId,
+  createRowIdMaker,
   type ConduitRecord,
   type ConduitFields,
   toSourceFields,
@@ -23,7 +23,6 @@ import {
   hasDuplicateIds,
   exceedsBulkLimit,
   MAX_BULK_RECORDS,
-  sourceClients,
   type WireRecord,
 } from '@conduits/conduit'
 
@@ -105,6 +104,9 @@ export interface GatewayActions {
 }
 
 export function createGatewayActions(deps: GatewayDeps): GatewayActions {
+  // Ids for records a hidden form field drops, which look like stored
+  // ones but are never written.
+  const makeRowId = createRowIdMaker(() => deps.clock.now().getTime())
   return {
     async list(context) {
       const config = requireConduitConfig(context)
@@ -139,7 +141,7 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
       if (isBulkBody(body)) {
         // Refused for sources whose records are emails that can't be
         // unsent (ConduitSourceCapabilities.bulkCreate).
-        if (!sourceClients[config.suriType]?.capabilities().bulkCreate) {
+        if (!deps.sourceClients[config.suriType]?.capabilities().bulkCreate) {
           return problemResponse('bulk_not_supported', { detail: 'Send one record at a time to this conduit.' })
         }
         if (exceedsBulkLimit(body.records.length)) return problemResponse('too_many_records', TOO_MANY_RECORDS)
@@ -164,7 +166,7 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
         let cursor = 0
         const records: WireRecord[] = outcomes.map((outcome) => {
           if (outcome.outcome === 'dropped') {
-            return wrapRecord({ id: randomRowId(), fields: outcome.fields })
+            return wrapRecord({ id: makeRowId(), fields: outcome.fields })
           }
           const record = appended[cursor++]
           return wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) })
@@ -194,7 +196,7 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
         // looks like a success.
         recordHoneypotDrops(context, 1)
         if (redirectTarget) return Response.redirect(redirectTarget, 303)
-        return jsonResponse(wrapRecord({ id: randomRowId(), fields: outcome.fields }), 201)
+        return jsonResponse(wrapRecord({ id: makeRowId(), fields: outcome.fields }), 201)
       }
 
       checkKnownFields([outcome.fields], fieldMap, config.suriType)

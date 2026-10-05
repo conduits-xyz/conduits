@@ -15,12 +15,3 @@ export type GooglePurpose = 'sheets' | 'gmail'
 export function scopesForPurpose(purpose: GooglePurpose): readonly string[] {
   return purpose === 'gmail' ? GMAIL_SCOPES : GOOGLE_SHEETS_SCOPES
 }
-
-// The message for a refresh token that will never work again: revoked,
-// a changed password (Gmail scopes), six months unused, or the 7-day
-// limit of a Testing-status project all return { error:
-// 'invalid_grant', error_description: 'Token has been expired or
-// revoked.' }, and remix/auth puts error_description in the thrown
-// Error's message. Runtimes compare against this to stop retrying a
-// dead grant.
-export const GOOGLE_REVOKED_GRANT_MESSAGE = 'Token has been expired or revoked.'
