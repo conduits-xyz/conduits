@@ -89,18 +89,3 @@ error, not an outcome.
 - **Gmail** sends the whole message to `users.messages.send`. Gmail
   sends as the token's account; without `from`, it uses that account's
   primary address.
-
-## Design checklist
-
-From the testable business API design principles.
-
-| Area | Decision | Tests |
-|:--|:--|:--|
-| Service boundary | `createMailSender({ transport, account, now, makeId })`; transports and credentials are factories over their endpoint, `fetch` and clock. Composition chooses them: there is no provider switch. | `test/sender.test.ts` |
-| Time | `now()` gives the instant a message is sent at (its `Date`), read once per send, and when a service account's token is fetched again (a minute before it expires). | expiry just before and at the refresh point (`test/credentials.test.ts`) |
-| Locale | None: the caller writes the message. Dates are RFC 5322 UTC. | — |
-| Authorization | None: the caller decides who may send. | — |
-| Outcomes | The five codes above; never a provider's code. | per transport (`test/jmap.test.ts`, `test/gmail.test.ts`) |
-| REST conventions | Not an HTTP API. Retry follows §8: `retryAfter` only when nothing was sent; `outcome_unknown` is never retried. | the transport tests |
-| Test strategy | Unit tests with an injected `fetch`, using the providers' request and response shapes. A caller's tests can inject any object with a `send` method as its `MailSender`. | — |
-| Ambient access | None: endpoints, `fetch`, the clock and ids (Message-ID, MIME boundary, JMAP message id) are injected. | — |
