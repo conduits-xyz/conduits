@@ -23,6 +23,7 @@ const ERRORS = {
   invalid_limit: { status: 400, title: 'Invalid limit' },
   unknown_cursor: { status: 400, title: 'Unknown cursor' },
   unknown_field: { status: 400, title: 'Unknown field' },
+  invalid_value: { status: 400, title: 'Invalid value' },
   unknown_member: { status: 400, title: 'Unknown member' },
   unauthorized: { status: 401, title: 'Unauthorized' },
   forbidden: { status: 403, title: 'Forbidden' },

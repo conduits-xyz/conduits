@@ -40,6 +40,7 @@ function conduitConfig(overrides: Partial<ConduitConfig> = {}): ConduitConfig {
     suriType: 'googleSheets',
     suriObjectKey: '1AbC',
     suriConfig: {},
+    fields: {},
     hiddenFormField: [],
     credentialRef: 'google:personal',
     ...overrides,

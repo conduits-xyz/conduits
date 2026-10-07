@@ -1,3 +1,5 @@
+import type { FieldSchemas } from '@conduits/conduit'
+
 export type AllowlistEntry = { ip: string; comment?: string; status: 'active' | 'inactive' }
 
 // By policy: a drop-if-filled field is always excluded and has no
@@ -44,6 +46,11 @@ export interface ConduitConfig {
   suriType: string
   suriObjectKey: string
   suriConfig: SuriConfig
+  // Each field's type (and options, for a choice field), by field name:
+  // every write is checked against them and every read typed by them
+  // (field-schema.ts in @conduits/conduit). Empty when the conduit
+  // declares none; its values are then passed as they are.
+  fields: FieldSchemas
   hiddenFormField: HiddenFormFieldRule[]
   // Opaque here; only passed back to GatewayRuntime.getCredential and
   // invalidateCredential. The host defines it, e.g. a "kind:id" naming
@@ -67,10 +74,12 @@ export interface GatewayRuntime {
   // rejection doesn't fail the request.
   recordObservation?(observation: GatewayObservation): void | Promise<void>
   // Optional: measures provider bytes without global state.
-  // loadConduitTable (middleware/source-client.ts) calls it before
-  // resolving the credential and passes fetchImpl to
-  // ConduitSourceClient.connect(). finish() runs beside disconnect(),
-  // and its result goes on providerBytesContext for dispatch() to read.
+  // loadConduitTable (middleware/source-client.ts) calls it when an
+  // action first opens the source, after resolving the credential, and
+  // passes fetchImpl to ConduitSourceClient.connect(). finish() runs
+  // beside disconnect(), and its result goes on providerBytesContext for
+  // dispatch() to read. A request whose action never opens the source
+  // calls neither.
   instrumentFetch?(): {
     fetchImpl: typeof fetch
     finish(): { providerRequestBytes: number; providerResponseBytes: number; providerAttempted: boolean }

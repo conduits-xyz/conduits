@@ -50,8 +50,8 @@ export interface GatewayObservation {
 
 // Set in loadConduitTable's finally block, beside disconnect(), and read
 // once by dispatch(), like honeypotDropCountContext. Absent when the
-// runtime has no instrumentFetch, or the request never reached
-// loadConduitTable.
+// runtime has no instrumentFetch, or the action never opened the source
+// (a refused or honeypot-dropped request).
 export const providerBytesContext = createContextKey<{
   providerRequestBytes: number
   providerResponseBytes: number

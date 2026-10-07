@@ -5,6 +5,11 @@ import { expandBracketForm } from '@conduits/conduit'
 
 export const jsonBodyContext = createContextKey<Record<string, unknown>>({})
 
+// True when the body was a form (urlencoded or multipart), whose values
+// are all strings: the write actions read them by their fields
+// (fromFormValues in @conduits/conduit).
+export const formBodyContext = createContextKey<boolean>(false)
+
 // DELETE may have a body: a bulk delete sends {ids: [...]}. A single
 // DELETE has none, which parses as an empty object.
 const BODYLESS_METHODS = new Set(['GET', 'HEAD'])
@@ -21,6 +26,7 @@ export function parseJsonBody(): Middleware<{ key: typeof jsonBodyContext; value
     if (contentType.includes('application/x-www-form-urlencoded')) {
       const text = await context.request.text()
       context.set(jsonBodyContext, expandBracketForm(new URLSearchParams(text)))
+      context.set(formBodyContext, true)
       return next()
     }
 
@@ -33,6 +39,7 @@ export function parseJsonBody(): Middleware<{ key: typeof jsonBodyContext; value
           // Files are ignored.
         }
         context.set(jsonBodyContext, expandBracketForm(entries))
+        context.set(formBodyContext, true)
         return next()
       } catch {
         return problemResponse('invalid_body', { detail: 'The multipart body cannot be read.' })

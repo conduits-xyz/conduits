@@ -15,8 +15,11 @@ export function requireConduitConfig(context: GatewayContext): ConduitConfig {
   return config
 }
 
-export function requireConduitTable(context: GatewayContext): ConduitTable {
-  const table = context.get(conduitTableContext)
-  if (!table) throw new Error('requires loadConduitTable() middleware to run first')
-  return table
+// The conduit's table, opening the source on the first call. An action
+// asks for it only once it has checked the request, so a request it
+// refuses or drops never reaches the provider.
+export function openConduitTable(context: GatewayContext): Promise<ConduitTable> {
+  const open = context.get(conduitTableContext)
+  if (!open) throw new Error('requires loadConduitTable() middleware to run first')
+  return open()
 }

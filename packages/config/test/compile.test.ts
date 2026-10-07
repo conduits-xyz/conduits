@@ -35,6 +35,7 @@ describe('compileConduits', () => {
     assert.deepEqual(config?.tokenRequiredMethods, [])
     assert.deepEqual(config?.apiKeys, [])
     assert.deepEqual(config?.hiddenFormField, [])
+    assert.deepEqual(config?.fields, {})
     assert.equal(config?.suriType, 'fastmail')
     assert.equal(config?.suriObjectKey, 'ident-1')
     assert.deepEqual(config?.suriConfig, { recipients: ['owner@example.com'], subject: 'New submission', table: undefined })
@@ -270,6 +271,39 @@ conduits:
         ),
       /unknown policy 'nonsense'/,
     )
+  })
+
+  it('compiles fields: a type, or a choice field with its options', () => {
+    process.env.FASTMAIL_TOKEN = 'fastmail-secret'
+    const { configs: [config] } = compileConduits(
+      baseYaml(`
+    fields:
+      email: email
+      guests: number
+      cake:
+        type: single_select
+        options: [Birthday cake, Wedding cake]
+      flavors:
+        type: multi_select
+        options: [Chocolate, Lemon]
+`),
+      FASTMAIL_ONLY,
+    )
+    assert.deepEqual(config?.fields, {
+      email: { type: 'email' },
+      guests: { type: 'number' },
+      cake: { type: 'single_select', options: ['Birthday cake', 'Wedding cake'] },
+      flavors: { type: 'multi_select', options: ['Chocolate', 'Lemon'] },
+    })
+  })
+
+  it('rejects an unknown type, a choice field without options, and a comma in an option', () => {
+    process.env.FASTMAIL_TOKEN = 'fastmail-secret'
+    const compile = (fields: string) => () => compileConduits(baseYaml(`    fields:\n${fields}`), FASTMAIL_ONLY)
+    assert.throws(compile('      done: checkbox\n'), /fields\.done type must be one of text, textarea/)
+    assert.throws(compile('      cake:\n        type: single_select\n        options: []\n'), /fields\.cake needs at least one option/)
+    assert.throws(compile("      flavors:\n        type: multi_select\n        options: ['Salted, caramel']\n"), /contains a comma/)
+    assert.throws(compile('      name:\n        type: text\n        options: [A]\n'), /only single_select and multi_select take options/)
   })
 
   it('rejects a malformed allowlist entry (neither a string nor {ip, ...})', () => {

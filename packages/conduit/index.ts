@@ -3,6 +3,7 @@
 // testing.ts (`@conduits/conduit/testing`).
 export * from './sheets.ts'
 export * from './field-map.ts'
+export * from './field-schema.ts'
 export * from './record-shape.ts'
 export * from './bracket-form.ts'
 export * from './fastmail.ts'

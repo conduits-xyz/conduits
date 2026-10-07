@@ -150,36 +150,34 @@ export interface ConduitTable {
 
 // --- Internal working shape ---
 //
-// The helpers below work on a flat all-string row with the id under
-// `id`, which is what a Sheets row is. The ConduitTable methods convert
-// to and from ConduitRecord.
-type FlatRow = Record<string, string>
+// A cell as written and read: values go in as given (valueInputOption
+// RAW: never parsed, so text that looks like a formula, a number or a
+// date stays text) and come back unformatted (a number as a number,
+// a date typed into the sheet as its displayed text). The header row
+// is read as text. The helpers below work on a flat row with the id
+// under `id`; the ConduitTable methods convert to and from
+// ConduitRecord. A value's type is the caller's business: the gateway
+// types it by the conduit's fields (field-schema.ts).
+export type Cell = string | number | boolean
+type Grid = Cell[][]
+type FlatRow = Record<string, Cell>
 
-function toConduitRecord(row: FlatRow, schema: Map<string, ConduitFieldType>): ConduitRecord {
+// The header row, read as text (getGrid).
+const headerOf = (grid: Grid): string[] => (grid[0] ?? []) as string[]
+
+function toConduitRecord(row: FlatRow): ConduitRecord {
   const { id, ...rest } = row
   const fields: ConduitFields = {}
-  for (const [name, raw] of Object.entries(rest)) {
-    fields[name] = coerceValue(raw, schema.get(name) ?? 'string')
+  for (const [name, value] of Object.entries(rest)) {
+    fields[name] = value === '' ? null : value
   }
-  return { id, fields }
-}
-
-function coerceValue(raw: string, type: ConduitFieldType): string | number | boolean | null {
-  if (raw === '') return null
-  if (type === 'number') return Number(raw)
-  if (type === 'boolean') return raw === 'TRUE'
-  return raw // 'string', and 'date' (an ISO-8601 string)
-}
-
-function stringifyValue(value: string | number | boolean | null): string {
-  if (value === null) return ''
-  return typeof value === 'string' ? value : String(value)
+  return { id: String(id), fields }
 }
 
 function fieldsToFlatRow(fields: ConduitFields): FlatRow {
   const row: FlatRow = {}
   for (const [name, value] of Object.entries(fields)) {
-    row[name] = stringifyValue(value)
+    row[name] = value ?? ''
   }
   return row
 }
@@ -191,20 +189,20 @@ function fromConduitRecord(record: ConduitRecord): FlatRow {
 const NUMBER_RE = /^-?\d+(\.\d+)?$/
 const DATE_RE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?)?$/
 
-// A column is typed only if every non-blank value agrees; one text value
-// makes it 'string'. Dates are tested before numbers; no value matches
-// both.
-export function inferColumnType(values: string[]): ConduitFieldType {
+// For describeFields only: a column is typed only if every non-blank
+// value agrees; one text value makes it 'string'. Dates are tested
+// before numbers; no value matches both. Reads never type values this
+// way (see Cell).
+export function inferColumnType(values: Cell[]): ConduitFieldType {
   const nonBlank = values.filter((v) => v !== '')
   if (nonBlank.length === 0) return 'string'
-  if (nonBlank.every((v) => DATE_RE.test(v))) return 'date'
-  if (nonBlank.every((v) => NUMBER_RE.test(v))) return 'number'
-  if (nonBlank.every((v) => v === 'TRUE' || v === 'FALSE')) return 'boolean'
+  if (nonBlank.every((v) => typeof v === 'string' && DATE_RE.test(v))) return 'date'
+  if (nonBlank.every((v) => typeof v === 'number' || (typeof v === 'string' && NUMBER_RE.test(v)))) return 'number'
+  if (nonBlank.every((v) => typeof v === 'boolean' || v === 'TRUE' || v === 'FALSE')) return 'boolean'
   return 'string'
 }
 
-// Inferred once per grid read.
-function inferSchema(header: string[], dataRows: string[][]): Map<string, ConduitFieldType> {
+function inferSchema(header: string[], dataRows: Grid): Map<string, ConduitFieldType> {
   const schema = new Map<string, ConduitFieldType>()
   header.forEach((name, i) => {
     if (name === ID_COLUMN_NAME) return
@@ -255,7 +253,7 @@ interface SheetsContext extends SheetsEndpoint {
   makeRowId: () => string
   metadata: TtlCache<unknown>
   // List reads' copies of a tab; absent when readCacheMs is 0.
-  grids?: TtlCache<string[][]>
+  grids?: TtlCache<Grid>
 }
 
 async function sheetsFetch(
@@ -321,11 +319,17 @@ async function getGrid(
   tableName: string | undefined,
   credential: string,
   ctx: SheetsContext,
-): Promise<string[][]> {
-  const response = await sheetsFetch(`${sourceKey}/values/${rangeFor(tableName, READ_RANGE)}`, credential, undefined, ctx)
+): Promise<Grid> {
+  const response = await sheetsFetch(
+    `${sourceKey}/values/${rangeFor(tableName, READ_RANGE)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`,
+    credential,
+    undefined,
+    ctx,
+  )
   await throwForStatus(response, 'read')
-  const body = (await response.json()) as { values?: string[][] }
-  return body.values ?? []
+  const body = (await response.json()) as { values?: Grid }
+  const [header, ...rows] = body.values ?? []
+  return header ? [header.map(String), ...rows] : []
 }
 
 // The tab's numeric id (gid), which deleteDimension and tab links need.
@@ -367,24 +371,25 @@ export function columnToLetter(column: number): string {
 // A grid row as a FlatRow, with ID_COLUMN_NAME renamed to `id`. Every
 // grid-to-FlatRow conversion goes through here, so "conduit-id" never
 // appears among the fields.
-export function rowToFields(header: string[], row: string[]): FlatRow {
-  return Object.fromEntries(header.map((name, i) => [name === ID_COLUMN_NAME ? 'id' : name, row[i] ?? '']))
+export function rowToFields(header: string[], row: Cell[]): FlatRow {
+  return Object.fromEntries(header.map((name, i) => (name === ID_COLUMN_NAME ? ['id', String(row[i] ?? '')] : [name, row[i] ?? ''])))
 }
 
 // Rows with an id. Rows with a blank id, or every row when the sheet has
 // no id column, aren't records yet and are left out.
-export function rowsFromGrid(grid: string[][]): FlatRow[] {
-  const [header, ...dataRows] = grid
-  if (!header) return []
+export function rowsFromGrid(grid: Grid): FlatRow[] {
+  if (grid.length === 0) return []
+  const [, ...dataRows] = grid
+  const header = headerOf(grid)
   return dataRows.map((row) => rowToFields(header, row)).filter((row) => Boolean(row.id))
 }
 
-function gridRowFromFields(header: string[], fields: FlatRow): string[] {
+function gridRowFromFields(header: string[], fields: FlatRow): Cell[] {
   return header.map((name) => (name === ID_COLUMN_NAME ? (fields.id ?? '') : (fields[name] ?? '')))
 }
 
-function findRowIndex(grid: string[][], idIndex: number, id: string): number {
-  return grid.findIndex((row, i) => i > 0 && row[idIndex] === id)
+function findRowIndex(grid: Grid, idIndex: number, id: string): number {
+  return grid.findIndex((row, i) => i > 0 && String(row[idIndex] ?? '') === id)
 }
 
 // Every field name in a batch except `id`, so the schema is checked
@@ -408,11 +413,11 @@ async function ensureColumnsForWrite(
   sourceKey: string,
   tableName: string | undefined,
   credential: string,
-  grid: string[][],
+  grid: Grid,
   fieldNames: string[],
   ctx: SheetsContext,
-): Promise<string[][]> {
-  const header = grid[0] ?? []
+): Promise<Grid> {
+  const header = headerOf(grid)
 
   const needsIdColumn = idColumnIndex(header) === -1
   const missingFieldNames = fieldNames.filter((name) => name !== 'id' && !header.includes(name))
@@ -433,11 +438,11 @@ async function addColumnsToGrid(
   sourceKey: string,
   tableName: string | undefined,
   credential: string,
-  grid: string[][],
+  grid: Grid,
   newColumnNames: string[],
   ctx: SheetsContext,
-): Promise<string[][]> {
-  const header = grid[0] ?? []
+): Promise<Grid> {
+  const header = headerOf(grid)
   const dataRows = grid.slice(1)
   if (newColumnNames.length === 0) return grid
 
@@ -456,7 +461,7 @@ async function addColumnsToGrid(
   const response = await sheetsFetch(
     `${sourceKey}/values:batchUpdate`,
     credential,
-    { method: 'POST', body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }) },
+    { method: 'POST', body: JSON.stringify({ valueInputOption: 'RAW', data }) },
     ctx,
   )
   await throwForStatus(response, 'add columns')
@@ -484,7 +489,7 @@ async function createFieldsOnSheet(
   }
 
   const grid = await getGrid(sourceKey, tableName, credential, ctx)
-  const header = grid[0] ?? []
+  const header = headerOf(grid)
   const newColumnNames = names.filter((name) => !header.includes(name))
   await addColumnsToGrid(sourceKey, tableName, credential, grid, newColumnNames, ctx)
 
@@ -557,10 +562,10 @@ async function appendRows(
     unionFieldNames(fieldsList),
     ctx,
   )
-  const header = grid[0]
+  const header = headerOf(grid)
   const rows = fieldsList.map((fields) => ({ ...fields, id: ctx.makeRowId() }))
   const response = await sheetsFetch(
-    `${sourceKey}/values/${rangeFor(tableName, APPEND_RANGE)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+    `${sourceKey}/values/${rangeFor(tableName, APPEND_RANGE)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
     credential,
     { method: 'POST', body: JSON.stringify({ values: rows.map((row) => gridRowFromFields(header, row)) }) },
     ctx,
@@ -573,9 +578,6 @@ async function appendRows(
 // existing row via `merge`, adds columns for the batch, and writes all
 // ranges in one values.batchUpdate. Returns null and writes nothing if
 // any id isn't found, so the batch is atomic.
-//
-// Also returns the schema inferred from that grid, which updateRecord
-// needs for fields carried over from the existing row.
 async function bulkWriteRows(
   sourceKey: string,
   tableName: string | undefined,
@@ -583,17 +585,17 @@ async function bulkWriteRows(
   entries: FlatRow[],
   merge: (existing: FlatRow, fields: FlatRow) => FlatRow,
   ctx: SheetsContext,
-): Promise<{ rows: FlatRow[]; schema: Map<string, ConduitFieldType> } | null> {
+): Promise<{ rows: FlatRow[] } | null> {
   let grid = await getGrid(sourceKey, tableName, credential, ctx)
-  const header = grid[0]
-  if (!header) return null
+  if (grid.length === 0) return null
+  const header = headerOf(grid)
 
   const idIndex = idColumnIndex(header)
   if (idIndex === -1) return null // no id column yet means nothing has ever been assigned this id
 
   const rowIndexes: number[] = []
   for (const entry of entries) {
-    const rowIndex = findRowIndex(grid, idIndex, entry.id)
+    const rowIndex = findRowIndex(grid, idIndex, String(entry.id))
     if (rowIndex === -1) return null
     rowIndexes.push(rowIndex)
   }
@@ -608,17 +610,17 @@ async function bulkWriteRows(
 
   const data = merged.map((fields, i) => ({
     range: rangeFor(tableName, `A${rowIndexes[i] + 1}:ZZ${rowIndexes[i] + 1}`),
-    values: [gridRowFromFields(grid[0], fields)],
+    values: [gridRowFromFields(headerOf(grid), fields)],
   }))
 
   const response = await sheetsFetch(
     `${sourceKey}/values:batchUpdate`,
     credential,
-    { method: 'POST', body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }) },
+    { method: 'POST', body: JSON.stringify({ valueInputOption: 'RAW', data }) },
     ctx,
   )
   await throwForStatus(response, 'bulk write')
-  return { rows: merged, schema: inferSchema(grid[0], grid.slice(1)) }
+  return { rows: merged }
 }
 
 // Finds every id's row from one grid read, then deletes them in one
@@ -633,7 +635,7 @@ async function deleteRows(
   ctx: SheetsContext,
 ): Promise<boolean> {
   const grid = await getGrid(sourceKey, tableName, credential, ctx)
-  const idIndex = idColumnIndex(grid[0] ?? [])
+  const idIndex = idColumnIndex(headerOf(grid))
   if (idIndex === -1) return false // no id column yet means nothing has ever been assigned this id
 
   const rowIndexes: number[] = []
@@ -671,7 +673,7 @@ async function deleteFieldsOnSheet(
   ctx: SheetsContext,
 ): Promise<void> {
   const grid = await getGrid(sourceKey, tableName, credential, ctx)
-  const header = grid[0] ?? []
+  const header = headerOf(grid)
   const columnIndexes = names
     .map((name) => header.indexOf(name))
     .filter((index) => index !== -1)
@@ -702,7 +704,7 @@ function bulkReplaceRows(
   credential: string,
   entries: FlatRow[],
   ctx: SheetsContext,
-): Promise<{ rows: FlatRow[]; schema: Map<string, ConduitFieldType> } | null> {
+): Promise<{ rows: FlatRow[] } | null> {
   return bulkWriteRows(sourceKey, tableName, credential, entries, (_existing, fields) => fields, ctx)
 }
 
@@ -712,7 +714,7 @@ function bulkUpdateRows(
   credential: string,
   entries: FlatRow[],
   ctx: SheetsContext,
-): Promise<{ rows: FlatRow[]; schema: Map<string, ConduitFieldType> } | null> {
+): Promise<{ rows: FlatRow[] } | null> {
   return bulkWriteRows(
     sourceKey,
     tableName,
@@ -735,8 +737,9 @@ function openHttpTable(
     async describeFields() {
       return ctx.metadata.get(`fields\0${tabKey(sourceKey, tableName, credential)}`, async () => {
         const grid = await getGrid(sourceKey, tableName, credential, ctx)
-        const [header, ...dataRows] = grid
-        if (!header) return []
+        if (grid.length === 0) return []
+        const [, ...dataRows] = grid
+        const header = headerOf(grid)
         const schema = inferSchema(header, dataRows)
         return header
           .filter((name) => name && name !== ID_COLUMN_NAME)
@@ -761,8 +764,6 @@ function openHttpTable(
     async listRecords(page) {
       const load = () => getGrid(sourceKey, tableName, credential, ctx)
       const grid = await (ctx.grids ? ctx.grids.get(tabKey(sourceKey, tableName, credential), load) : load())
-      const [header, ...dataRows] = grid
-      const schema = header ? inferSchema(header, dataRows) : new Map<string, ConduitFieldType>()
       const allRows = rowsFromGrid(grid)
 
       const offset = page?.cursor ? Number(page.cursor) : 0
@@ -770,7 +771,7 @@ function openHttpTable(
       const slice = allRows.slice(offset, offset + limit)
       const nextOffset = offset + slice.length
       return {
-        records: slice.map((row) => toConduitRecord(row, schema)),
+        records: slice.map((row) => toConduitRecord(row)),
         nextCursor: nextOffset < allRows.length ? String(nextOffset) : null,
       }
     },
@@ -779,11 +780,11 @@ function openHttpTable(
     // values as given, so they aren't read back.
     async createRecord(fields) {
       const [row] = await appendRows(sourceKey, tableName, credential, [fieldsToFlatRow(fields)], ctx)
-      return { id: row.id, fields }
+      return { id: String(row.id), fields }
     },
     async createRecords(fieldsList) {
       const rows = await appendRows(sourceKey, tableName, credential, fieldsList.map(fieldsToFlatRow), ctx)
-      return rows.map((row, i) => ({ id: row.id, fields: fieldsList[i] }))
+      return rows.map((row, i) => ({ id: String(row.id), fields: fieldsList[i] }))
     },
 
     // A replace returns exactly the submitted fields.
@@ -800,11 +801,11 @@ function openHttpTable(
     // uses the inferred schema.
     async updateRecord(record) {
       const result = await bulkUpdateRows(sourceKey, tableName, credential, [fromConduitRecord(record)], ctx)
-      return result ? toConduitRecord(result.rows[0], result.schema) : null
+      return result ? toConduitRecord(result.rows[0]) : null
     },
     async updateRecords(records) {
       const result = await bulkUpdateRows(sourceKey, tableName, credential, records.map(fromConduitRecord), ctx)
-      return result ? result.rows.map((row) => toConduitRecord(row, result.schema)) : null
+      return result ? result.rows.map((row) => toConduitRecord(row)) : null
     },
 
     deleteRecord(id) {
@@ -905,7 +906,7 @@ export function createGoogleSheetsClient(options: GoogleSheetsClientOptions): Co
     makeRowId: createRowIdMaker(options.now),
     metadata: new TtlCache<unknown>(SHEET_METADATA_CACHE_TTL_MS, options.now),
     // So paging through a large sheet reads it from Google once.
-    ...(options.readCacheMs > 0 ? { grids: new TtlCache<string[][]>(options.readCacheMs, options.now) } : {}),
+    ...(options.readCacheMs > 0 ? { grids: new TtlCache<Grid>(options.readCacheMs, options.now) } : {}),
   }
   const budget = options.budget ? new RequestBudget(options.budget.perMinute, options.budget.perCredentialPerMinute, options.now) : undefined
   return {

@@ -12,6 +12,7 @@ import type { GatewayRuntime } from '../types.ts'
 import { pointerSegment, problemResponse, type FieldError } from '../response.ts'
 import { conduitConfigContext } from './conduit-config.ts'
 import { jsonBodyContext } from './body.ts'
+import { NoUsableCredentialError } from './source-client.ts'
 
 // One error per unknown field, under the name the client sent, pointing
 // at each record that has it. checkKnownFields reports the client's
@@ -38,17 +39,19 @@ function unknownFieldResponse(err: ConduitUnknownFieldError, context: GatewayCon
   return problemResponse('unknown_field', { detail: `The conduit has no ${names.length === 1 ? 'field' : 'fields'} ${list}.`, errors })
 }
 
-// Wraps the action and loadConduitTable's connect() and open(). Turns
-// ConduitUnknownFieldError (400), ConduitAuthError and
-// ConduitSourceError (502) and ConduitRateLimitError (503 with
-// Retry-After: the source's limit, not this caller's) into problem
-// responses; other errors pass through.
+// Wraps the action, which opens the source through loadConduitTable.
+// Turns ConduitUnknownFieldError (400), NoUsableCredentialError,
+// ConduitAuthError and ConduitSourceError (502) and
+// ConduitRateLimitError (503 with Retry-After: the source's limit, not
+// this caller's) into problem responses; other errors pass through.
 export function handleSourceErrors(runtime: GatewayRuntime): Middleware {
   return async (context, next) => {
     try {
       return await next()
     } catch (err) {
       if (err instanceof ConduitUnknownFieldError) return unknownFieldResponse(err, context as GatewayContext)
+
+      if (err instanceof NoUsableCredentialError) return problemResponse('source_unavailable', { detail: err.message })
 
       if (err instanceof ConduitAuthError) {
         // The credential was rejected: let the runtime clean it up so the

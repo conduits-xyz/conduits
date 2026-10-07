@@ -86,6 +86,9 @@ export interface ConduitTable {
   the connection to the pool.
 - After `connect()` and `open()`, no method gets `sourceKey`,
   `credential`, or `config` again.
+- The gateway gets the credential and calls `connect()` and `open()`
+  only when a request needs the table. A request it refuses or drops
+  first (an invalid body, a tripped honeypot) never reaches the source.
 
 ### `capabilities()`
 
@@ -114,7 +117,15 @@ export interface ConduitTable {
 
 - A `ConduitRecord` always has an `id`. A record without an id is
   `ConduitFields`, for example the input of `createRecord`.
-- A field value is a string, number, boolean, or `null`.
+- A field value is a string, number, boolean, or `null`. A source
+  never gets a list: the gateway joins a `multi_select` field's list
+  into one string before it writes, and splits it after it reads
+  (`field-schema.ts`).
+- Store each value as given and return it as stored. Don't parse text
+  into numbers, dates or formulas, and don't guess a value's type on a
+  read: the gateway types every value by the conduit's fields. Google
+  Sheets writes with `valueInputOption=RAW` and reads unformatted
+  values for this reason.
 - In an update, `null` clears a field. A missing key does not change
   the field.
 - Convert other values (objects, arrays, dates) at your boundary.

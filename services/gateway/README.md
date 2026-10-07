@@ -254,6 +254,7 @@ Each conduit is one entry under `conduits:`.
 | `bearerToken.value` | No | `env:NAME`. The token is in `.env`. |
 | `bearerToken.requiredFor` | With `bearerToken` | The methods that require the token. Each must be in `methods`. |
 | `hiddenFields` | No | A list of rules. See below. |
+| `fields` | No | Each field's type, and a choice field's options. See below. |
 | `routes` | No | A list of `{path, host}`. `host` is optional. See [Routes](#routes). |
 | `source` | Yes | See [Sources](#sources). |
 
@@ -269,6 +270,29 @@ A dropped submission gets the same `201` as a stored one. In
 [`docs/gateway-api.md`](../../docs/gateway-api.md#hidden-form-fields),
 `honeypot` is `drop-if-filled`, `mustEqual` is `pass-if-match`, and
 `forward` is `include`.
+
+### Fields
+
+```yaml
+    fields:
+      name: text
+      email: email
+      guests: number
+      day: date                   # YYYY-MM-DD
+      cake:
+        type: single_select       # the value is one option
+        options: [Birthday cake, Wedding cake]
+      flavors:
+        type: multi_select        # the value is a list of options
+        options: [Chocolate, Vanilla, Lemon]
+```
+
+The types are `text`, `textarea`, `email`, `tel`, `url`, `number`,
+`date`, `single_select` and `multi_select`. The gateway refuses a value
+that doesn't fit its field with `400 invalid_value`, and returns every
+value typed by its field. A `multi_select` list is stored as one value,
+the options separated by `, `, so no option can contain a comma.
+See [`docs/gateway-api.md`](../../docs/gateway-api.md#fields).
 
 ### Sources
 

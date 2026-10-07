@@ -1,5 +1,5 @@
 import type { HiddenFormFieldRule } from '../types.ts'
-import type { ConduitFields } from '@conduits/conduit'
+import type { RequestFields } from '@conduits/conduit'
 
 // Called once per record, not as middleware, so each record in a bulk
 // request has its own outcome. A tripped honeypot (drop-if-filled) or a
@@ -8,12 +8,12 @@ import type { ConduitFields } from '@conduits/conduit'
 export type HiddenFormFieldOutcome =
   // The submitted fields without those configured `include: false`,
   // which are checked but not sent to the source (docs/gateway-api.md).
-  | { outcome: 'ok'; fields: ConduitFields }
+  | { outcome: 'ok'; fields: RequestFields }
   // Succeed without writing. `fields` excludes the triggering field and
   // every `include: false` field, for the response.
-  | { outcome: 'dropped'; fields: ConduitFields }
+  | { outcome: 'dropped'; fields: RequestFields }
 
-export function checkHiddenFormField(rules: HiddenFormFieldRule[], fields: ConduitFields): HiddenFormFieldOutcome {
+export function checkHiddenFormField(rules: HiddenFormFieldRule[], fields: RequestFields): HiddenFormFieldOutcome {
   let kept = fields
 
   for (const rule of rules) {

@@ -16,6 +16,7 @@ const config: ConduitConfig = {
   suriType: 'fake',
   suriObjectKey: 'unused',
   suriConfig: {},
+  fields: {},
   hiddenFormField: [],
   credentialRef: null,
 }

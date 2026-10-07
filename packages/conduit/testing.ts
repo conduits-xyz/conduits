@@ -34,8 +34,9 @@ export interface FakeSheets {
 }
 
 // An in-memory Google Sheets client with the real one's atomicity and
-// schema rules (checkSchema, the bulk methods). Values are stored typed,
-// so tests see the types the real client returns. `now` makes row ids.
+// schema rules (checkSchema, the bulk methods). Values are kept as
+// given, as the real client writes them (RAW) and reads them back
+// (unformatted). `now` makes row ids.
 export function createFakeSheets(now: () => number): FakeSheets {
   const makeRowId = createRowIdMaker(now)
   // Keyed by `${sourceKey}\0${tableName ?? ''}`.

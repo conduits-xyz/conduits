@@ -2,17 +2,17 @@ import type { GatewayContext } from './context.ts'
 import type { GatewayDeps } from './pipeline.ts'
 import { jsonResponse, problemResponse } from './response.ts'
 import type { ConduitTable } from '@conduits/conduit'
-import { jsonBodyContext } from './middleware/body.ts'
-import { requireConduitConfig, requireConduitTable } from './require-context.ts'
+import { formBodyContext, jsonBodyContext } from './middleware/body.ts'
+import { openConduitTable, requireConduitConfig } from './require-context.ts'
 import { checkHiddenFormField } from './middleware/hidden-form-field.ts'
 import { honeypotDropCountContext } from './observation.ts'
 import { refuseUnknownMembers } from './request-members.ts'
+import { checkFieldValues, toClientFields, toStoredFields } from './field-values.ts'
+import type { ConduitConfig } from './types.ts'
 import {
   createRowIdMaker,
   type ConduitRecord,
   type ConduitFields,
-  toSourceFields,
-  toWidgetFields,
   checkKnownFields,
   wrapRecord,
   isBulkBody,
@@ -66,11 +66,11 @@ function recordHoneypotDrops(context: GatewayContext, count: number): void {
 // sheets.ts): either every id resolves and all are written, or nothing
 // is. Hidden form fields apply only to create.
 async function runBulkWrite(
-  table: ConduitTable,
-  fieldMap: Record<string, string> | undefined,
-  source: string,
+  openTable: () => Promise<ConduitTable>,
+  config: ConduitConfig,
   body: Record<string, unknown>,
   mode: 'update' | 'replace',
+  form: boolean,
 ): Promise<Response> {
   if (!isBulkBody(body)) return problemResponse('invalid_body', { detail: 'Send {records: [{id, fields}, ...]}.' })
   const unknown = refuseUnknownMembers(body, ['records'], RECORD_MEMBERS)
@@ -80,15 +80,16 @@ async function runBulkWrite(
   if (!entries) return problemResponse('invalid_body', { detail: 'Each record needs an id and fields.' })
   if (hasDuplicateIds(entries.map((entry) => entry.id))) return problemResponse('duplicate_ids')
 
-  checkKnownFields(entries.map((entry) => entry.fields), fieldMap, source)
-  const toWrite: ConduitRecord[] = entries.map((entry) => ({ id: entry.id, fields: toSourceFields(entry.fields, fieldMap) }))
+  checkKnownFields(entries.map((entry) => entry.fields), config.suriConfig.fieldMap, config.suriType)
+  const checked = checkFieldValues(entries.map((entry) => entry.fields), config, { bulk: true, form })
+  if (checked instanceof Response) return checked
+  const toWrite: ConduitRecord[] = entries.map((entry, i) => ({ id: entry.id, fields: toStoredFields(checked[i]!, config) }))
 
+  const table = await openTable()
   const written = mode === 'update' ? await table.updateRecords(toWrite) : await table.replaceRecords(toWrite)
   if (written === null) return problemResponse('record_not_found', { detail: 'An id does not exist. Nothing was written.' })
 
-  const records: WireRecord[] = written.map((record) =>
-    wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) }),
-  )
+  const records: WireRecord[] = written.map((record) => wrapRecord({ id: record.id, fields: toClientFields(record.fields, config) }))
   return jsonResponse({ records })
 }
 
@@ -110,8 +111,6 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
   return {
     async list(context) {
       const config = requireConduitConfig(context)
-      const table = requireConduitTable(context)
-      const { fieldMap } = config.suriConfig
 
       const cursorParam = context.url.searchParams.get('cursor')
       const cursor = cursorParam === null ? undefined : decodeListCursor(cursorParam)
@@ -122,19 +121,18 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
         return problemResponse('invalid_limit', { detail: `limit must be a whole number from 1 to ${deps.listLimits.max}.` })
       }
 
+      const table = await openConduitTable(context)
       const { records, nextCursor } = await table.listRecords({ cursor, limit })
       return jsonResponse({
-        records: records.map((record) => wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) })),
+        records: records.map((record) => wrapRecord({ id: record.id, fields: toClientFields(record.fields, config) })),
         nextCursor: nextCursor === null ? null : encodeListCursor(nextCursor),
       })
     },
 
     async write(context) {
       const config = requireConduitConfig(context)
-      const table = requireConduitTable(context)
       const body = context.get(jsonBodyContext)
       const rules = config.hiddenFormField
-      const { fieldMap } = config.suriConfig
 
       // One record (`{fields}`) or several (`{records: [{fields}, ...]}`);
       // the body's shape decides (isBulkBody in record-shape.ts).
@@ -159,9 +157,16 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
         // createRecords call.
         const outcomes = entries.map((entry) => checkHiddenFormField(rules, entry))
         const kept = outcomes.flatMap((outcome) => (outcome.outcome === 'ok' ? [outcome.fields] : []))
-        checkKnownFields(kept, fieldMap, config.suriType)
-        const toAppend: ConduitFields[] = kept.map((fields) => toSourceFields(fields, fieldMap))
-        const appended = toAppend.length === 0 ? [] : await table.createRecords(toAppend)
+        checkKnownFields(kept, config.suriConfig.fieldMap, config.suriType)
+        // Pointers index the body's records, dropped ones included.
+        const checked = checkFieldValues(
+          outcomes.map((outcome) => (outcome.outcome === 'ok' ? outcome.fields : null)),
+          config,
+          { bulk: true, form: context.get(formBodyContext) },
+        )
+        if (checked instanceof Response) return checked
+        const toAppend: ConduitFields[] = checked.map((fields) => toStoredFields(fields, config))
+        const appended = toAppend.length === 0 ? [] : await (await openConduitTable(context)).createRecords(toAppend)
 
         let cursor = 0
         const records: WireRecord[] = outcomes.map((outcome) => {
@@ -169,7 +174,7 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
             return wrapRecord({ id: makeRowId(), fields: outcome.fields })
           }
           const record = appended[cursor++]
-          return wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) })
+          return wrapRecord({ id: record.id, fields: toClientFields(record.fields, config) })
         })
         const droppedCount = outcomes.filter((outcome) => outcome.outcome === 'dropped').length
         recordHoneypotDrops(context, droppedCount)
@@ -199,30 +204,27 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
         return jsonResponse(wrapRecord({ id: makeRowId(), fields: outcome.fields }), 201)
       }
 
-      checkKnownFields([outcome.fields], fieldMap, config.suriType)
-      const record = await table.createRecord(toSourceFields(outcome.fields, fieldMap))
+      checkKnownFields([outcome.fields], config.suriConfig.fieldMap, config.suriType)
+      const checked = checkFieldValues([outcome.fields], config, { bulk: false, form: context.get(formBodyContext) })
+      if (checked instanceof Response) return checked
+      const record = await (await openConduitTable(context)).createRecord(toStoredFields(checked[0]!, config))
       if (redirectTarget) return Response.redirect(redirectTarget, 303)
-      return jsonResponse(wrapRecord({ id: record.id, fields: toWidgetFields(record.fields, fieldMap) }), 201)
+      return jsonResponse(wrapRecord({ id: record.id, fields: toClientFields(record.fields, config) }), 201)
     },
 
     async bulkUpdate(context) {
       const config = requireConduitConfig(context)
-      const table = requireConduitTable(context)
       const body = context.get(jsonBodyContext)
-      const { fieldMap } = config.suriConfig
-      return runBulkWrite(table, fieldMap, config.suriType, body, 'update')
+      return runBulkWrite(() => openConduitTable(context), config, body, 'update', context.get(formBodyContext))
     },
 
     async bulkReplace(context) {
       const config = requireConduitConfig(context)
-      const table = requireConduitTable(context)
       const body = context.get(jsonBodyContext)
-      const { fieldMap } = config.suriConfig
-      return runBulkWrite(table, fieldMap, config.suriType, body, 'replace')
+      return runBulkWrite(() => openConduitTable(context), config, body, 'replace', context.get(formBodyContext))
     },
 
     async bulkDestroy(context) {
-      const table = requireConduitTable(context)
       const body = context.get(jsonBodyContext)
       const unknown = refuseUnknownMembers(body, ['ids'])
       if (unknown) return unknown
@@ -233,6 +235,7 @@ export function createGatewayActions(deps: GatewayDeps): GatewayActions {
 
       // One deleteRecords call, so the batch is deleted entirely or not
       // at all.
+      const table = await openConduitTable(context)
       const ok = await table.deleteRecords(ids)
       if (!ok) return problemResponse('record_not_found', { detail: 'An id does not exist. Nothing was deleted.' })
       return jsonResponse({ records: ids.map((id) => ({ id, deleted: true })) })

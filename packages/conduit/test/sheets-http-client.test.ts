@@ -47,7 +47,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
   describe('request building — reads', () => {
     it('reads the grid with a Bearer token, no table quoting when no table is configured', async () => {
       const mock = mockFetch((url) => {
-        assert.equal(url, `${SHEETS_API}/sheet-1/values/A:ZZ`)
+        assert.equal(url, `${SHEETS_API}/sheet-1/values/A:ZZ?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`)
         return jsonResponse({ values: [['conduit-id', 'name'], ['r1', 'Ada']] })
       })
       restore = mock.restore
@@ -63,7 +63,7 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
 
     it('quotes a table name in the range, doubling any embedded single quotes', async () => {
       const mock = mockFetch((url) => {
-        assert.equal(url, `${SHEETS_API}/sheet-1/values/'Q&A''s'!A:ZZ`)
+        assert.equal(url, `${SHEETS_API}/sheet-1/values/'Q&A''s'!A:ZZ?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`)
         return jsonResponse({ values: [] })
       })
       restore = mock.restore
@@ -137,6 +137,25 @@ describe('Sheets HTTP client (mocked fetch — real request/response shapes)', (
       const client = createGoogleSheetsClient(sheetsOptions())
       const source = await client.connect('sheet-1', 'good-token')
       await assert.rejects(() => source.open().createRecord({ unknownField: 'x' }), ConduitUnknownFieldError)
+    })
+
+    // RAW: Sheets never parses a value, so text a visitor sends can't
+    // become a formula, and '01234' keeps its zero.
+    it('writes values as given (RAW), appending and updating alike', async () => {
+      const mock = mockFetch((url, method) => {
+        if (method === 'GET' && url.includes('/values/')) return jsonResponse({ values: [['conduit-id', 'note', 'guests'], ['r1', 'a', 1]] })
+        if (method === 'POST') return jsonResponse({})
+        throw new Error(`unexpected call: ${method} ${url}`)
+      })
+      restore = mock.restore
+
+      const table = (await createGoogleSheetsClient(sheetsOptions()).connect('sheet-1', 'good-token')).open()
+      await table.createRecord({ note: '=IMPORTXML("x")', guests: 12 })
+      await table.updateRecord({ id: 'r1', fields: { note: '01234' } })
+      const [append, update] = mock.calls.filter((call) => call.method === 'POST')
+      assert.match(append!.url, /valueInputOption=RAW/)
+      assert.deepEqual((append!.body as { values: unknown[][] }).values[0]!.slice(1, 3), ['=IMPORTXML("x")', 12])
+      assert.equal((update!.body as { valueInputOption: string }).valueInputOption, 'RAW')
     })
 
     it('bulk delete orders deleteDimension requests highest-row-index-first', async () => {
@@ -327,7 +346,7 @@ describe('Sheets HTTP client — read cache and request budget', () => {
     restore = mock.restore
     const source = await createGoogleSheetsClient(sheetsOptions()).connect('sheet-1', 'good-token')
     await source.open().listRecords()
-    assert.match(mock.calls[0]!.url, /\/values\/A:ZZ$/)
+    assert.match(mock.calls[0]!.url, /\/values\/A:ZZ\?/)
   })
 
   it('pages from one read while the cache lasts, and reads again after a write through the client', async () => {

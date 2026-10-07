@@ -159,8 +159,13 @@ for a conduit that has no other token rule. It is for tools that
 others build on your conduit. A widget does not need it. Without a
 configured token, the route always returns `401`.
 
-The response uses the field map names. A `drop-if-filled` field never
-appears. A `pass-if-match` field with `include: true` appears.
+For a conduit that declares its [fields](#fields), the response lists
+them: each field's `name`, `type` and, for `single_select` and
+`multi_select`, its `options` in the order a form shows them. The
+gateway answers without calling the source. For a conduit that declares
+none, it lists the source's columns under the field map names, each
+with the `type` the source's values suggest (`text`, `number` or
+`date`). A `drop-if-filled` field never appears.
 
 ### CORS
 
@@ -222,6 +227,15 @@ only, no files). It changes all three into the same `{fields}` or
 - A plain name, for example `name=Ada`, goes into `fields`.
 - Bracket names work like the JSON shape: `fields[name]=Ada`, or
   `records[0][fields][name]=Ada` for several records.
+- A name given more than once, or ending in `[]`, is a list:
+  `flavors=Lemon&flavors=Vanilla`, `flavors[]=Lemon`, or
+  `fields[flavors][]=Lemon`. A group of checkboxes for a `multi_select`
+  field sends one. For a conduit that declares no fields, name the
+  group `flavors[]` so that a single ticked box is still a list.
+- Form values are all text, so the gateway reads them by their
+  [fields](#fields): a `number` field's `12` is the number 12 (an empty
+  one is no value), and a `multi_select` field's single value is a
+  one-option list. JSON is taken exactly as sent.
 
 ### Ids
 
@@ -240,6 +254,46 @@ There is one exception. When a source has no columns, the first write
 creates them.
 
 A delete removes the row. It does not only clear the values.
+
+### Fields
+
+A conduit can declare its fields, each with a type (`fields:` in YAML,
+`ConduitConfig.fields`). The type decides what a field's value is in
+every request and every response, whichever source the conduit uses:
+
+| Type | Value | The gateway refuses |
+|:--|:--|:--|
+| `text`, `textarea`, `tel` | a string | a value that is not a string |
+| `email` | a string | a string that is not an email address (the rule a browser applies to `<input type="email">`) |
+| `url` | a string | a string that is not an `http://` or `https://` address |
+| `number` | a JSON number | anything else, also a number written as a string (`"12"`) |
+| `date` | `"YYYY-MM-DD"` | another format, or a day that does not exist |
+| `single_select` | one of the field's `options` | anything else |
+| `multi_select` | a list of the field's `options` | a value that is not a list, an option that is not listed, an option given twice |
+
+- `null`, `""` and `[]` mean no value, for every type. The source
+  stores an empty value, and a read returns `null` (`[]` for
+  `multi_select`).
+- A `multi_select` list is stored as one value, the options separated
+  by `, `, and every read returns the list. No option, of either
+  choice type, can contain a comma.
+- A read returns each value typed by its field: a `text` field's
+  `01234` stays the string `"01234"`, a `number` field's value is a
+  number. A value that does not fit its field, typed into a sheet by
+  hand, is returned as a string, unchanged.
+- A field the conduit does not declare can have any value except a
+  list. A conduit that declares no fields gets its values back as the
+  source stores them: for Google Sheets, a number written as a number
+  and everything else as a string.
+
+A refused value gets `400` with the code `invalid_value`, and one
+`errors` item for each field. The gateway checks before it calls the
+source, and a bulk write writes nothing. Options are compared exactly,
+capitals included.
+
+The gateway gives Google Sheets every value as it is: a string is never
+read as a formula, a number or a date. `=IMPORTXML(...)` in a
+submission is stored as that text.
 
 ## Errors
 
@@ -297,6 +351,7 @@ Rules for clients:
 | <a id="unknown-cursor"></a>`unknown_cursor` | `400` | The gateway did not issue this cursor. | Read again from the first page. |
 | <a id="unknown-member"></a>`unknown_member` | `400` | The body has a member that this request does not accept. `errors` lists each one. | Correct the request. Do not retry it. |
 | <a id="unknown-field"></a>`unknown_field` | `400` | A field is not in the conduit's field map, or the source has no column for it. `errors` lists each one. | Mark each field in `errors`. Ask the owner to add it. |
+| <a id="invalid-value"></a>`invalid_value` | `400` | A value does not fit its [field](#fields)'s type: not an email address, not a number, not one of the options, and so on. `errors` lists each field, and its `detail` says what the field takes. | Mark each field in `errors`, with its `detail`. |
 | <a id="unauthorized"></a>`unauthorized` | `401` | The bearer token is missing or wrong. | Send the correct bearer token. |
 | <a id="forbidden"></a>`forbidden` | `403` | The caller's IP is not on the allowlist. | The caller's network cannot use this conduit. |
 | <a id="not-found"></a>`not_found` | `404` | No active conduit has this route. | Check the conduit URL. |

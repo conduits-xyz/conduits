@@ -1,5 +1,6 @@
 import { parse as parseYaml } from 'yaml'
 import { hashBearerToken, normalizeHost, normalizeRoutePath, type RouteBinding } from '@conduits/gateway'
+import { fieldDefinitionProblems, type FieldSchema, type FieldSchemas } from '@conduits/conduit'
 import type { AllowlistEntry, ConduitConfig, HiddenFormFieldRule, ApiKeyRef } from '@conduits/gateway'
 
 import type { RawAllowlistEntry, RawConduitsFile, RawHiddenField, RawRouteEntry } from './types.ts'
@@ -115,6 +116,7 @@ function compileConduitEntry(label: string, rawEntry: unknown, options: CompileO
   const allowlist = compileAllowlist(entry.allowlist, context)
   const { tokenRequiredMethods, apiKeys } = compileBearerToken(entry.bearerToken, racm, context)
   const hiddenFormField = compileHiddenFields(entry.hiddenFields, context)
+  const fields = compileFields(entry.fields, context)
   const bindings = compileRoutes(entry.routes, curi, context)
 
   if (typeof entry.source !== 'object' || entry.source === null || typeof (entry.source as Record<string, unknown>).type !== 'string') {
@@ -141,6 +143,7 @@ function compileConduitEntry(label: string, rawEntry: unknown, options: CompileO
       suriType,
       suriObjectKey,
       suriConfig,
+      fields,
       hiddenFormField,
       credentialRef,
     },
@@ -223,6 +226,26 @@ function compileBearerToken(
     tokenRequiredMethods: requiredFor as string[],
     apiKeys: [{ tokenHash: hashBearerToken(plaintext), scopes: requiredFor as string[] }],
   }
+}
+
+// `fields:` maps a field name to its type (`email: email`) or to
+// {type, options} (a choice field); the gateway checks every write and
+// types every read by them.
+function compileFields(raw: unknown, context: string): FieldSchemas {
+  if (raw === undefined) return {}
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new Error(`${context}: fields must be a map of field name to a type or {type, options}`)
+  const fields: FieldSchemas = {}
+  for (const [field, value] of Object.entries(raw)) {
+    const definition = typeof value === 'string' ? { type: value } : value
+    if (typeof definition !== 'object' || definition === null) throw new Error(`${context}: fields.${field} must be a type or {type, options}`)
+    const { type, options, ...rest } = definition as Record<string, unknown>
+    const extra = Object.keys(rest)
+    if (extra.length > 0) throw new Error(`${context}: fields.${field} has unknown key '${extra[0]}'`)
+    const problems = fieldDefinitionProblems({ type, options })
+    if (problems.length > 0) throw new Error(`${context}: fields.${field} ${problems[0]}`)
+    fields[field] = (options === undefined ? { type } : { type, options }) as FieldSchema
+  }
+  return fields
 }
 
 function compileHiddenFields(raw: unknown, context: string): HiddenFormFieldRule[] {

@@ -3,6 +3,59 @@
 This file records the notable changes to the Conduits gateway, the
 provider integrations, the config tools, and the widgets.
 
+## 0.6.3 - 2026-10-06
+
+### Added
+
+- **Field types.** A conduit can declare its fields, each with a type:
+  `text`, `textarea`, `email`, `tel`, `url`, `number`, `date`,
+  `single_select` (one of its options) or `multi_select` (a list of its
+  options) (`fields:` in `conduits.yaml`, `ConduitConfig.fields`). The
+  type decides a field's value in every request and response, whatever
+  the source:
+  - The gateway refuses a value that doesn't fit its field (not an
+    email address, a number sent as text, a date not written
+    `YYYY-MM-DD`, an option that isn't listed, ...) with the new code
+    `400 invalid_value` and one `errors` item for each field, before it
+    calls the source.
+  - Every read returns each value typed by its field: a `text` field's
+    `01234` stays text, a `number` field's value is a number, a
+    `multi_select` field's value is a list. `null`, `""` and `[]` mean
+    no value.
+  - A `multi_select` list is stored as one value, the options separated
+    by `, `.
+  - The schema endpoint lists a conduit's declared fields, with their
+    types and options, without calling the source.
+- **Form bodies.** A form name given more than once, or ending in `[]`,
+  is a list: a group of checkboxes posts one. Form values are read by
+  their fields: a `number` field's text is a number, a `multi_select`
+  field's single value is a one-option list.
+
+### Changed
+
+- **Google Sheets stores values exactly as sent.** Writes use
+  `valueInputOption=RAW` (before: `USER_ENTERED`), so Sheets no longer
+  parses what a caller sends: text such as `=IMPORTXML(...)` is stored
+  as text, not run as a formula, and `01234` keeps its leading zero.
+  Reads return unformatted values and no longer guess a column's type
+  from its contents; a conduit without declared fields gets numbers as
+  numbers and everything else as text.
+- **`ConduitConfig` requires `fields`** (`{}` for a conduit that
+  declares none). Field values in requests and responses may be a list
+  of strings (`RequestFields`, `FieldValue`); a source still gets only
+  strings, numbers, booleans and `null`.
+- **The schema endpoint's fields** have `name` and `type` (the field
+  types above), plus `options` for a choice field; `nullable` is gone.
+
+- **A request the gateway refuses or drops never reaches the source.**
+  The gateway now gets the credential and connects to the source only
+  when a request needs the table. A submission a honeypot drops, and a
+  request refused for its body, limit or cursor, no longer calls the
+  provider (before: the gateway connected first, which for Fastmail is
+  a session request) and isn't measured as provider traffic. A conduit
+  with no usable credential still answers `502` `source_unavailable`,
+  now only when its source is needed.
+
 ## 0.6.2 - 2026-10-05
 
 ### Changed

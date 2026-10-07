@@ -38,7 +38,7 @@ Do these things in every client:
 6. Do not retry a `POST` after a network error, a timeout, or another `5xx`. The record can exist already.
 7. Write many records with one bulk request (10 records or fewer), not a loop of single writes.
 8. To read all records, follow `nextCursor` until it is `null`. Do not make or change a cursor.
-9. Treat `''` as an empty value. Google Sheets returns `''` for an empty cell, not `null`.
+9. An empty value comes back as `null` (`[]` for a `multi_select` field), whatever the source. See [Check for an empty field](#check-for-an-empty-field).
 
 > **WARNING:** Do not put a bearer token in a public web page. Anyone
 > can read it there. Use bearer tokens only in server code or in
@@ -272,15 +272,14 @@ its default. For the rules, see
 
 ### Check for an empty field
 
-Google Sheets returns `''` for a cell that has no value. It does not
-return `null` or `undefined`. Use a check that catches all three:
+A read returns `null` for a field with no value, and `[]` for a
+`multi_select` field with no options chosen
+([`docs/gateway-api.md`](gateway-api.md#fields)). `== null` also
+covers a field the record doesn't have:
 
 ```js
-const isUnprocessed = (record) => !record.fields.status
+const isUnprocessed = (record) => record.fields.status == null
 ```
-
-A check for `null` only passes with test data, but fails with a real
-sheet.
 
 ### Go to a page after an HTML form submission
 

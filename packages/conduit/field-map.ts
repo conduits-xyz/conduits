@@ -1,4 +1,5 @@
 import type { ConduitFields } from './sheets.ts'
+import type { RequestFields } from './field-schema.ts'
 
 // Maps a conduit's field names to the source's column names
 // (suri_config.fieldMap) and back. Names not in fieldMap pass through
@@ -40,7 +41,7 @@ export function toWidgetFields(fields: ConduitFields, fieldMap: Record<string, s
 // naming all of them across the records. An empty or missing fieldMap
 // declares no schema and accepts anything. Separate from the header
 // check in ensureColumnsForWrite (sheets.ts).
-export function checkKnownFields(fieldsList: ConduitFields[], fieldMap: Record<string, string> | undefined, source: string): void {
+export function checkKnownFields(fieldsList: RequestFields[], fieldMap: Record<string, string> | undefined, source: string): void {
   if (!fieldMap) return
   const declared = Object.keys(fieldMap)
   if (declared.length === 0) return

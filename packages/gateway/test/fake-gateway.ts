@@ -29,6 +29,7 @@ export function createFakeGateway(curi: string) {
       suriType: 'googleSheets',
       suriObjectKey,
       suriConfig: {},
+      fields: {},
       hiddenFormField: [],
       credentialRef: null,
       ...overrides,
