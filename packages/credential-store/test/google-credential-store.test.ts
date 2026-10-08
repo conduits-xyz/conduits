@@ -1,36 +1,23 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import * as os from 'node:os'
 import * as assert from 'remix/assert'
 import { describe, it } from 'remix/test'
 
 import { loadGoogleGrant, saveGoogleGrant, deleteGoogleGrant, markGoogleGrantInvalid } from '../google-credential-store.ts'
 import type { StoredGoogleGrant } from '../google-credential-store.ts'
+import { googleGrant, tempStorePath } from '../testing.ts'
 
-function tempStorePath(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'conduits-credential-store-test-'))
-  return path.join(dir, 'nested', 'credentials.json')
-}
-
-function grant(overrides: Partial<StoredGoogleGrant> = {}): StoredGoogleGrant {
-  return {
-    name: 'personal',
-    purpose: 'sheets',
-    clientId: 'client-id',
-    clientSecret: 'client-secret',
-    tokens: { accessToken: 'access-token', refreshToken: 'refresh-token', expiresAt: new Date(Date.now() + 3_600_000) },
-    ...overrides,
-  }
-}
+const grant = (overrides: Partial<StoredGoogleGrant> = {}) =>
+  googleGrant({ accessToken: 'access-token', refreshToken: 'refresh-token', expiresAt: new Date(Date.now() + 3_600_000) }, overrides)
 
 describe('google-credential-store', () => {
   it('returns null for a name/purpose that was never saved', () => {
-    const storePath = tempStorePath()
+    const storePath = tempStorePath('nested/credentials.json')
     assert.equal(loadGoogleGrant(storePath, 'personal', 'sheets'), null)
   })
 
   it('saves and loads a grant round-trip', () => {
-    const storePath = tempStorePath()
+    const storePath = tempStorePath('nested/credentials.json')
     saveGoogleGrant(storePath, grant())
     const loaded = loadGoogleGrant(storePath, 'personal', 'sheets')
     assert.equal(loaded?.clientId, 'client-id')
@@ -38,7 +25,7 @@ describe('google-credential-store', () => {
   })
 
   it('keeps sheets and gmail as separate grants under the same name', () => {
-    const storePath = tempStorePath()
+    const storePath = tempStorePath('nested/credentials.json')
     saveGoogleGrant(storePath, grant({ purpose: 'sheets', tokens: { accessToken: 'sheets-token' } }))
     saveGoogleGrant(storePath, grant({ purpose: 'gmail', tokens: { accessToken: 'gmail-token' } }))
 
@@ -47,7 +34,7 @@ describe('google-credential-store', () => {
   })
 
   it('keeps different names fully independent', () => {
-    const storePath = tempStorePath()
+    const storePath = tempStorePath('nested/credentials.json')
     saveGoogleGrant(storePath, grant({ name: 'personal', tokens: { accessToken: 'personal-token' } }))
     saveGoogleGrant(storePath, grant({ name: 'work', tokens: { accessToken: 'work-token' } }))
 
@@ -56,7 +43,7 @@ describe('google-credential-store', () => {
   })
 
   it('deletes only the named (name, purpose) pair, leaving the sibling purpose intact', () => {
-    const storePath = tempStorePath()
+    const storePath = tempStorePath('nested/credentials.json')
     saveGoogleGrant(storePath, grant({ purpose: 'sheets' }))
     saveGoogleGrant(storePath, grant({ purpose: 'gmail' }))
 
@@ -67,14 +54,14 @@ describe('google-credential-store', () => {
   })
 
   it('deleting a grant that was never saved is a harmless no-op', () => {
-    const storePath = tempStorePath()
+    const storePath = tempStorePath('nested/credentials.json')
     deleteGoogleGrant(storePath, 'nothing', 'sheets')
     assert.equal(loadGoogleGrant(storePath, 'nothing', 'sheets'), null)
   })
 
   it('creates the parent directory and writes the file mode 0600 (POSIX only)', () => {
     if (process.platform === 'win32') return
-    const storePath = tempStorePath()
+    const storePath = tempStorePath('nested/credentials.json')
     saveGoogleGrant(storePath, grant())
 
     const fileMode = fs.statSync(storePath).mode & 0o777
@@ -85,14 +72,14 @@ describe('google-credential-store', () => {
   })
 
   it('leaves no leftover temp files after an atomic write', () => {
-    const storePath = tempStorePath()
+    const storePath = tempStorePath('nested/credentials.json')
     saveGoogleGrant(storePath, grant())
     const dirEntries = fs.readdirSync(path.dirname(storePath))
     assert.deepEqual(dirEntries, ['credentials.json'], 'the rename must leave exactly the final file, no .tmp leftovers')
   })
 
   it('round-trips generation/status, defaulting to undefined for a grant that never set them', () => {
-    const storePath = tempStorePath()
+    const storePath = tempStorePath('nested/credentials.json')
     saveGoogleGrant(storePath, grant())
     const loaded = loadGoogleGrant(storePath, 'personal', 'sheets')
     assert.equal(loaded?.generation, undefined)
@@ -105,7 +92,7 @@ describe('google-credential-store', () => {
   })
 
   it('markGoogleGrantInvalid tombstones a grant in place, preserving its generation and material', () => {
-    const storePath = tempStorePath()
+    const storePath = tempStorePath('nested/credentials.json')
     saveGoogleGrant(storePath, grant({ generation: 5, status: 'active' }))
 
     markGoogleGrantInvalid(storePath, 'personal', 'sheets')
@@ -117,7 +104,7 @@ describe('google-credential-store', () => {
   })
 
   it('markGoogleGrantInvalid on a name/purpose never saved is a harmless no-op', () => {
-    const storePath = tempStorePath()
+    const storePath = tempStorePath('nested/credentials.json')
     markGoogleGrantInvalid(storePath, 'nobody', 'sheets')
     assert.equal(loadGoogleGrant(storePath, 'nobody', 'sheets'), null)
   })

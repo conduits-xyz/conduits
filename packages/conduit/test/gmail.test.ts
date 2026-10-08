@@ -7,23 +7,14 @@ import { ConduitAuthError, ConduitRateLimitError, ConduitSourceError } from '../
 // The endpoint, with a fetch that calls whatever global fetch the
 // test's mock has installed.
 const GMAIL = { apiUrl: 'https://gmail.googleapis.com/gmail/v1', fetch: ((input, init) => globalThis.fetch(input, init)) as typeof fetch, now: () => Date.parse('2026-10-05T12:00:00.000Z'), makeId: () => 'id' }
-import { jsonResponse } from './helpers.ts'
+import { jsonResponse, replaceFetch } from './helpers.ts'
 
 // The Gmail API client with a mocked fetch.
 
 const SEND_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send'
 
-function mockFetch(handler: (init: RequestInit | undefined) => Response): () => void {
-  const original = globalThis.fetch
-  globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-    if (url === SEND_URL) return handler(init)
-    return original(input, init)
-  }) as typeof fetch
-  return () => {
-    globalThis.fetch = original
-  }
-}
+const mockFetch = (handler: (init: RequestInit | undefined) => Response) =>
+  replaceFetch((url, init) => (url === SEND_URL ? handler(init) : new Response('not mocked', { status: 500 })))
 
 
 function decodeRaw(init: RequestInit | undefined): string {

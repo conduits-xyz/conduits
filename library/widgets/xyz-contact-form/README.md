@@ -37,7 +37,6 @@ yet." and no form.
 - Columns: `name`, `email`, `message`. With `qualified-lead`, also
   `services` and `budget`. If the sheet is empty, the first message
   creates them. Otherwise, add them to the sheet yourself.
-- Keep the conduit's throttle on.
 
 The widget has no CAPTCHA and no honeypot field.
 

@@ -2,14 +2,13 @@ import {
   type ConduitSourceCapabilities,
   type ConduitSourceClient,
   type ConduitTable,
-  type ConduitFieldType,
   type ConduitRecord,
   type ConduitFields,
   ConduitSourceError,
 } from './sheets.ts'
 import { createMailSender, fixedToken, gmailTransport } from '@m5nv/mail'
 import { renderEmailBody as renderBody } from './email-render.ts'
-import { mailFailureError } from './mail-outcome.ts'
+import { MAIL_FIELDS, mailFailureError, sendAddressing } from './mail-source.ts'
 
 export const GMAIL_CAPABILITIES: ConduitSourceCapabilities = { methods: ['POST'], bulkCreate: false }
 
@@ -47,28 +46,11 @@ function configFrom(config: string | undefined): GmailConfig {
   }
 }
 
-// The fixed fields, as for Fastmail, shown by /schema (which ignores
-// RACM; see schema-controller.ts) though listRecords always throws.
-const FIXED_FIELDS: Array<{ name: string; type: ConduitFieldType; nullable: boolean }> = [
-  { name: 'from', type: 'string', nullable: true },
-  { name: 'to', type: 'string', nullable: true },
-  { name: 'subject', type: 'string', nullable: true },
-  { name: 'body', type: 'string', nullable: true },
-  { name: 'date', type: 'date', nullable: true },
-]
-
 function openTable(credential: string, config: GmailConfig, options: GmailClientOptions): ConduitTable {
-  async function requireSendable(): Promise<{ recipients: string[]; subject: string }> {
-    if (!config.recipients || config.recipients.length === 0 || !config.subject) {
-      throw new ConduitSourceError(SOURCE, 'This conduit has no recipients/subject configured', 502)
-    }
-    return { recipients: config.recipients, subject: config.subject }
-  }
-
   // Sent with @m5nv/mail's Gmail transport, as the token's account (no
   // From header: Gmail uses the account's primary address).
   async function send(fields: ConduitFields): Promise<ConduitRecord> {
-    const { recipients, subject } = await requireSendable()
+    const { recipients, subject } = sendAddressing(SOURCE, config)
     const sender = createMailSender({
       transport: gmailTransport(options),
       account: { credential: fixedToken(credential) },
@@ -82,7 +64,7 @@ function openTable(credential: string, config: GmailConfig, options: GmailClient
 
   return {
     async describeFields() {
-      return FIXED_FIELDS
+      return MAIL_FIELDS
     },
 
     // Reading needs gmail.readonly or gmail.modify.

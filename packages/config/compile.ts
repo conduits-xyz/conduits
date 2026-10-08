@@ -108,11 +108,6 @@ function compileConduitEntry(label: string, rawEntry: unknown, options: CompileO
   }
   const racm = entry.methods as string[]
 
-  if (entry.throttle !== undefined && typeof entry.throttle !== 'boolean') {
-    throw new Error(`${context}: throttle must be a boolean`)
-  }
-  const throttle = (entry.throttle as boolean | undefined) ?? true
-
   const allowlist = compileAllowlist(entry.allowlist, context)
   const { tokenRequiredMethods, apiKeys } = compileBearerToken(entry.bearerToken, racm, context)
   const hiddenFormField = compileHiddenFields(entry.hiddenFields, context)
@@ -137,7 +132,6 @@ function compileConduitEntry(label: string, rawEntry: unknown, options: CompileO
       curi,
       allowlist,
       racm,
-      throttle,
       tokenRequiredMethods,
       apiKeys,
       suriType,

@@ -2,7 +2,6 @@ import {
   type ConduitSourceCapabilities,
   type ConduitSourceClient,
   type ConduitTable,
-  type ConduitFieldType,
   type ConduitRecord,
   type ConduitFields,
   ConduitAuthError,
@@ -10,7 +9,7 @@ import {
 } from './sheets.ts'
 import { createMailSender, fixedToken, jmapTransport, type JmapAccount, type JmapTransport } from '@m5nv/mail'
 import { renderEmailBody as renderBody } from './email-render.ts'
-import { mailFailureError } from './mail-outcome.ts'
+import { MAIL_FIELDS, mailFailureError, sendAddressing } from './mail-source.ts'
 
 export const FASTMAIL_CAPABILITIES: ConduitSourceCapabilities = { methods: ['GET', 'POST', 'DELETE'], bulkCreate: false }
 
@@ -129,14 +128,6 @@ function toConduitRecord(email: {
   }
 }
 
-const FIXED_FIELDS: Array<{ name: string; type: ConduitFieldType; nullable: boolean }> = [
-  { name: 'from', type: 'string', nullable: true },
-  { name: 'to', type: 'string', nullable: true },
-  { name: 'subject', type: 'string', nullable: true },
-  { name: 'body', type: 'string', nullable: true },
-  { name: 'date', type: 'date', nullable: true },
-]
-
 function openTable(
   session: FastmailSession,
   credential: string,
@@ -146,19 +137,17 @@ function openTable(
 ): ConduitTable {
   const mailboxName = config.table ?? 'Inbox'
 
-  async function requireSendable(): Promise<{ recipients: string[]; subject: string; identityId: string }> {
-    if (!config.recipients || config.recipients.length === 0 || !config.subject) {
-      throw new ConduitSourceError(SOURCE, 'This conduit has no recipients/subject configured', 502)
-    }
+  function requireSendable(): { recipients: string[]; subject: string; identityId: string } {
+    const addressing = sendAddressing(SOURCE, config)
     if (!session.identityId) {
       throw new ConduitSourceError(SOURCE, 'Fastmail account has no sending identity', 502)
     }
-    return { recipients: config.recipients, subject: config.subject, identityId: session.identityId }
+    return { ...addressing, identityId: session.identityId }
   }
 
   // Sent with @m5nv/mail's JMAP transport, as the chosen identity.
   async function send(fields: ConduitFields): Promise<ConduitRecord> {
-    const { recipients, subject, identityId } = await requireSendable()
+    const { recipients, subject, identityId } = requireSendable()
     const identity = session.identities.find((candidate) => candidate.id === identityId)
     if (!identity) throw new ConduitSourceError(SOURCE, `This conduit's sending identity (${identityId}) is no longer on the Fastmail account`, 502)
 
@@ -170,7 +159,7 @@ function openTable(
 
   return {
     async describeFields() {
-      return FIXED_FIELDS
+      return MAIL_FIELDS
     },
 
     async listRecords(page) {

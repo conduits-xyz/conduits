@@ -38,7 +38,6 @@ export interface ConduitConfig {
   curi: string
   allowlist: AllowlistEntry[]
   racm: string[]
-  throttle: boolean
   tokenRequiredMethods: string[]
   // A token-required method is allowed for a request presenting any key
   // whose scopes include it.

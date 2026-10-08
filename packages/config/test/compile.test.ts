@@ -6,31 +6,33 @@ import { verifyBearerToken } from '@conduits/gateway'
 
 const FASTMAIL_ONLY = { supportedSourceTypes: ['fastmail'] }
 
-// The YAML labels and curis differ throughout, so nothing can depend on
-// them matching.
-function baseYaml(overrides = ''): string {
-  return `
-conduits:
-  contact-form:
-    curi: contact
-    methods: [POST]
-    source:
+// A Fastmail conduit's source, under the conduit's other lines.
+const SOURCE = `    source:
       type: fastmail
       identityId: ident-1
       credential: env:FASTMAIL_TOKEN
       recipients: [owner@example.com]
       subject: New submission
-${overrides}
 `
-}
+
+// One conduit labelled contact-form: `lines` (curi, methods, ...) and the
+// source. The YAML labels and curis differ throughout, so nothing can
+// depend on them matching.
+const oneConduit = (lines: string) => `
+conduits:
+  contact-form:
+${lines}
+${SOURCE}`
+
+// contact-form with curi `contact`, POST, and `overrides` after the source.
+const baseYaml = (overrides = '') => oneConduit('    curi: contact\n    methods: [POST]') + `${overrides}\n`
 
 describe('compileConduits', () => {
-  it('compiles a minimal fastmail conduit, defaulting throttle/allowlist/hiddenFormField', () => {
+  it('compiles a minimal fastmail conduit, defaulting allowlist/hiddenFormField', () => {
     process.env.FASTMAIL_TOKEN = 'fastmail-secret'
     const { configs: [config] } = compileConduits(baseYaml(), FASTMAIL_ONLY)
     assert.equal(config?.curi, 'contact')
     assert.deepEqual(config?.racm, ['POST'])
-    assert.equal(config?.throttle, true)
     assert.deepEqual(config?.allowlist, [])
     assert.deepEqual(config?.tokenRequiredMethods, [])
     assert.deepEqual(config?.apiKeys, [])
@@ -124,17 +126,7 @@ describe('compileConduits', () => {
 
   it('rejects a curi missing entirely', () => {
     process.env.FASTMAIL_TOKEN = 'fastmail-secret'
-    const yaml = `
-conduits:
-  contact-form:
-    methods: [POST]
-    source:
-      type: fastmail
-      identityId: ident-1
-      credential: env:FASTMAIL_TOKEN
-      recipients: [owner@example.com]
-      subject: New submission
-`
+    const yaml = oneConduit('    methods: [POST]')
     assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /curi is required/)
   })
 
@@ -209,34 +201,13 @@ conduits:
 
   it('rejects methods missing entirely — no implicit default', () => {
     process.env.FASTMAIL_TOKEN = 'fastmail-secret'
-    const yaml = `
-conduits:
-  contact-form:
-    curi: contact
-    source:
-      type: fastmail
-      identityId: ident-1
-      credential: env:FASTMAIL_TOKEN
-      recipients: [owner@example.com]
-      subject: New submission
-`
+    const yaml = oneConduit('    curi: contact')
     assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /methods is required/)
   })
 
   it('rejects methods: [] (present but empty), same as methods missing entirely', () => {
     process.env.FASTMAIL_TOKEN = 'fastmail-secret'
-    const yaml = `
-conduits:
-  contact-form:
-    curi: contact
-    methods: []
-    source:
-      type: fastmail
-      identityId: ident-1
-      credential: env:FASTMAIL_TOKEN
-      recipients: [owner@example.com]
-      subject: New submission
-`
+    const yaml = oneConduit('    curi: contact\n    methods: []')
     assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /methods is required/)
   })
 
@@ -355,18 +326,7 @@ conduits:
 
   it('rejects a curi containing path-unsafe characters (e.g. a slash)', () => {
     process.env.FASTMAIL_TOKEN = 'fastmail-secret'
-    const yaml = `
-conduits:
-  contact-form:
-    curi: "contact/form"
-    methods: [POST]
-    source:
-      type: fastmail
-      identityId: ident-1
-      credential: env:FASTMAIL_TOKEN
-      recipients: [owner@example.com]
-      subject: New submission
-`
+    const yaml = oneConduit('    curi: "contact/form"\n    methods: [POST]')
     assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /curi must contain only letters, digits, '-', and '_'/)
   })
 
@@ -377,13 +337,7 @@ conduits:
   good-conduit:
     curi: good
     methods: [POST]
-    source:
-      type: fastmail
-      identityId: ident-1
-      credential: env:FASTMAIL_TOKEN
-      recipients: [owner@example.com]
-      subject: New submission
-  bad-conduit:
+${SOURCE}  bad-conduit:
     curi: bad
     methods: []
     source:

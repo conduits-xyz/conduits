@@ -12,7 +12,7 @@ To add a data source, read [`INTEGRATIONS.md`](INTEGRATIONS.md).
 | `fastmail.ts` | Fastmail over JMAP (`createFastmailClient`): read, send through `@m5nv/mail`, and move to Trash (`GET`, `POST`, `DELETE`). |
 | `gmail.ts` | Gmail (`createGmailClient`), send only (`POST`), through `@m5nv/mail`. |
 | `email-render.ts` | The email body for a submitted record. |
-| `mail-outcome.ts` | A failed `@m5nv/mail` call as the conduit error the gateway maps. |
+| `mail-source.ts` | What the Gmail and Fastmail sources share: their fields, the recipients and subject a send needs, and a failed `@m5nv/mail` call as the conduit error the gateway maps. |
 | `field-map.ts` | The translation between field names and source column names. |
 | `record-shape.ts` | The `{fields}` and `{records}` shapes, and the checks on bulk requests. |
 | `row-id.ts` | Record ids (`createRowIdMaker`, `createdTimeFromRowId`). |

@@ -1,7 +1,7 @@
 export { compileConduits } from './compile.ts'
 export type { CompileOptions } from './compile.ts'
 export { parseEnvRef, positiveIntegerFromEnv, resolveEnvRef } from './env.ts'
-export { googleSheetsOptionsFromEnv, listLimitsFromEnv } from './settings.ts'
+export { googleSheetsOptionsFromEnv, listLimitsFromEnv, throttleLimitsFromEnv, trustedForwardersFromEnv } from './settings.ts'
 export { parseGoogleRef } from './google-ref.ts'
 export {
   GOOGLE_SHEETS_SCOPES,

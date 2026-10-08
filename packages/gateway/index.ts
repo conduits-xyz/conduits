@@ -13,7 +13,9 @@ export type { GatewayDeps, GatewayClock } from './pipeline.ts'
 export type { GatewayContext } from './context.ts'
 
 export { createGatewayRouter } from './router.ts'
+export { createMemoryThrottleStore, type ThrottleLimits, type ThrottleStore } from './middleware/throttle.ts'
 export { generateRequestId } from './middleware/request-id.ts'
+export { clientIpFrom } from './middleware/client-ip.ts'
 export { generateBearerToken, hashBearerToken, verifyBearerToken } from './bearer-token.ts'
 
 // Problem Details (RFC 9457) for any host's own API, built the same way

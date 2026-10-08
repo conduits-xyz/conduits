@@ -1,6 +1,3 @@
-import * as fs from 'node:fs'
-import * as path from 'node:path'
-import * as os from 'node:os'
 import * as assert from 'remix/assert'
 import { describe, it } from 'remix/test'
 
@@ -10,11 +7,7 @@ import {
   markFastmailCredentialInvalid,
   deleteFastmailCredential,
 } from '../fastmail-credential-store.ts'
-
-function tempStorePath(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'conduits-fastmail-store-test-'))
-  return path.join(dir, 'fastmail-credentials.json')
-}
+import { tempStorePath } from '../testing.ts'
 
 describe('fastmail-credential-store', () => {
   it('returns null for a credentialRef that was never saved', () => {

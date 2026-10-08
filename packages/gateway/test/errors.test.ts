@@ -60,19 +60,6 @@ describe('error responses', () => {
     assert.deepEqual(fromClient.errors?.map((error) => error.field), ['Full Name'])
   })
 
-  it('gives a 429 its retry time in the body and in the header', async () => {
-    const curi = `errors-${Math.random().toString(36).slice(2)}`
-    const gateway = createFakeGateway(curi)
-    const router = gateway.makeRouter(gateway.baseConfig({ throttle: true }))
-    // The throttle allows 5 requests each second; the sixth is refused.
-    for (let i = 0; i < 5; i++) assert.equal((await router.fetch(new Request(`http://gateway.test/${curi}`))).status, 200)
-    const response = await router.fetch(new Request(`http://gateway.test/${curi}`))
-    const body = await problem(response)
-    assert.equal(body.code, 'rate_limited')
-    assert.equal(body.retryAfter, 1)
-    assert.equal(response.headers.get('retry-after'), '1')
-  })
-
   it('gives each refusal its own code', async () => {
     const curi = `errors-${Math.random().toString(36).slice(2)}`
     const gateway = createFakeGateway(curi)
@@ -161,16 +148,6 @@ describe('error responses', () => {
     const router = gateway.makeRouter(gateway.baseConfig(), { sourceClients: { googleSheets: noBulk } })
     const body = await problem(await router.fetch(new Request(`http://gateway.test/${curi}`, json({ records: [{ fields: { name: 'A' } }] }))))
     assert.equal(body.code, 'bulk_not_supported')
-  })
-
-  it('keeps a separate throttle for each router', async () => {
-    const curi = `errors-${Math.random().toString(36).slice(2)}`
-    const gateway = createFakeGateway(curi)
-    const config = gateway.baseConfig({ throttle: true })
-    const first = gateway.makeRouter(config)
-    for (let i = 0; i < 5; i++) await first.fetch(new Request(`http://gateway.test/${curi}`))
-    assert.equal((await first.fetch(new Request(`http://gateway.test/${curi}`))).status, 429)
-    assert.equal((await gateway.makeRouter(config).fetch(new Request(`http://gateway.test/${curi}`))).status, 200)
   })
 
   it("counts the throttle's 429 as the caller's, and a busy source's 503 as the provider's", () => {

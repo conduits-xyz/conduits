@@ -1,7 +1,7 @@
 import * as http from 'node:http'
 import { createRequestListener } from 'remix/node-fetch-server'
-import { createGatewayRouter, createStaticRouteResolver, generateRequestId, problemResponse } from '@conduits/gateway'
-import { googleSheetsOptionsFromEnv, listLimitsFromEnv } from '@conduits/config'
+import { createGatewayRouter, createMemoryThrottleStore, createStaticRouteResolver, generateRequestId, problemResponse } from '@conduits/gateway'
+import { googleSheetsOptionsFromEnv, listLimitsFromEnv, throttleLimitsFromEnv, trustedForwardersFromEnv } from '@conduits/config'
 
 import { credentialStorePath, loadConduitConfigs } from './config.ts'
 import { createSourceClients, googleTokenOptions } from './providers.ts'
@@ -22,6 +22,8 @@ const gatewayRouter = createGatewayRouter({
   listLimits: listLimitsFromEnv(),
   sourceClients: createSourceClients(googleSheetsOptionsFromEnv()),
   clock: { now: () => new Date(), monotonicMs: () => performance.now() },
+  throttle: { limits: throttleLimitsFromEnv(), store: createMemoryThrottleStore() },
+  trustedForwarders: trustedForwardersFromEnv(),
   requestId: generateRequestId,
 })
 

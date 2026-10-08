@@ -38,8 +38,7 @@ function methodNotAllowed(allowed: readonly string[]): Response {
 // itself, then runs the middleware and actions in controller.ts,
 // item-controller.ts, schema-controller.ts and readyz-controller.ts.
 export function createGatewayDispatcher(deps: GatewayDeps): (context: GatewayContext) => Promise<Response> {
-  // One throttle for all of this router's routes.
-  const throttle = enforceThrottle(deps.clock)
+  const throttle = enforceThrottle(deps.throttle, deps.clock)
   const gatewayMiddleware = createGatewayMiddleware(deps, throttle)
   const schemaMiddleware = createSchemaGatewayMiddleware(deps, throttle)
   const readyzMiddleware = createReadyzGatewayMiddleware(deps, throttle)

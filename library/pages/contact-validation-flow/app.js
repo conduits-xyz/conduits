@@ -9,7 +9,7 @@
 
 const STORAGE_KEY = 'conduit-validation-flow.conduitUrls'
 
-// Conduits are throttled to 5 requests a second by default, so the
+// The gateway's throttle allows 5 requests a second by default, so the
 // fake-data and validity loops wait this long between requests (200ms
 // would be exactly 5 a second).
 const REQUEST_SPACING_MS = 220

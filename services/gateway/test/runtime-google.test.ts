@@ -1,13 +1,12 @@
-import * as fs from 'node:fs'
-import * as path from 'node:path'
-import * as os from 'node:os'
 import * as assert from 'remix/assert'
 import { describe, it } from 'remix/test'
 
 import type { ConduitConfig } from '@conduits/gateway'
+import { testConduitConfig } from '@conduits/gateway/testing'
 import { createGatewayServiceRuntime } from '../runtime.ts'
 import { loadGoogleGrant, saveGoogleGrant } from '@conduits/credential-store'
 import type { StoredGoogleGrant } from '@conduits/credential-store'
+import { googleGrant, tempStorePath } from '@conduits/credential-store/testing'
 
 // The runtime's getCredential() and invalidateCredential() against an
 // injected token endpoint and clock, and a local file.
@@ -24,43 +23,11 @@ function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 }
 
-function tempStorePath(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'conduits-runtime-google-test-'))
-  return path.join(dir, 'credentials.json')
-}
 
-function conduitConfig(overrides: Partial<ConduitConfig> = {}): ConduitConfig {
-  return {
-    curi: 'newsletter',
-    allowlist: [],
-    racm: ['POST'],
-    throttle: false,
-    tokenRequiredMethods: [],
-    apiKeys: [],
-    suriType: 'googleSheets',
-    suriObjectKey: '1AbC',
-    suriConfig: {},
-    fields: {},
-    hiddenFormField: [],
-    credentialRef: 'google:personal',
-    ...overrides,
-  }
-}
+const conduitConfig = (overrides: Partial<ConduitConfig> = {}) => testConduitConfig({ curi: 'newsletter', credentialRef: 'google:personal', ...overrides })
 
-function expiredGrant(overrides: Partial<StoredGoogleGrant> = {}): StoredGoogleGrant {
-  return {
-    name: 'personal',
-    purpose: 'sheets',
-    clientId: 'client-id',
-    clientSecret: 'client-secret',
-    tokens: {
-      accessToken: 'stale-access-token',
-      refreshToken: 'real-refresh-token',
-      expiresAt: new Date(NOW - 1000),
-    },
-    ...overrides,
-  }
-}
+const expiredGrant = (overrides: Partial<StoredGoogleGrant> = {}) =>
+  googleGrant({ accessToken: 'stale-access-token', refreshToken: 'real-refresh-token', expiresAt: new Date(NOW - 1000) }, overrides)
 
 describe('the service runtime: getCredential — googleSheets/gmail', () => {
 

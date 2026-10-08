@@ -1,22 +1,15 @@
-import * as fs from 'node:fs'
-import * as path from 'node:path'
-import * as os from 'node:os'
 import * as assert from 'remix/assert'
 import { describe, it } from 'remix/test'
 
 import { getFreshGoogleAccessToken } from '../google-token.ts'
 import { saveGoogleGrant, loadGoogleGrant } from '../google-credential-store.ts'
 import type { StoredGoogleGrant } from '../google-credential-store.ts'
+import { googleGrant, tempStorePath } from '../testing.ts'
 
 // getFreshGoogleAccessToken() called directly: without a ConduitConfig,
 // an expiring grant with no refresh token, and the onRevoked hook. The
 // other statuses are tested through the runtime in
 // services/gateway/test/runtime-google.test.ts.
-
-function tempStorePath(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'conduits-google-token-test-'))
-  return path.join(dir, 'credentials.json')
-}
 
 const NOW = Date.parse('2026-10-05T12:00:00.000Z')
 
@@ -29,16 +22,8 @@ function tokenOptions(body: object = {}, status = 200) {
   return { endpoint, now: () => NOW }
 }
 
-function grant(overrides: Partial<StoredGoogleGrant> = {}): StoredGoogleGrant {
-  return {
-    name: 'personal',
-    purpose: 'sheets',
-    clientId: 'client-id',
-    clientSecret: 'client-secret',
-    tokens: { accessToken: 'fresh-token', refreshToken: 'refresh-token', expiresAt: new Date(NOW + 3_600_000) },
-    ...overrides,
-  }
-}
+const grant = (overrides: Partial<StoredGoogleGrant> = {}) =>
+  googleGrant({ accessToken: 'fresh-token', refreshToken: 'refresh-token', expiresAt: new Date(NOW + 3_600_000) }, overrides)
 
 describe('getFreshGoogleAccessToken', () => {
 

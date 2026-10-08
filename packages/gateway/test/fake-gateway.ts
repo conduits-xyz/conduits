@@ -2,11 +2,13 @@ import { createGatewayRouter } from '../router.ts'
 import type { ConduitConfig, GatewayRuntime } from '../types.ts'
 import type { GatewayDeps } from '../pipeline.ts'
 import { testDeps } from './test-deps.ts'
+import { testConduitConfig } from '../testing.ts'
 import { createStaticRouteResolver, type RouteBinding } from '../route-binding.ts'
 
-// A test harness: createGatewayRouter over a plain ConduitConfig and an
-// in-memory Google Sheets (`sheets`), with no database, files or
-// network. Every router it makes shares the one set of dependencies.
+// A test harness: createGatewayRouter over a plain ConduitConfig, an
+// in-memory Google Sheets (`sheets`) and a clock the test moves
+// (`clock.advance`), with no database, files or network. Every router
+// it makes shares the one set of dependencies.
 export function createFakeGateway(curi: string) {
   const { sheets, ...shared } = testDeps()
   const suriObjectKey = `${curi}-sheet`
@@ -18,23 +20,8 @@ export function createFakeGateway(curi: string) {
     async invalidateCredential() {},
   }
 
-  function baseConfig(overrides: Partial<ConduitConfig> = {}): ConduitConfig {
-    return {
-      curi,
-      allowlist: [],
-      racm: ['GET', 'POST'],
-      throttle: false,
-      tokenRequiredMethods: [],
-      apiKeys: [],
-      suriType: 'googleSheets',
-      suriObjectKey,
-      suriConfig: {},
-      fields: {},
-      hiddenFormField: [],
-      credentialRef: null,
-      ...overrides,
-    }
-  }
+  const baseConfig = (overrides: Partial<ConduitConfig> = {}) =>
+    testConduitConfig({ curi, racm: ['GET', 'POST'], suriObjectKey, credentialRef: null, ...overrides })
 
   // `deps` replaces any of the router's dependencies, for example
   // listLimits or sourceClients.
@@ -49,5 +36,5 @@ export function createFakeGateway(curi: string) {
     })
   }
 
-  return { suriObjectKey, sheets, baseConfig, makeRouter }
+  return { suriObjectKey, sheets, clock: shared.clock, baseConfig, makeRouter }
 }

@@ -1,5 +1,5 @@
 import type { GoogleSheetsClientOptions } from '@conduits/conduit'
-import type { GatewayDeps } from '@conduits/gateway'
+import type { GatewayDeps, ThrottleLimits } from '@conduits/gateway'
 
 import { positiveIntegerFromEnv } from './env.ts'
 
@@ -28,4 +28,26 @@ export function googleSheetsOptionsFromEnv(): Pick<GoogleSheetsClientOptions, 'r
       perCredentialPerMinute: positiveIntegerFromEnv('CONDUITS_SHEETS_REQUESTS_PER_MINUTE_PER_ACCOUNT'),
     },
   }
+}
+
+// The addresses of servers trusted to forward their visitors' addresses
+// (GatewayDeps.trustedForwarders), from CONDUITS_TRUSTED_FORWARDERS: a
+// comma-separated list, empty when unset.
+export function trustedForwardersFromEnv(): string[] {
+  return (process.env.CONDUITS_TRUSTED_FORWARDERS ?? '').split(',').map((entry) => entry.trim()).filter(Boolean)
+}
+
+// The throttle's limits on each client address (ThrottleLimits), from
+// CONDUITS_THROTTLE_REQUESTS, CONDUITS_THROTTLE_WINDOW_MS,
+// CONDUITS_THROTTLE_BAN_AFTER and CONDUITS_THROTTLE_BAN_MS, all
+// required. Throws when the ban threshold isn't above the request limit.
+export function throttleLimitsFromEnv(): ThrottleLimits {
+  const limits = {
+    requests: positiveIntegerFromEnv('CONDUITS_THROTTLE_REQUESTS'),
+    windowMs: positiveIntegerFromEnv('CONDUITS_THROTTLE_WINDOW_MS'),
+    banAfter: positiveIntegerFromEnv('CONDUITS_THROTTLE_BAN_AFTER'),
+    banMs: positiveIntegerFromEnv('CONDUITS_THROTTLE_BAN_MS'),
+  }
+  if (limits.banAfter <= limits.requests) throw new Error('CONDUITS_THROTTLE_BAN_AFTER must be greater than CONDUITS_THROTTLE_REQUESTS')
+  return limits
 }

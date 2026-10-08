@@ -41,5 +41,5 @@ Open `index.html` in a browser. There is nothing to install or build.
   all records, not only the first page.
 - `flattenRecord` changes each `{id, fields}` record to `{id, ...fields}`
   after the read.
-- The page waits 220 ms between writes. The throttle allows 5 requests
-  each second.
+- The page waits 220 ms between writes. By default, the gateway's
+  throttle allows 5 requests each second from one address.

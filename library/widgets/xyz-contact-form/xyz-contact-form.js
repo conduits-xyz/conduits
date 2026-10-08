@@ -20,8 +20,8 @@
 // (docs/gateway-api.md); the `qualified-lead` preset adds `services` and
 // `budget`.
 //
-// No CAPTCHA and no honeypot field: the conduit's throttle limits the
-// request rate.
+// No CAPTCHA and no honeypot field: the gateway's throttle limits each
+// address's request rate.
 
 // Wrapped in an IIFE: classic scripts share one global scope, so a
 // top-level name also declared by another xyz-* widget would be a

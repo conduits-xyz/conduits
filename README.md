@@ -7,7 +7,7 @@ The gateway includes these controls:
 
 - Allowed HTTP methods per conduit (RACM).
 - An IP allowlist.
-- A request throttle.
+- A request throttle for each client address.
 - Bearer tokens for the methods you choose.
 - Hidden form fields that stop spam bots.
 

@@ -19,8 +19,11 @@ Each request goes through these checks, in this order:
    `Allow` header.
 3. **Bearer token** (optional, per method): the request must have the
    correct token. Otherwise: `401`.
-4. **Throttle** (on by default): 5 requests each second for each
-   conduit. Otherwise: `429` with `Retry-After: 1`.
+4. **Throttle**: a limit on the requests from each client address to
+   each conduit, which the gateway's operator sets (by default 5 each
+   second). An address that keeps sending is refused for a while (by
+   default 10 minutes after 50 requests in one second). Otherwise:
+   `429` with `Retry-After`.
 
 There are no sessions and no cookies on this API.
 
@@ -52,7 +55,15 @@ Each allowlist entry has this shape:
 The gateway reads the caller's IP from `X-Forwarded-For`. It uses the
 last entry, which your reverse proxy adds. It ignores the other
 entries, because callers can set them. Proxies that replace the header
-and proxies that append to it both work.
+and proxies that append to it both work. The throttle reads the
+caller's IP the same way.
+
+A server that calls a conduit for its own visitors, for example one
+that serves pages with a form, can pass on each visitor's IP: it sends
+`X-Forwarded-For: <visitor's IP>`, and the operator lists the server's
+own IP in `CONDUITS_TRUSTED_FORWARDERS`. When the last entry is a
+trusted forwarder, the gateway uses the entry before it. Without this,
+all of that server's visitors count as one caller.
 
 > **WARNING:** Put exactly one reverse proxy in front of a gateway that
 > uses an allowlist. Do not expose the gateway directly to the
@@ -67,7 +78,7 @@ A bearer token protects the methods that you choose. For example,
 
 - A token applies only to methods that RACM allows.
 - The gateway keeps only a SHA-256 hash of the token
-  (`ConduitConfig.bearerTokenHash`), never the token.
+  (`ApiKeyRef.tokenHash`), never the token.
 - If a method requires a token and no token exists, each request for
   that method gets `401`.
 - The gateway checks RACM first. A method that RACM refuses gets `405`,
@@ -357,7 +368,7 @@ Rules for clients:
 | <a id="not-found"></a>`not_found` | `404` | No active conduit has this route. | Check the conduit URL. |
 | <a id="record-not-found"></a>`record_not_found` | `404` | An id does not exist. A bulk request writes nothing. | The record does not exist. Reload the list. |
 | <a id="method-not-allowed"></a>`method_not_allowed` | `405` | The method is not in the RACM. The `Allow` header lists the allowed methods. | Use a method from the `Allow` header. |
-| <a id="rate-limited"></a>`rate_limited` | `429` | This caller sent too many requests: the conduit's throttle (5 each second). | Wait `retryAfter` seconds, then retry. `conduitFetch` does this. |
+| <a id="rate-limited"></a>`rate_limited` | `429` | This client address sent too many requests to this conduit: the gateway's [throttle](#access-control). | Wait `retryAfter` seconds, then retry. `conduitFetch` does this. |
 | <a id="internal-error"></a>`internal_error` | `500` | An error in the gateway. | Show a general error. |
 | <a id="source-unavailable"></a>`source_unavailable` | `502` | The source failed, did not answer, or refused the owner's credential. | Show a general error. Do not retry a `POST` automatically. |
 | <a id="source-busy"></a>`source_busy` | `503` | The source is busy: the gateway's request budget for Google Sheets is used up, or Google refused the request for its quota. The gateway did not do the request. | Wait `retryAfter` seconds, then retry, also a `POST`. `conduitFetch` does this. |

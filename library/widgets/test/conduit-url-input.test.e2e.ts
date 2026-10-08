@@ -1,14 +1,12 @@
-import * as path from 'node:path'
 import * as assert from 'remix/assert'
 import { describe, it } from 'remix/test'
 import { createTestServer } from 'remix/node-fetch-server/test'
-import { createRouter } from 'remix/router'
-import { staticFiles } from 'remix/middleware/static'
 
-import { createGatewayRouter, createStaticRouteResolver, generateRequestId, type GatewayRuntime, type ConduitConfig } from '@conduits/gateway'
-import { FASTMAIL_CAPABILITIES } from '@conduits/conduit'
-import { createRecordingSource } from '@conduits/conduit/testing'
-import { compileConduits, resolveEnvRef } from '@conduits/config'
+import type { GatewayRuntime, ConduitConfig } from '@conduits/gateway'
+import { resolveEnvRef } from '@conduits/config'
+import { createYamlTestGateway } from '@conduits/config/testing'
+
+import { createStaticRouter, serveAs } from './helpers.ts'
 
 // conduit-url-input.js resolves a bare curi against location.origin,
 // which works when the demo pages and the Gateway share an origin, as
@@ -26,13 +24,11 @@ const testRuntime: GatewayRuntime = {
   async invalidateCredential() {},
 }
 
-const WIDGETS_ROOT = path.resolve(import.meta.dirname, '..')
-
 // Serves the demo files and the gateway on one origin, as a self-hosted
 // reverse proxy would: static files first, and the gateway when
 // staticFiles finds nothing.
 function createCombinedServer(gatewayRouter: { fetch: (request: Request) => Response | Promise<Response> }) {
-  const staticRouter = createRouter({ middleware: [staticFiles(WIDGETS_ROOT, { index: true })] })
+  const staticRouter = createStaticRouter()
   return async (request: Request): Promise<Response> => {
     const response = await staticRouter.fetch(request)
     if (response.status !== 404) return response
@@ -43,8 +39,8 @@ function createCombinedServer(gatewayRouter: { fetch: (request: Request) => Resp
 // A named conduit path can be used directly as a bare value.
 const CURI = 'widgttest001'
 
-function buildGatewayRouter() {
-  const { configs, bindings } = compileConduits(
+const buildGatewayRouter = () =>
+  createYamlTestGateway(
     `
 conduits:
   waitlist:
@@ -57,21 +53,8 @@ conduits:
       recipients: [owner@example.com]
       subject: Waitlist
 `,
-    { supportedSourceTypes: ['fastmail'] },
+    testRuntime,
   )
-  const byCuri = new Map(configs.map((config) => [config.curi, config]))
-  const fastmail = createRecordingSource(FASTMAIL_CAPABILITIES)
-  const router = createGatewayRouter({
-    sourceClients: { fastmail: fastmail.client },
-    clock: { now: () => new Date(), monotonicMs: () => performance.now() },
-    requestId: generateRequestId,
-    resolveConfig: async (curi) => byCuri.get(curi) ?? null,
-    resolveRoute: createStaticRouteResolver(bindings),
-    runtime: testRuntime,
-    listLimits: { default: 1000, max: 1000 },
-  })
-  return { router, sent: fastmail.created }
-}
 
 describe('conduit-url-input.js — bare curi resolved against the current origin (e2e)', () => {
   it('shows this origin as the prefix, resolves a bare curi against it, and completes a real signup', async (t) => {
@@ -120,17 +103,7 @@ describe('conduit-url-input.js — bare curi resolved against the current origin
     const server = await createTestServer(createCombinedServer(buildGatewayRouter().router))
     const page = await t.serve(server)
 
-    // Playwright answers the navigation itself, so no DNS lookup
-    // happens; the local server provides the content.
-    await page.route('https://dev.conduits.xyz/**', async (route) => {
-      const url = new URL(route.request().url())
-      const response = await fetch(server.baseUrl + url.pathname + url.search, { method: route.request().method() })
-      await route.fulfill({
-        status: response.status,
-        headers: Object.fromEntries(response.headers),
-        body: Buffer.from(await response.arrayBuffer()),
-      })
-    })
+    await serveAs(page, 'https://dev.conduits.xyz', server)
 
     await page.goto('https://dev.conduits.xyz/xyz-waitlist/')
     await page.locator('#curi-prefix', { hasText: 'https://run.dev.conduits.xyz/' }).waitFor()

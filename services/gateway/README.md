@@ -249,7 +249,6 @@ Each conduit is one entry under `conduits:`.
 |:--|:--|:--|
 | `curi` | Yes | The conduit's permanent name. The default route is `/<curi>`. |
 | `methods` | Yes | The allowed HTTP methods (RACM), for example `[POST, GET]`. |
-| `throttle` | No | `true` (default) or `false`. 5 requests each second for each conduit. |
 | `allowlist` | No | A list of IPs: `- 203.0.113.7`, or `- {ip: 203.0.113.7, comment: office}`. |
 | `bearerToken.value` | No | `env:NAME`. The token is in `.env`. |
 | `bearerToken.requiredFor` | With `bearerToken` | The methods that require the token. Each must be in `methods`. |
@@ -338,6 +337,16 @@ for them. The gateway does not start without them.
 | `CONDUITS_SHEETS_READ_CACHE_MS` | How long reads can use a copy of a sheet tab, in milliseconds. A write through the gateway clears the copy. |
 | `CONDUITS_SHEETS_REQUESTS_PER_MINUTE` | The number of requests each minute to Google Sheets from this gateway. Reads and writes have separate counts. Above it, callers get `503` `source_busy` with `Retry-After`. |
 | `CONDUITS_SHEETS_REQUESTS_PER_MINUTE_PER_ACCOUNT` | The same, for each Google account. |
+| `CONDUITS_THROTTLE_REQUESTS` | The number of requests one client address can make to one conduit in each window. Above it, callers get `429` `rate_limited` with `Retry-After`. |
+| `CONDUITS_THROTTLE_WINDOW_MS` | The length of the window, in milliseconds. |
+| `CONDUITS_THROTTLE_BAN_AFTER` | The number of requests in one window, refused ones included, after which the address is refused for `CONDUITS_THROTTLE_BAN_MS`. It must be greater than `CONDUITS_THROTTLE_REQUESTS`. |
+| `CONDUITS_THROTTLE_BAN_MS` | How long such an address is refused, in milliseconds. |
+
+One setting is optional:
+
+| Variable | Meaning |
+|:--|:--|
+| `CONDUITS_TRUSTED_FORWARDERS` | A comma-separated list of the IPs of servers that call conduits for their own visitors and send each visitor's IP. See [the allowlist](../../docs/gateway-api.md#allowlist). |
 
 Keep the two Google Sheets values below Google's quotas. By default,
 Google allows 300 requests each minute for each project, and 60 for

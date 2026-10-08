@@ -3,6 +3,7 @@ import { createRouter } from 'remix/router'
 import { parseJsonBody } from './middleware/body.ts'
 import { addCorsHeaders } from './middleware/cors.ts'
 import { addRequestId } from './middleware/request-id.ts'
+import { resolveClientIp } from './middleware/client-ip.ts'
 import { createGatewayDispatcher } from './dispatch.ts'
 import { globalReadyzAction } from './global-readyz.ts'
 import type { GatewayContext } from './context.ts'
@@ -16,7 +17,7 @@ import type { GatewayDeps } from './pipeline.ts'
 // `deps` from the GatewayRuntime (e.g. services/gateway/runtime.ts).
 export function createGatewayRouter(deps: GatewayDeps) {
   const gatewayRouter = createRouter({
-    middleware: [addCorsHeaders(), addRequestId(deps.requestId), parseJsonBody()],
+    middleware: [addCorsHeaders(), addRequestId(deps.requestId), resolveClientIp(deps.trustedForwarders), parseJsonBody()],
   })
 
   // Checked before any conduit lookup (global-readyz.ts). A literal

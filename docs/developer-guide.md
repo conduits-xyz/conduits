@@ -235,8 +235,8 @@ await conduitFetch(conduitUrl, {
 
 A bulk request counts as one request for the throttle. For Google
 Sheets, it uses as many calls to Google as one record does. If you must write records one
-at a time, pace the requests. The throttle allows 5 requests each
-second for each conduit:
+at a time, pace the requests. By default, the throttle allows 5
+requests each second from one address to one conduit:
 
 ```js
 for (const record of records) {
@@ -405,10 +405,10 @@ the `Retry-After` header.
 
 | Limit | Status and code | What it protects | `Retry-After` |
 |:--|:--|:--|:--|
-| The conduit's throttle | `429` `rate_limited` | The conduit's URL. 5 requests each second. On by default (`throttle` in `conduits.yaml`). | Always `1`. |
+| The gateway's throttle | `429` `rate_limited` | The conduit's URL, for each client address. The operator sets the limit (`CONDUITS_THROTTLE_REQUESTS` in each `CONDUITS_THROTTLE_WINDOW_MS`; by default 5 each second), and how long an address that keeps sending is refused (`CONDUITS_THROTTLE_BAN_AFTER`, `CONDUITS_THROTTLE_BAN_MS`). | Seconds until the window, or the ban, ends. |
 | The gateway's Google Sheets budget | `503` `source_busy` | Google's Sheets quota, which all conduits on the gateway share. The operator sets it (`CONDUITS_SHEETS_REQUESTS_PER_MINUTE`, `CONDUITS_SHEETS_REQUESTS_PER_MINUTE_PER_ACCOUNT`). | Seconds until a request in the last minute stops counting. |
 
-A `429` means that this caller sent too many requests. A `503` means
+A `429` means that this client address sent too many requests. A `503` means
 that the source is busy: other callers can use up the budget, so it is
 not this caller's fault. If Google refuses a request anyway, the gateway
 returns `503` `source_busy` with `Retry-After: 60`. Google's quota
@@ -428,4 +428,5 @@ use less of the budget, use bulk writes.
 - **Paging is by position.** A row added or deleted while you read the
   pages can make one record appear twice or not at all.
 - **The throttle is local to one process.** It resets when the gateway
-  restarts. Two gateway processes do not share it.
+  restarts. Two gateway processes do not share it. Requests without
+  `X-Forwarded-For` all count as one address.

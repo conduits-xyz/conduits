@@ -7,7 +7,7 @@ import { ConduitAuthError, ConduitRateLimitError, ConduitSourceError } from '../
 // The endpoint, with a fetch that calls whatever global fetch the
 // test's mock has installed.
 const FASTMAIL = { sessionUrl: 'https://api.fastmail.com/jmap/session', fetch: ((input, init) => globalThis.fetch(input, init)) as typeof fetch, now: () => Date.parse('2026-10-05T12:00:00.000Z'), makeId: () => 'id' }
-import { jsonResponse } from './helpers.ts'
+import { jsonResponse, replaceFetch } from './helpers.ts'
 
 // The JMAP client with a mocked fetch.
 
@@ -21,10 +21,8 @@ function mockFetch(handlers: {
   session?: () => Response
   jmap?: (method: string, body: unknown) => Response
 }): () => void {
-  const original = globalThis.fetch
   fetched = []
-  globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+  return replaceFetch((url, init) => {
     fetched.push(url)
     if (url.endsWith('/jmap/session')) {
       return handlers.session?.() ?? new Response('not mocked', { status: 500 })
@@ -34,11 +32,8 @@ function mockFetch(handlers: {
       const [method] = parsed.methodCalls[0]!
       return handlers.jmap?.(method, parsed) ?? new Response('not mocked', { status: 500 })
     }
-    return original(input, init)
-  }) as typeof fetch
-  return () => {
-    globalThis.fetch = original
-  }
+    return new Response('not mocked', { status: 500 })
+  })
 }
 
 describe('Fastmail JMAP client (mocked fetch — real request/response shapes)', () => {
@@ -85,6 +80,22 @@ describe('Fastmail JMAP client (mocked fetch — real request/response shapes)',
     })
   }
 
+  // The contact form's table, sending as `identityId`.
+  async function contactForm(identityId: string) {
+    const source = await createFastmailClient(FASTMAIL).connect(identityId, 'good-token')
+    return source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
+  }
+
+  // Fastmail's answer to a send whose draft is created and whose
+  // submission is refused for `type`.
+  const submissionRefused = (type: string) => () =>
+    jsonResponse({
+      methodResponses: [
+        ['Email/set', { created: { draft: { id: 'email-1' } } }, 'draft'],
+        ['EmailSubmission/set', { notCreated: { send: { type } } }, 'send'],
+      ],
+    })
+
   it('sends the configured recipients and subject, with the submitted fields as the body, as the identity connect() was given', async () => {
     let captured: { methodCalls: Array<[string, Record<string, unknown>, string]> } | undefined
     restore = sendServer((body) => {
@@ -99,8 +110,7 @@ describe('Fastmail JMAP client (mocked fetch — real request/response shapes)',
 
     // 'ident-2', not the first identity, to show the one from connect()
     // is used.
-    const source = await createFastmailClient(FASTMAIL).connect('ident-2', 'good-token')
-    const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
+    const table = await contactForm('ident-2')
     const record = await table.createRecord({ name: 'Ada', email: 'ada@example.com' })
 
     assert.equal(record.id, 'email-1')
@@ -115,46 +125,27 @@ describe('Fastmail JMAP client (mocked fetch — real request/response shapes)',
   })
 
   it('a draft created but never submitted fails with a 502, after removing the draft', async () => {
-    restore = sendServer(() =>
-      jsonResponse({
-        methodResponses: [
-          ['Email/set', { created: { draft: { id: 'email-1' } } }, 'draft'],
-          ['EmailSubmission/set', { notCreated: { send: { type: 'invalidRecipients' } } }, 'send'],
-        ],
-      }),
-    )
-    const source = await createFastmailClient(FASTMAIL).connect('ident-1', 'good-token')
-    const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
+    restore = sendServer(submissionRefused('invalidRecipients'))
+    const table = await contactForm('ident-1')
     await assert.rejects(() => table.createRecord({ name: 'Ada' }), (error: unknown) => error instanceof ConduitSourceError && error.status === 502)
   })
 
   it('a send Fastmail refuses for a sending limit is busy, with a Retry-After', async () => {
-    restore = sendServer(() =>
-      jsonResponse({
-        methodResponses: [
-          ['Email/set', { created: { draft: { id: 'email-1' } } }, 'draft'],
-          ['EmailSubmission/set', { notCreated: { send: { type: 'forbiddenToSend' } } }, 'send'],
-        ],
-      }),
-    )
-    const source = await createFastmailClient(FASTMAIL).connect('ident-1', 'good-token')
-    const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
+    restore = sendServer(submissionRefused('forbiddenToSend'))
+    const table = await contactForm('ident-1')
     await assert.rejects(() => table.createRecord({ name: 'Ada' }), (error: unknown) => error instanceof ConduitRateLimitError && error.retryAfterSeconds === 30)
   })
 
   it('an identity no longer on the account fails clearly', async () => {
     restore = sendServer(() => jsonResponse({}))
-    const source = await createFastmailClient(FASTMAIL).connect('ident-gone', 'good-token')
-    const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
+    const table = await contactForm('ident-gone')
     await assert.rejects(() => table.createRecord({ name: 'Ada' }), /no longer on the Fastmail account/)
   })
 
-  it("connect()'s own account has no sending identity — requireSendable() fails clearly instead of guessing one", async () => {
+  it("connect()'s own account has no sending identity — the send fails clearly instead of guessing one", async () => {
     restore = sendServer(() => jsonResponse({}))
-    const client = createFastmailClient(FASTMAIL)
     // No identity (empty sourceKey).
-    const source = await client.connect('', 'good-token')
-    const table = source.open(JSON.stringify({ recipients: ['owner@example.com'], subject: 'Contact form' }))
+    const table = await contactForm('')
     await assert.rejects(() => table.createRecord({ name: 'Ada' }), ConduitSourceError)
   })
 

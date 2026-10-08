@@ -1,10 +1,7 @@
 import * as assert from 'remix/assert'
 import { describe, it } from 'remix/test'
 
-import { createGatewayRouter, createStaticRouteResolver, generateRequestId } from '@conduits/gateway'
-import { FASTMAIL_CAPABILITIES } from '@conduits/conduit'
-import { createRecordingSource } from '@conduits/conduit/testing'
-import { compileConduits } from '@conduits/config'
+import { createYamlTestGateway } from '@conduits/config/testing'
 
 import { createGatewayServiceRuntime } from '../runtime.ts'
 
@@ -13,29 +10,17 @@ import { createGatewayServiceRuntime } from '../runtime.ts'
 // client: what reaches the source is what Fastmail would be asked to
 // send. The client itself is tested in @conduits/conduit.
 
-function buildRouter(yamlText: string) {
-  const { configs, bindings } = compileConduits(yamlText, { supportedSourceTypes: ['fastmail'] })
-  const byCuri = new Map(configs.map((config) => [config.curi, config]))
-  const fastmail = createRecordingSource(FASTMAIL_CAPABILITIES)
-  const router = createGatewayRouter({
-    sourceClients: { fastmail: fastmail.client },
-    clock: { now: () => new Date(), monotonicMs: () => performance.now() },
-    requestId: generateRequestId,
-    resolveConfig: async (curi) => byCuri.get(curi) ?? null,
-    resolveRoute: createStaticRouteResolver(bindings),
-    // Fastmail conduits only: no Google token is ever refreshed.
-    runtime: createGatewayServiceRuntime('/nonexistent/credentials.json', { endpoint: { tokenUrl: 'https://oauth.example/token', fetch }, now: Date.now }),
-    listLimits: { default: 1000, max: 1000 },
-  })
-  return { router, sent: fastmail.created }
-}
+// Fastmail conduits only: no Google token is ever refreshed.
+const runtime = createGatewayServiceRuntime('/nonexistent/credentials.json', { endpoint: { tokenUrl: 'https://oauth.example/token', fetch }, now: Date.now })
+const buildRouter = (yamlText: string) => createYamlTestGateway(yamlText, runtime)
 
-const CONTACT_FORM = `
+// A Fastmail contact form; `routes` lines, when given, set its routes.
+const contactForm = (routes = '') => `
 conduits:
   contact-form:
     curi: contact-form
     methods: [POST]
-    source:
+${routes}    source:
       type: fastmail
       identityId: service-test-identity
       credential: env:FASTMAIL_TOKEN
@@ -46,7 +31,7 @@ conduits:
 describe('gateway service', () => {
   it('hands a YAML-compiled fastmail conduit its identity, credential, recipients and the submitted fields, with no database anywhere in the path', async () => {
     process.env.FASTMAIL_TOKEN = 'service-test-token'
-    const { router, sent } = buildRouter(CONTACT_FORM)
+    const { router, sent } = buildRouter(contactForm())
 
     // The default self-hosted route is /<curi> (docs/data-model.md).
     const response = await router.fetch(
@@ -67,20 +52,7 @@ describe('gateway service', () => {
 
   it('also works at an explicit custom route, distinct from its curi', async () => {
     process.env.FASTMAIL_TOKEN = 'service-test-token'
-    const { router, sent } = buildRouter(`
-conduits:
-  contact-form:
-    curi: contact-form
-    methods: [POST]
-    routes:
-      - path: /forms/contact
-    source:
-      type: fastmail
-      identityId: service-test-identity
-      credential: env:FASTMAIL_TOKEN
-      recipients: [owner@example.com]
-      subject: Contact form
-`)
+    const { router, sent } = buildRouter(contactForm('    routes:\n      - path: /forms/contact\n'))
 
     const response = await router.fetch(
       new Request('http://localhost/forms/contact', {
@@ -99,7 +71,7 @@ conduits:
 
   it('accepts a plain HTML <form> POST (x-www-form-urlencoded) directly against the default /<curi> route', async () => {
     process.env.FASTMAIL_TOKEN = 'service-test-token'
-    const { router, sent } = buildRouter(CONTACT_FORM)
+    const { router, sent } = buildRouter(contactForm())
 
     const body = new URLSearchParams({ 'fields[name]': 'Ada', 'fields[email]': 'ada@example.com' })
     const response = await router.fetch(
@@ -115,7 +87,7 @@ conduits:
 
   it('enforces methods/bearerToken/hiddenFields exactly as compiled — RACM rejects GET on a POST-only conduit', async () => {
     process.env.FASTMAIL_TOKEN = 'service-test-token'
-    const { router } = buildRouter(CONTACT_FORM)
+    const { router } = buildRouter(contactForm())
 
     const response = await router.fetch(new Request('http://localhost/contact-form'))
     assert.equal(response.status, 405)

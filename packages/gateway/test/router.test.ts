@@ -2,7 +2,8 @@ import * as assert from 'remix/assert'
 import { describe, it } from 'remix/test'
 
 import { createGatewayRouter } from '../router.ts'
-import type { ConduitConfig, GatewayRuntime } from '../types.ts'
+import type { GatewayRuntime } from '../types.ts'
+import { testConduitConfig } from '../testing.ts'
 import { testDeps } from './test-deps.ts'
 import { createStaticRouteResolver, type RouteBinding } from '../route-binding.ts'
 
@@ -10,20 +11,7 @@ import { createStaticRouteResolver, type RouteBinding } from '../route-binding.t
 // RouteBinding and a fake GatewayRuntime, with no database, files or
 // network. services/gateway/test covers the behaviour in depth.
 
-const config: ConduitConfig = {
-  curi: 'smoke-test',
-  allowlist: [],
-  racm: ['GET'],
-  throttle: false,
-  tokenRequiredMethods: [],
-  apiKeys: [],
-  suriType: 'fake',
-  suriObjectKey: 'unused',
-  suriConfig: {},
-  fields: {},
-  hiddenFormField: [],
-  credentialRef: null,
-}
+const config = testConduitConfig({ curi: 'smoke-test', racm: ['GET'], suriType: 'fake', suriObjectKey: 'unused', credentialRef: null })
 
 const bindings: RouteBinding[] = [{ path: '/smoke-test', curi: 'smoke-test' }]
 

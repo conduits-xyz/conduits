@@ -3,6 +3,50 @@
 This file records the notable changes to the Conduits gateway, the
 provider integrations, the config tools, and the widgets.
 
+## 0.6.4 - 2026-10-07
+
+### Changed
+
+- **The throttle counts each client address.** It allows a number of
+  requests from one address to one conduit in each window, instead of
+  5 each second for the whole conduit, so one busy caller no longer
+  blocks every other caller. An address that keeps sending is refused
+  for a while. The limits are gateway settings, all required:
+  `CONDUITS_THROTTLE_REQUESTS` and `CONDUITS_THROTTLE_WINDOW_MS` (5 in
+  1000 ms in `.env.example`), `CONDUITS_THROTTLE_BAN_AFTER` and
+  `CONDUITS_THROTTLE_BAN_MS` (after 50 requests in one window, for 10
+  minutes). A `429`'s `retryAfter` is the time until the window or the
+  ban ends.
+- The per-conduit `throttle` setting is gone from `conduits.yaml` and
+  `ConduitConfig`: the throttle always applies.
+- `GatewayDeps` takes `throttle` (`{ limits, store }`) and
+  `trustedForwarders`. `createMemoryThrottleStore` keeps the counts in
+  the process's memory; another `ThrottleStore` can keep them where
+  several gateway processes share them.
+- `packages/conduit/mail-outcome.ts` is now `mail-source.ts`, which also
+  holds the Gmail and Fastmail sources' shared fields and their
+  recipients-and-subject check.
+
+### Added
+
+- **Trusted forwarders.** A server that calls conduits for its own
+  visitors, for example one that serves pages with a form, can send
+  each visitor's IP in `X-Forwarded-For`. When the operator lists the
+  server's IP in `CONDUITS_TRUSTED_FORWARDERS`, the allowlist and the
+  throttle use the visitor's IP (docs/gateway-api.md, "Allowlist").
+  `clientIpFrom` (`@conduits/gateway`) reads a request's client IP the
+  same way, for such a server's own use.
+- Test helpers, each package's `testing` export: `createYamlTestGateway`
+  (`@conduits/config/testing`), a gateway over a `conduits.yaml` text's
+  Fastmail conduits with a recording source; `testConduitConfig` and
+  `unreachedThrottle` (`@conduits/gateway/testing`); `tempStorePath` and
+  `googleGrant` (`@conduits/credential-store/testing`).
+
+### Fixed
+
+- `services/gateway/.env.example` said a spent Google Sheets budget
+  gives callers a `429`; it gives a `503`.
+
 ## 0.6.3 - 2026-10-06
 
 ### Added

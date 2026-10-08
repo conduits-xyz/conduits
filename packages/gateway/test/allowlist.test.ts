@@ -2,24 +2,19 @@ import * as assert from 'remix/assert'
 import { describe, it } from 'remix/test'
 
 import { createGatewayRouter } from '../router.ts'
-import type { ConduitConfig, GatewayRuntime } from '../types.ts'
+import type { GatewayRuntime } from '../types.ts'
+import { testConduitConfig } from '../testing.ts'
 import { testDeps } from './test-deps.ts'
 import { createStaticRouteResolver } from '../route-binding.ts'
 
-const config: ConduitConfig = {
+const config = testConduitConfig({
   curi: 'allowlisted',
   allowlist: [{ ip: '203.0.113.9', comment: 'office', status: 'active' }],
   racm: ['GET'],
-  throttle: false,
-  tokenRequiredMethods: [],
-  apiKeys: [],
   suriType: 'fake',
   suriObjectKey: 'unused',
-  suriConfig: {},
-  fields: {},
-  hiddenFormField: [],
   credentialRef: null,
-}
+})
 
 const runtime: GatewayRuntime = {
   async getCredential() {

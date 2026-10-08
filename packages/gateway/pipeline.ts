@@ -8,6 +8,7 @@ import { loadConduitTable } from './middleware/source-client.ts'
 import { handleSourceErrors } from './middleware/source-errors.ts'
 import type { RouteMatch } from './route-binding.ts'
 import type { ConduitConfig, GatewayRuntime } from './types.ts'
+import type { Throttle } from './middleware/throttle.ts'
 
 // What the gateway routes need from the host: resolving a curi to a
 // ConduitConfig, resolving a request's (host, pathname) to a route
@@ -24,14 +25,22 @@ export interface GatewayDeps {
   // client answers 500 (loadConduitTable).
   sourceClients: Record<string, ConduitSourceClient>
   clock: GatewayClock
+  // The limits on each client address's requests to each conduit, and
+  // where their counts are kept (middleware/throttle.ts). One store for
+  // all of the router's routes.
+  throttle: Throttle
+  // The addresses of servers that call the gateway for their own
+  // visitors and send the visitor's address (middleware/client-ip.ts).
+  trustedForwarders: string[]
   // Makes each request's id (middleware/request-id.ts), for example
   // generateRequestId.
   requestId: () => string
 }
 
-// The gateway's time: the instant an observation records, and a
-// monotonic clock for latency and throttle windows, which a change to
-// the system clock doesn't move.
+// The gateway's time: the instant an observation records and the
+// throttle counts by (wall clock, so processes sharing a ThrottleStore
+// agree), and a monotonic clock for latency, which a change to the
+// system clock doesn't move.
 export interface GatewayClock {
   now(): Date
   monotonicMs(): number

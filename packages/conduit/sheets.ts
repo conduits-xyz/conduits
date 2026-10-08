@@ -698,32 +698,10 @@ async function deleteFieldsOnSheet(
   ctx.metadata.invalidate(`fields\0${tabKey(sourceKey, tableName, credential)}`)
 }
 
-function bulkReplaceRows(
-  sourceKey: string,
-  tableName: string | undefined,
-  credential: string,
-  entries: FlatRow[],
-  ctx: SheetsContext,
-): Promise<{ rows: FlatRow[] } | null> {
-  return bulkWriteRows(sourceKey, tableName, credential, entries, (_existing, fields) => fields, ctx)
-}
-
-function bulkUpdateRows(
-  sourceKey: string,
-  tableName: string | undefined,
-  credential: string,
-  entries: FlatRow[],
-  ctx: SheetsContext,
-): Promise<{ rows: FlatRow[] } | null> {
-  return bulkWriteRows(
-    sourceKey,
-    tableName,
-    credential,
-    entries,
-    (existing, fields) => ({ ...existing, ...fields }),
-    ctx,
-  )
-}
+// bulkWriteRows' merges: a replace keeps only the new fields, an update
+// keeps the row's other fields.
+const replaceFields = (_existing: FlatRow, fields: FlatRow): FlatRow => fields
+const updateFields = (existing: FlatRow, fields: FlatRow): FlatRow => ({ ...existing, ...fields })
 
 // The ConduitTable for one spreadsheet and tab. No I/O until a method
 // is called.
@@ -789,22 +767,22 @@ function openHttpTable(
 
     // A replace returns exactly the submitted fields.
     async replaceRecord(record) {
-      const result = await bulkReplaceRows(sourceKey, tableName, credential, [fromConduitRecord(record)], ctx)
+      const result = await bulkWriteRows(sourceKey, tableName, credential, [fromConduitRecord(record)], replaceFields, ctx)
       return result ? { id: record.id, fields: record.fields } : null
     },
     async replaceRecords(records) {
-      const result = await bulkReplaceRows(sourceKey, tableName, credential, records.map(fromConduitRecord), ctx)
+      const result = await bulkWriteRows(sourceKey, tableName, credential, records.map(fromConduitRecord), replaceFields, ctx)
       return result ? records.map((record) => ({ id: record.id, fields: record.fields })) : null
     },
 
     // An update's response includes fields from the existing row, so it
     // uses the inferred schema.
     async updateRecord(record) {
-      const result = await bulkUpdateRows(sourceKey, tableName, credential, [fromConduitRecord(record)], ctx)
+      const result = await bulkWriteRows(sourceKey, tableName, credential, [fromConduitRecord(record)], updateFields, ctx)
       return result ? toConduitRecord(result.rows[0]) : null
     },
     async updateRecords(records) {
-      const result = await bulkUpdateRows(sourceKey, tableName, credential, records.map(fromConduitRecord), ctx)
+      const result = await bulkWriteRows(sourceKey, tableName, credential, records.map(fromConduitRecord), updateFields, ctx)
       return result ? result.rows.map((row) => toConduitRecord(row)) : null
     },
 
