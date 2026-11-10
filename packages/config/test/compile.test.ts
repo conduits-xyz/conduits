@@ -1,0 +1,428 @@
+import * as assert from 'remix/assert'
+import { describe, it } from 'remix/test'
+
+import { compileConduits } from '../compile.ts'
+import { verifyBearerToken } from '@conduits/gateway'
+
+// The platform environment the secret references are read from.
+const platform: Record<string, string | undefined> = {}
+const FASTMAIL_ONLY = { supportedSourceTypes: ['fastmail'], platform }
+
+// A Fastmail conduit's source, under the conduit's other lines.
+const SOURCE = `    source:
+      type: fastmail
+      identityId: ident-1
+      credential: env:FASTMAIL_TOKEN
+      recipients: [owner@example.com]
+      subject: New submission
+`
+
+// One conduit labelled contact-form: `lines` (curi, methods, ...) and the
+// source. The YAML labels and curis differ throughout, so nothing can
+// depend on them matching.
+const oneConduit = (lines: string) => `
+conduits:
+  contact-form:
+${lines}
+${SOURCE}`
+
+// contact-form with curi `contact`, POST, and `overrides` after the source.
+const baseYaml = (overrides = '') => oneConduit('    curi: contact\n    methods: [POST]') + `${overrides}\n`
+
+describe('compileConduits', () => {
+  it('compiles a minimal fastmail conduit, defaulting allowlist/hiddenFormField', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const { configs: [config] } = compileConduits(baseYaml(), FASTMAIL_ONLY)
+    assert.equal(config?.curi, 'contact')
+    assert.deepEqual(config?.racm, ['POST'])
+    assert.deepEqual(config?.allowlist, [])
+    assert.deepEqual(config?.tokenRequiredMethods, [])
+    assert.deepEqual(config?.apiKeys, [])
+    assert.deepEqual(config?.hiddenFormField, [])
+    assert.deepEqual(config?.fields, {})
+    assert.equal(config?.ifMatchRequired, false)
+    assert.equal(config?.suriType, 'fastmail')
+    assert.equal(config?.suriObjectKey, 'ident-1')
+    assert.deepEqual(config?.suriConfig, { recipients: ['owner@example.com'], subject: 'New submission', table: undefined })
+  })
+
+  it('the YAML label is only a local configuration name — it never becomes the curi', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const { configs: [config] } = compileConduits(baseYaml(), FASTMAIL_ONLY)
+    assert.notEqual(config?.curi, 'contact-form')
+    assert.equal(config?.curi, 'contact')
+  })
+
+  it('never resolves the credential env var into ConduitConfig — credentialRef stays the opaque reference', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const { configs: [config] } = compileConduits(baseYaml(), FASTMAIL_ONLY)
+    assert.equal(config?.credentialRef, 'env:FASTMAIL_TOKEN')
+  })
+
+  it('secrets do not enter ConduitConfig: the resolved provider credential and the bearer plaintext are both absent from the whole serialized config, only the credential reference and the bearer hash survive', () => {
+    platform.FASTMAIL_TOKEN = 'super-secret-fastmail-value-xyz123'
+    platform.CONTACT_FORM_TOKEN = 'super-secret-bearer-plaintext-abc789'
+
+    const { configs: [config] } = compileConduits(
+      baseYaml(`
+    bearerToken:
+      value: env:CONTACT_FORM_TOKEN
+      requiredFor: [POST]
+`),
+      FASTMAIL_ONLY,
+    )
+    assert.ok(config)
+
+    // Serialized, as if logged or stored: neither secret's plaintext
+    // appears.
+    const serialized = JSON.stringify(config)
+
+    assert.ok(!serialized.includes('super-secret-fastmail-value-xyz123'), 'resolved provider credential must not appear in serialized ConduitConfig')
+    assert.ok(!serialized.includes('super-secret-bearer-plaintext-abc789'), 'bearer plaintext must not appear in serialized ConduitConfig')
+
+    // Instead: the reference and the hash.
+    assert.ok(serialized.includes('env:FASTMAIL_TOKEN'), 'credentialRef itself (the reference, not the value) should still be present')
+    const keyHash = config!.apiKeys[0]?.tokenHash
+    assert.ok(keyHash && serialized.includes(keyHash), 'the compiled key\'s tokenHash should still be present')
+  })
+
+  it('fails startup if the credential env var is not set', () => {
+    delete platform.FASTMAIL_TOKEN
+    assert.throws(() => compileConduits(baseYaml(), FASTMAIL_ONLY), /FASTMAIL_TOKEN is not set/)
+  })
+
+  it('resolves bearerToken.value only long enough to hash it — the hash, not the plaintext, reaches ConduitConfig', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    platform.CONTACT_FORM_TOKEN = 'bearer-plaintext'
+    const { configs: [config] } = compileConduits(
+      baseYaml(`
+    bearerToken:
+      value: env:CONTACT_FORM_TOKEN
+      requiredFor: [POST]
+`),
+      FASTMAIL_ONLY,
+    )
+    assert.equal(config?.apiKeys.length, 1)
+    const keyHash = config!.apiKeys[0]!.tokenHash
+    assert.notEqual(keyHash, 'bearer-plaintext')
+    assert.ok(verifyBearerToken('bearer-plaintext', keyHash))
+    assert.deepEqual(config!.apiKeys[0]!.scopes, ['POST'])
+    assert.deepEqual(config?.tokenRequiredMethods, ['POST'])
+  })
+
+  it('rejects bearerToken.requiredFor listing a method not present in methods', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    platform.CONTACT_FORM_TOKEN = 'bearer-plaintext'
+    assert.throws(
+      () =>
+        compileConduits(
+          baseYaml(`
+    bearerToken:
+      value: env:CONTACT_FORM_TOKEN
+      requiredFor: [GET]
+`),
+          FASTMAIL_ONLY,
+        ),
+      /requiredFor lists \["GET"\], not present in methods \["POST"\]/,
+    )
+  })
+
+  it('rejects a curi missing entirely', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const yaml = oneConduit('    methods: [POST]')
+    assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /curi is required/)
+  })
+
+  it('rejects two different YAML labels naming the same curi, rather than silently letting one shadow the other', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const yaml = `
+conduits:
+  contact-form-a:
+    curi: contact
+    methods: [POST]
+    source: { type: fastmail, identityId: ident-1, credential: env:FASTMAIL_TOKEN, recipients: [a@example.com], subject: hi }
+  contact-form-b:
+    curi: contact
+    methods: [GET]
+    source: { type: fastmail, identityId: ident-2, credential: env:FASTMAIL_TOKEN, recipients: [b@example.com], subject: bye }
+`
+    assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /duplicate curi 'contact'/)
+  })
+
+  it('still rejects a duplicate YAML label itself as a parse error (unrelated to curi uniqueness)', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const yaml = `
+conduits:
+  contact-form:
+    curi: contact-a
+    methods: [POST]
+    source: { type: fastmail, identityId: ident-1, credential: env:FASTMAIL_TOKEN, recipients: [a@example.com], subject: hi }
+  contact-form:
+    curi: contact-b
+    methods: [GET]
+    source: { type: fastmail, identityId: ident-2, credential: env:FASTMAIL_TOKEN, recipients: [b@example.com], subject: bye }
+`
+    assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /Map keys must be unique/)
+  })
+
+  it('compiles honeypot and mustEqual hidden-field policies to the real HiddenFormFieldRule shape', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const { configs: [config] } = compileConduits(
+      baseYaml(`
+    hiddenFields:
+      - name: website
+        policy: honeypot
+      - name: formVersion
+        policy: mustEqual
+        value: v2
+        forward: true
+`),
+      FASTMAIL_ONLY,
+    )
+    assert.deepEqual(config?.hiddenFormField, [
+      { fieldName: 'website', policy: 'drop-if-filled' },
+      { fieldName: 'formVersion', policy: 'pass-if-match', value: 'v2', include: true },
+    ])
+  })
+
+  it('compiles a bare-string and an {ip, comment} allowlist entry, always as status active', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const { configs: [config] } = compileConduits(
+      baseYaml(`
+    allowlist:
+      - 203.0.113.4
+      - ip: 203.0.113.9
+        comment: office network
+`),
+      FASTMAIL_ONLY,
+    )
+    assert.deepEqual(config?.allowlist, [
+      { ip: '203.0.113.4', status: 'active' },
+      { ip: '203.0.113.9', comment: 'office network', status: 'active' },
+    ])
+  })
+
+  it('rejects methods missing entirely — no implicit default', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const yaml = oneConduit('    curi: contact')
+    assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /methods is required/)
+  })
+
+  it('rejects methods: [] (present but empty), same as methods missing entirely', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const yaml = oneConduit('    curi: contact\n    methods: []')
+    assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /methods is required/)
+  })
+
+  it('rejects a bearer token whose referenced env var is not set', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    delete platform.CONTACT_FORM_TOKEN
+    assert.throws(
+      () =>
+        compileConduits(
+          baseYaml(`
+    bearerToken:
+      value: env:CONTACT_FORM_TOKEN
+      requiredFor: [POST]
+`),
+          FASTMAIL_ONLY,
+        ),
+      /CONTACT_FORM_TOKEN is not set/,
+    )
+  })
+
+  it('rejects an unknown hidden-field policy', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    assert.throws(
+      () =>
+        compileConduits(
+          baseYaml(`
+    hiddenFields:
+      - name: trap
+        policy: nonsense
+`),
+          FASTMAIL_ONLY,
+        ),
+      /unknown policy 'nonsense'/,
+    )
+  })
+
+  it('compiles fields: a type, or a choice field with its options', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const { configs: [config] } = compileConduits(
+      baseYaml(`
+    fields:
+      email: email
+      guests: number
+      cake:
+        type: single_select
+        options: [Birthday cake, Wedding cake]
+      flavors:
+        type: multi_select
+        options: [Chocolate, Lemon]
+`),
+      FASTMAIL_ONLY,
+    )
+    assert.deepEqual(config?.fields, {
+      email: { type: 'email' },
+      guests: { type: 'number' },
+      cake: { type: 'single_select', options: ['Birthday cake', 'Wedding cake'] },
+      flavors: { type: 'multi_select', options: ['Chocolate', 'Lemon'] },
+    })
+  })
+
+  it('rejects an unknown type, a choice field without options, and a comma in an option', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const compile = (fields: string) => () => compileConduits(baseYaml(`    fields:\n${fields}`), FASTMAIL_ONLY)
+    assert.throws(compile('      done: checkbox\n'), /fields\.done type must be one of text, textarea/)
+    assert.throws(compile('      cake:\n        type: single_select\n        options: []\n'), /fields\.cake needs at least one option/)
+    assert.throws(compile("      flavors:\n        type: multi_select\n        options: ['Salted, caramel']\n"), /contains a comma/)
+    assert.throws(compile('      name:\n        type: text\n        options: [A]\n'), /only single_select and multi_select take options/)
+  })
+
+  it('compiles requireIfMatch, and refuses a value that is not true or false', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    assert.equal(compileConduits(baseYaml('    requireIfMatch: true'), FASTMAIL_ONLY).configs[0]?.ifMatchRequired, true)
+    assert.throws(() => compileConduits(baseYaml('    requireIfMatch: yes please'), FASTMAIL_ONLY), /requireIfMatch must be true or false/)
+  })
+
+  it('rejects a malformed allowlist entry (neither a string nor {ip, ...})', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    assert.throws(
+      () =>
+        compileConduits(
+          baseYaml(`
+    allowlist:
+      - 12345
+`),
+          FASTMAIL_ONLY,
+        ),
+      /allowlist\[0\] must be an IP string or \{ip, comment\}/,
+    )
+  })
+
+  it('rejects a malformed Fastmail source missing identityId', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const yaml = `
+conduits:
+  contact-form:
+    curi: contact
+    methods: [POST]
+    source:
+      type: fastmail
+      credential: env:FASTMAIL_TOKEN
+      recipients: [owner@example.com]
+      subject: New submission
+`
+    assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /source.identityId is required/)
+  })
+
+  it('rejects a malformed Fastmail source missing recipients', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const yaml = `
+conduits:
+  contact-form:
+    curi: contact
+    methods: [POST]
+    source:
+      type: fastmail
+      identityId: ident-1
+      credential: env:FASTMAIL_TOKEN
+      subject: New submission
+`
+    assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /source.recipients must be a non-empty list/)
+  })
+
+  it('rejects a curi containing path-unsafe characters (e.g. a slash)', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const yaml = oneConduit('    curi: "contact/form"\n    methods: [POST]')
+    assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /curi must contain only letters, digits, '-', and '_'/)
+  })
+
+  it('aborts the entire load on one invalid conduit, rather than returning a partial config for the ones that were fine', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const yaml = `
+conduits:
+  good-conduit:
+    curi: good
+    methods: [POST]
+${SOURCE}  bad-conduit:
+    curi: bad
+    methods: []
+    source:
+      type: fastmail
+      identityId: ident-2
+      credential: env:FASTMAIL_TOKEN
+      recipients: [owner@example.com]
+      subject: Another submission
+`
+    // A partial result would let the call below succeed; it throws only
+    // when the whole file is rejected.
+    assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /conduit 'bad-conduit': methods is required/)
+  })
+})
+
+describe('compileConduits — route bindings', () => {
+  it('defaults to the single route /<curi> when routes is omitted', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const { bindings } = compileConduits(baseYaml(), FASTMAIL_ONLY)
+    assert.deepEqual(bindings, [{ path: '/contact', curi: 'contact' }])
+  })
+
+  it('compiles an explicit routes list, host included', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const { bindings } = compileConduits(
+      baseYaml(`
+    routes:
+      - path: /forms/contact
+      - host: forms.example.com
+        path: /contact
+`),
+      FASTMAIL_ONLY,
+    )
+    assert.deepEqual(bindings, [
+      { path: '/forms/contact', curi: 'contact' },
+      { host: 'forms.example.com', path: '/contact', curi: 'contact' },
+    ])
+  })
+
+  it('rejects routes: [] (present but empty)', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    assert.throws(() => compileConduits(baseYaml('    routes: []'), FASTMAIL_ONLY), /routes must be a non-empty list/)
+  })
+
+  it('rejects a route path that uses the reserved .conduits segment', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    assert.throws(
+      () =>
+        compileConduits(
+          baseYaml(`
+    routes:
+      - path: /contact/.conduits/evil
+`),
+          FASTMAIL_ONLY,
+        ),
+      /reserved '\.conduits' segment/,
+    )
+  })
+
+  it('rejects two conduits whose normalized (host, path) collide', () => {
+    platform.FASTMAIL_TOKEN = 'fastmail-secret'
+    const yaml = `
+conduits:
+  contact-form:
+    curi: contact
+    methods: [POST]
+    routes:
+      - path: /forms/shared
+    source: { type: fastmail, identityId: ident-1, credential: env:FASTMAIL_TOKEN, recipients: [a@example.com], subject: hi }
+  newsletter:
+    curi: newsletter
+    methods: [POST]
+    routes:
+      - path: /forms/shared
+    source: { type: fastmail, identityId: ident-2, credential: env:FASTMAIL_TOKEN, recipients: [b@example.com], subject: bye }
+`
+    assert.throws(() => compileConduits(yaml, FASTMAIL_ONLY), /duplicate route/)
+  })
+})

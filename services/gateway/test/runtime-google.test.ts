@@ -1,0 +1,111 @@
+import * as assert from 'remix/assert'
+import { describe, it } from 'remix/test'
+
+import type { ConduitConfig } from '@conduits/gateway'
+import { testConduitConfig } from '@conduits/gateway/testing'
+import { createGatewayServiceRuntime, missingGoogleGrants } from '../runtime.ts'
+import { loadGoogleGrant, saveGoogleGrant } from '@conduits/credential-store'
+import type { StoredGoogleGrant } from '@conduits/credential-store'
+import { googleGrant, tempStorePath } from '@conduits/credential-store/testing'
+
+// The runtime's getCredential() and invalidateCredential() against an
+// injected token endpoint and clock, and a local file.
+const NOW = Date.parse('2026-10-05T12:00:00.000Z')
+
+// A runtime whose token endpoint answers with `handler`; without one,
+// any refresh fails the test.
+function runtime(storePath: string, handler: () => Response = () => assert.fail('unexpected token refresh')) {
+  const fetchImpl = (async () => handler()) as typeof fetch
+  return createGatewayServiceRuntime(storePath, { endpoint: { tokenUrl: 'https://oauth.example/token', fetch: fetchImpl }, now: () => NOW }, {})
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+}
+
+
+const conduitConfig = (overrides: Partial<ConduitConfig> = {}) => testConduitConfig({ curi: 'newsletter', credentialRef: 'google:personal', ...overrides })
+
+const expiredGrant = (overrides: Partial<StoredGoogleGrant> = {}) =>
+  googleGrant({ accessToken: 'stale-access-token', refreshToken: 'real-refresh-token', expiresAt: new Date(NOW - 1000) }, overrides)
+
+describe('the service runtime: getCredential — googleSheets/gmail', () => {
+
+  it('returns the cached access token directly when it is not expiring soon (no refresh call at all)', async () => {
+    const storePath = tempStorePath()
+    saveGoogleGrant(storePath, expiredGrant({ tokens: { accessToken: 'fresh-token', expiresAt: new Date(NOW + 3_600_000) } }))
+
+    const token = await runtime(storePath).getCredential(conduitConfig())
+    assert.equal(token, 'fresh-token')
+  })
+
+  it('refreshes and persists a new access token when the stored one is expiring, for suriType googleSheets (purpose sheets)', async () => {
+    const storePath = tempStorePath()
+    saveGoogleGrant(storePath, expiredGrant({ purpose: 'sheets' }))
+    const token = await runtime(storePath, () => jsonResponse({ access_token: 'fresh-access-token', expires_in: 3600, token_type: 'Bearer' })).getCredential(conduitConfig({ suriType: 'googleSheets' }))
+    assert.equal(token, 'fresh-access-token')
+
+    const reloaded = loadGoogleGrant(storePath, 'personal', 'sheets')
+    assert.equal(reloaded?.tokens.accessToken, 'fresh-access-token')
+    assert.equal(reloaded?.tokens.expiresAt?.toISOString(), '2026-10-05T13:00:00.000Z')
+  })
+
+  it('derives purpose "gmail" for suriType gmail — a grant saved only under "sheets" is not found', async () => {
+    const storePath = tempStorePath()
+    saveGoogleGrant(storePath, expiredGrant({ purpose: 'sheets' }))
+
+    const token = await runtime(storePath).getCredential(conduitConfig({ suriType: 'gmail', suriObjectKey: '' }))
+    assert.equal(token, null, 'a sheets-purpose grant must not satisfy a gmail-purpose lookup')
+  })
+
+  it('deletes the local grant when Google reports the grant as expired or revoked', async () => {
+    const storePath = tempStorePath()
+    saveGoogleGrant(storePath, expiredGrant())
+    const token = await runtime(storePath, () => jsonResponse({ error: 'invalid_grant', error_description: 'Token has been expired or revoked.' }, 400)).getCredential(conduitConfig())
+    assert.equal(token, null)
+    assert.equal(loadGoogleGrant(storePath, 'personal', 'sheets'), null, 'a confirmed-dead grant must be removed, not left to fail forever')
+  })
+
+  it('does not delete the grant on an ambiguous or transient failure', async () => {
+    const storePath = tempStorePath()
+    saveGoogleGrant(storePath, expiredGrant())
+    const token = await runtime(storePath, () => new Response('', { status: 503 })).getCredential(conduitConfig())
+    assert.equal(token, null)
+    assert.ok(loadGoogleGrant(storePath, 'personal', 'sheets'), 'a transient failure must not force a real reconnect for what might just be a blip')
+  })
+
+  it('returns null with no throw when no credential is stored under that name/purpose', async () => {
+    const storePath = tempStorePath()
+    const token = await runtime(storePath).getCredential(conduitConfig({ credentialRef: 'google:nobody-authorized-this' }))
+    assert.equal(token, null)
+  })
+})
+
+describe('the service runtime: invalidateCredential — googleSheets/gmail', () => {
+
+  it('removes the local grant a live source rejection was traced back to', async () => {
+    const storePath = tempStorePath()
+    saveGoogleGrant(storePath, expiredGrant({ purpose: 'sheets' }))
+
+    await runtime(storePath).invalidateCredential(conduitConfig({ suriType: 'googleSheets' }))
+
+    assert.equal(loadGoogleGrant(storePath, 'personal', 'sheets'), null)
+  })
+})
+
+describe('the service runtime: missingGoogleGrants, at startup', () => {
+  it('names each Google conduit whose grant is not in the store, with the command that adds it, and only those', () => {
+    const storePath = tempStorePath()
+    saveGoogleGrant(storePath, expiredGrant({ name: 'personal', purpose: 'sheets' }))
+    const configs = [
+      conduitConfig({ curi: 'has-grant', suriType: 'googleSheets', credentialRef: 'google:personal' }),
+      conduitConfig({ curi: 'other-purpose', suriType: 'gmail', credentialRef: 'google:personal' }),
+      conduitConfig({ curi: 'other-name', suriType: 'googleSheets', credentialRef: 'google:work' }),
+      conduitConfig({ curi: 'fastmail', suriType: 'fastmail', credentialRef: 'env:FASTMAIL_TOKEN' }),
+    ]
+    assert.deepEqual(missingGoogleGrants(configs, storePath), [
+      "conduit 'other-purpose': no Google credential named 'personal' for purpose 'gmail' — run: npm run auth:google -- --purpose gmail --name personal",
+      "conduit 'other-name': no Google credential named 'work' for purpose 'sheets' — run: npm run auth:google -- --purpose sheets --name work",
+    ])
+  })
+})

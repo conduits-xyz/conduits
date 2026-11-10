@@ -1,0 +1,9 @@
+{
+  "slug": "xyz-contact-form",
+  "name": "Contact form",
+  "kind": "widget",
+  "tags": ["contact-information"],
+  "description": "A ready-to-embed contact form with optional fields for qualifying leads.",
+  "author": { "name": "Conduits", "social": { "github": "conduits-xyz" } },
+  "demo": "demo.html"
+}

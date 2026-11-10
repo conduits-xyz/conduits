@@ -1,0 +1,103 @@
+/*
+ * Theming: visual properties are --xyz-* custom properties, the same
+ * names every widget and form in this library uses. Set them on :root,
+ * or an ancestor of everything you embed, to theme them all.
+ *
+ * Defaults are var() fallbacks below, not declarations on `xyz-reactions`:
+ * a value declared on the element beats one inherited from :root, so it
+ * would make a :root override do nothing.
+ */
+xyz-reactions {
+  display: block;
+  font-family: var(--xyz-font, system-ui, sans-serif);
+  color: var(--xyz-fg, #1a1a1a);
+  box-sizing: border-box;
+}
+
+/* border-box for everything the widget draws, scoped to the widget so
+   the host page's own box-sizing (or none) doesn't matter. */
+xyz-reactions *,
+xyz-reactions *::before,
+xyz-reactions *::after {
+  box-sizing: inherit;
+}
+
+/* The `caption` attribute's default look; host pages can restyle this
+   class, as they can .xyz-reactions-btn. */
+.xyz-reactions-caption {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.xyz-reactions-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--xyz-gap, 0.625rem);
+}
+
+.xyz-reactions-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 2.25rem;
+  padding: 0 0.875rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--xyz-fg, #1a1a1a);
+  background: var(--xyz-bg, #ffffff);
+  border: 1px solid var(--xyz-border, #e0e0e0);
+  border-radius: var(--xyz-radius, 6px);
+  cursor: pointer;
+}
+
+.xyz-reactions-btn:hover:not(:disabled):not([aria-disabled="true"]) {
+  border-color: var(--xyz-accent, #798b3c);
+}
+
+.xyz-reactions-btn:focus-visible {
+  outline: 2px solid var(--xyz-accent, #798b3c);
+  outline-offset: 1px;
+}
+
+.xyz-reactions-btn:disabled,
+.xyz-reactions-btn[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.xyz-reactions-btn--chosen {
+  color: var(--xyz-accent-fg, #ffffff);
+  background: var(--xyz-accent, #798b3c);
+  border-color: var(--xyz-accent, #798b3c);
+  opacity: 1;
+}
+
+.xyz-reactions-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.xyz-reactions-status {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  min-height: 1.2em;
+}
+
+.xyz-reactions-status[data-state='success'] {
+  color: var(--xyz-success, #1a7a3a);
+}
+
+.xyz-reactions-status[data-state='error'] {
+  color: var(--xyz-error, crimson);
+}
+
+.xyz-reactions-status[data-state='idle'] {
+  opacity: 0.6;
+}
+
+.xyz-reactions-status:empty {
+  margin: 0;
+}

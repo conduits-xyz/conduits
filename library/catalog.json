@@ -1,0 +1,117 @@
+[
+  {
+    "slug": "contact-validation-flow",
+    "name": "Contact validation flow",
+    "kind": "page",
+    "tags": [
+      "contact-information",
+      "validation"
+    ],
+    "description": "A walkthrough of composing three conduits with different access levels — write-only, review-and-update, and read-only — into one moderated submission flow, charted live as entries move through it.",
+    "author": {
+      "name": "Conduits",
+      "social": {
+        "github": "conduits-xyz"
+      }
+    },
+    "widgets": []
+  },
+  {
+    "slug": "progressive-enhancement-form",
+    "name": "Progressive enhancement form",
+    "kind": "page",
+    "tags": [
+      "contact-information"
+    ],
+    "description": "One real form, submitted two ways — plain HTML with zero JavaScript, or the same markup enhanced with fetch() for an inline result. Toggle it live against a real conduit to see the difference.",
+    "author": {
+      "name": "Conduits",
+      "social": {
+        "github": "conduits-xyz"
+      }
+    },
+    "widgets": []
+  },
+  {
+    "slug": "xyz-contact-form",
+    "name": "Contact form",
+    "kind": "widget",
+    "tags": [
+      "contact-information"
+    ],
+    "description": "A ready-to-embed contact form with optional fields for qualifying leads.",
+    "author": {
+      "name": "Conduits",
+      "social": {
+        "github": "conduits-xyz"
+      }
+    },
+    "demo": "demo.html"
+  },
+  {
+    "slug": "xyz-feedback",
+    "name": "Feedback",
+    "kind": "widget",
+    "tags": [
+      "feedback"
+    ],
+    "description": "Collect five-star or NPS ratings with an optional comment.",
+    "author": {
+      "name": "Conduits",
+      "social": {
+        "github": "conduits-xyz"
+      }
+    },
+    "demo": "demo.html"
+  },
+  {
+    "slug": "xyz-reactions",
+    "name": "Reactions",
+    "kind": "widget",
+    "tags": [
+      "feedback"
+    ],
+    "description": "Collect a thumbs-up or thumbs-down response, one vote per subject and visitor.",
+    "author": {
+      "name": "Conduits",
+      "social": {
+        "github": "conduits-xyz"
+      }
+    },
+    "demo": "demo.html"
+  },
+  {
+    "slug": "xyz-rsvp",
+    "name": "RSVP",
+    "kind": "widget",
+    "tags": [
+      "event-registration",
+      "rsvp"
+    ],
+    "description": "Collect yes, no, or maybe responses for an event, with an optional guest count.",
+    "author": {
+      "name": "Conduits",
+      "social": {
+        "github": "conduits-xyz"
+      }
+    },
+    "demo": "demo.html"
+  },
+  {
+    "slug": "xyz-waitlist",
+    "name": "Waitlist",
+    "kind": "widget",
+    "tags": [
+      "waitlist",
+      "newsletter-signup"
+    ],
+    "description": "Collect first-name and email signups for a waitlist or launch.",
+    "author": {
+      "name": "Conduits",
+      "social": {
+        "github": "conduits-xyz"
+      }
+    },
+    "demo": "demo.html"
+  }
+]

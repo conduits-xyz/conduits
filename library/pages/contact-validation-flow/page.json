@@ -1,0 +1,9 @@
+{
+  "slug": "contact-validation-flow",
+  "name": "Contact validation flow",
+  "kind": "page",
+  "tags": ["contact-information", "validation"],
+  "description": "A walkthrough of composing three conduits with different access levels — write-only, review-and-update, and read-only — into one moderated submission flow, charted live as entries move through it.",
+  "author": { "name": "Conduits", "social": { "github": "conduits-xyz" } },
+  "widgets": []
+}

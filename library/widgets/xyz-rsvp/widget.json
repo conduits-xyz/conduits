@@ -1,0 +1,9 @@
+{
+  "slug": "xyz-rsvp",
+  "name": "RSVP",
+  "kind": "widget",
+  "tags": ["event-registration", "rsvp"],
+  "description": "Collect yes, no, or maybe responses for an event, with an optional guest count.",
+  "author": { "name": "Conduits", "social": { "github": "conduits-xyz" } },
+  "demo": "demo.html"
+}

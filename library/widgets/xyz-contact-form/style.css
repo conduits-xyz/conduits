@@ -1,0 +1,150 @@
+/*
+ * Theming: visual properties are --xyz-* custom properties, the same
+ * names every widget and form in this library uses. Set them on :root,
+ * or an ancestor of everything you embed, to theme them all.
+ *
+ * Defaults are var() fallbacks below, not declarations on `xyz-contact-form`:
+ * a value declared on the element beats one inherited from :root, so it
+ * would make a :root override do nothing.
+ */
+xyz-contact-form {
+  display: block;
+  font-family: var(--xyz-font, system-ui, sans-serif);
+  color: var(--xyz-fg, #1a1a1a);
+  box-sizing: border-box;
+}
+
+/* border-box for everything the widget draws, scoped to the widget so
+   the host page's own box-sizing (or none) doesn't matter. */
+xyz-contact-form *,
+xyz-contact-form *::before,
+xyz-contact-form *::after {
+  box-sizing: inherit;
+}
+
+/* The `caption` attribute's default look; host pages can restyle this
+   class, as they can .xyz-contact-form-input and .xyz-contact-form-btn. */
+.xyz-contact-form-caption {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.xyz-contact-form-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--xyz-gap, 10px);
+}
+
+.xyz-contact-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.xyz-contact-form-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.xyz-contact-form-input {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  font-family: inherit;
+  font-size: 1rem;
+  color: inherit;
+  background: var(--xyz-bg, #ffffff);
+  border: 1px solid var(--xyz-border, #e0e0e0);
+  border-radius: var(--xyz-radius, 6px);
+}
+
+.xyz-contact-form-textarea {
+  resize: vertical;
+}
+
+.xyz-contact-form-choice-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.xyz-contact-form-choice-group legend {
+  padding: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.xyz-contact-form-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1.5rem;
+}
+
+.xyz-contact-form-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.xyz-contact-form-choice input {
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0.15rem 0 0;
+  accent-color: var(--xyz-accent, #798b3c);
+}
+
+.xyz-contact-form-input:focus-visible {
+  outline: 2px solid var(--xyz-accent, #798b3c);
+  outline-offset: 1px;
+}
+
+.xyz-contact-form-btn {
+  align-self: flex-start;
+  height: 2.5rem;
+  padding: 0 1.25rem;
+  min-width: 8rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--xyz-accent-fg, #ffffff);
+  background: var(--xyz-accent, #798b3c);
+  border: none;
+  border-radius: var(--xyz-radius, 6px);
+  cursor: pointer;
+}
+
+.xyz-contact-form-btn:disabled,
+.xyz-contact-form-btn[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.xyz-contact-form-status {
+  margin: 0;
+  font-size: 0.9rem;
+  min-height: 1.2em;
+}
+
+.xyz-contact-form-status[data-state='error'] {
+  color: var(--xyz-error, crimson);
+}
+
+.xyz-contact-form-status[data-state='success'] {
+  color: var(--xyz-success, #1a7a3a);
+}
+
+.xyz-contact-form-status[data-state='idle'] {
+  opacity: 0.6;
+}
+
+@media (max-width: 32rem) {
+  .xyz-contact-form-choice-grid {
+    grid-template-columns: 1fr;
+  }
+}

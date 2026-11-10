@@ -1,0 +1,140 @@
+/*
+ * Theming: visual properties are --xyz-* custom properties, the same
+ * names every widget and form in this library uses. Set them on :root,
+ * or an ancestor of everything you embed, to theme them all.
+ *
+ * Defaults are var() fallbacks below, not declarations on `xyz-rsvp`:
+ * a value declared on the element beats one inherited from :root, so it
+ * would make a :root override do nothing.
+ */
+xyz-rsvp {
+  display: block;
+  font-family: var(--xyz-font, system-ui, sans-serif);
+  color: var(--xyz-fg, #1a1a1a);
+  box-sizing: border-box;
+}
+
+/* border-box for everything the widget draws, scoped to the widget so
+   the host page's own box-sizing (or none) doesn't matter. */
+xyz-rsvp *,
+xyz-rsvp *::before,
+xyz-rsvp *::after {
+  box-sizing: inherit;
+}
+
+/* The `caption` attribute's default look; host pages can restyle this
+   class, as they can .xyz-rsvp-input and .xyz-rsvp-btn. */
+.xyz-rsvp-caption {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.xyz-rsvp-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--xyz-gap, 10px);
+}
+
+.xyz-rsvp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.xyz-rsvp-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* The UA's [hidden] { display: none } has the same specificity as
+   .xyz-rsvp-field { display: flex }, and the author rule wins, so this
+   more specific rule hides the guest count. */
+.xyz-rsvp-field[hidden] {
+  display: none;
+}
+
+.xyz-rsvp-input {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  font-family: inherit;
+  font-size: 1rem;
+  color: inherit;
+  background: var(--xyz-bg, #ffffff);
+  border: 1px solid var(--xyz-border, #e0e0e0);
+  border-radius: var(--xyz-radius, 6px);
+}
+
+.xyz-rsvp-input:focus-visible {
+  outline: 2px solid var(--xyz-accent, #798b3c);
+  outline-offset: 1px;
+}
+
+/* The <fieldset>'s default border, padding, margin and min-width are
+   reset, and the <legend> takes a full line (flex-basis: 100%) so the
+   three choices wrap onto their own row. */
+.xyz-rsvp-attending-fieldset {
+  display: flex;
+  /* Restated: .xyz-rsvp-field, earlier, sets flex-direction: column. */
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 1rem;
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.xyz-rsvp-attending-fieldset > legend {
+  flex-basis: 100%;
+  padding: 0;
+}
+
+.xyz-rsvp-attending-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.95rem;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.xyz-rsvp-btn {
+  align-self: flex-start;
+  height: 2.5rem;
+  padding: 0 1.25rem;
+  min-width: 8rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--xyz-accent-fg, #ffffff);
+  background: var(--xyz-accent, #798b3c);
+  border: none;
+  border-radius: var(--xyz-radius, 6px);
+  cursor: pointer;
+}
+
+.xyz-rsvp-btn:disabled,
+.xyz-rsvp-btn[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.xyz-rsvp-status {
+  margin: 0;
+  font-size: 0.9rem;
+  min-height: 1.2em;
+}
+
+.xyz-rsvp-status[data-state='error'] {
+  color: var(--xyz-error, crimson);
+}
+
+.xyz-rsvp-status[data-state='success'] {
+  color: var(--xyz-success, #1a7a3a);
+}
+
+.xyz-rsvp-status[data-state='idle'] {
+  opacity: 0.6;
+}

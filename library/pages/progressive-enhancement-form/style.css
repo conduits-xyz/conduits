@@ -1,0 +1,123 @@
+/* Page layout and the Conduit URL field's wrapper (outside the <form>).
+ * Separate from .xyz-form below, the pattern this tutorial teaches. */
+body {
+  font-family: system-ui, sans-serif;
+  color: #1a1a1a;
+  max-width: 28rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Copied from .library-signup in library/detail.css, which this page
+   doesn't load. */
+.library-signup {
+  margin-top: -0.75rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.85rem;
+  color: #6b6b6b;
+}
+
+.library-signup a {
+  color: #6b6b6b;
+  font-weight: 700;
+  text-underline-offset: 0.2em;
+}
+
+.library-signup a:hover {
+  color: #1a1a1a;
+}
+
+.enhance-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+
+/*
+ * Theming: --xyz-* custom properties with var() fallbacks, the same
+ * names the widgets use. Set them on :root or a common ancestor. No
+ * defaults are declared on `.xyz-form`, since those would beat a :root
+ * override.
+ */
+.xyz-form {
+  font-family: var(--xyz-font, system-ui, sans-serif);
+  color: var(--xyz-fg, #1a1a1a);
+  background: var(--xyz-bg, #ffffff);
+  max-width: 24rem;
+}
+
+.xyz-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: var(--xyz-gap, 1rem);
+}
+
+.xyz-form label {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.xyz-form input[type='text'],
+.xyz-form input[type='email'] {
+  height: 2.5rem;
+  padding: 0.375rem 0.625rem;
+  font-family: inherit;
+  font-size: 1rem;
+  color: inherit;
+  background: var(--xyz-bg, #ffffff);
+  border: 1px solid var(--xyz-border, #e0e0e0);
+  border-radius: var(--xyz-radius, 6px);
+  box-sizing: border-box;
+}
+
+.xyz-form input:focus-visible {
+  outline: 2px solid var(--xyz-accent, #a30020);
+  outline-offset: 1px;
+}
+
+.xyz-form button {
+  height: 2.5rem;
+  padding: 0 1.25rem;
+  min-width: 6.25rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--xyz-accent-fg, #ffffff);
+  background: var(--xyz-accent, #a30020);
+  border: none;
+  border-radius: var(--xyz-radius, 6px);
+  cursor: pointer;
+}
+
+.xyz-form button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.xyz-form .status {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  min-height: 1.2em;
+}
+
+.xyz-form .status[data-state='error'] {
+  color: var(--xyz-error, crimson);
+}
+
+.xyz-form .status[data-state='success'] {
+  color: var(--xyz-success, #1a7a3a);
+}
+
+.xyz-form .status[data-state='idle'] {
+  opacity: 0.6;
+}

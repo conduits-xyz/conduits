@@ -1,42 +1,66 @@
-# Conduits XYZ
+# Conduits
 
-Spreadsheets and even email inboxes can be seen as a form of storage. Access to such storage using an API is complex due to diversity and broad use cases that have to be supported by the service provider or the protocol itself.
+Conduits is an open-source gateway. It gives a Google Sheet, a Gmail
+account, or a Fastmail inbox a REST API. You do not write a backend.
 
-Having a `conduit` that exposes a simple API to these non-traditional storage (NTS) types could cover a majority of use cases of internet applications that require a database. And that precisely is what this project is all about.
+The gateway includes these controls:
 
-Conduits.xyz is a gateway service that lets you move data in and out of spreadsheets and email inboxes by providing a uniform REST API. This allows you to focus on building your business, and access the data using programs that you already know.
+- Allowed HTTP methods per conduit (RACM).
+- An IP allowlist.
+- A request throttle for each client address.
+- Bearer tokens for the methods you choose.
+- Hidden form fields that stop spam bots.
 
-![Move data in and out](docs/images/conduits-xyz.png)
+# Start here
 
-# Use cases
-1. A tech savvy digital marketer requires simple storage for a time bound campaign to capture interest list.
-2. A blogger needs storage for a widget that captures reactions (thumbs-up, thumbs-down) from readers. 
-3. An open source developer needs to store data persistently for an experimental single page app.
+| You want to | Read |
+|:--|:--|
+| Run a gateway | [`services/gateway/README.md`](services/gateway/README.md) |
+| Call a conduit from a page or a script | [`docs/developer-guide.md`](docs/developer-guide.md) |
+| Know every route, status code, and record shape | [`docs/gateway-api.md`](docs/gateway-api.md) |
+| Add a widget to a page | [`library/widgets/README.md`](library/widgets/README.md) |
+| Add a new data source | [`packages/conduit/INTEGRATIONS.md`](packages/conduit/INTEGRATIONS.md) |
 
+# What this repository contains
 
-# Features
-- Turn Google Sheets and Microsoft Excel and even your Email inbox into a database.
-- Create conduits to access data using a uniform API.
-- Simple web interface to manage conduits
-- Access control to set read, write, update permisions per conduit
-- Request throttling
-- IP address allow-list to restrict access
-- Hidden form field control to alleviate spam
-- MIT License
+This repository is an npm workspaces monorepo.
+
+| Path | Contents |
+|:--|:--|
+| `packages/gateway` | The request pipeline and the wire API. |
+| `packages/conduit` | The Google Sheets, Gmail, and Fastmail source clients. |
+| `packages/config` | The compiler for `conduits.yaml`, and the readers for the gateway settings. |
+| `packages/credential-store` | The store for provider credentials. |
+| `services/gateway` | The gateway service and its CLI. It needs no database. |
+| `library/widgets` | The `xyz-*` widgets: custom elements with no dependencies. |
+| `library/pages` | Tutorials that show how to build on a conduit. |
 
 # Development
-Conduits service consists of three primary subsystems:
-- Backend resource server to manage user and conduit data
-- Backend gateway server to transform and forward conduit requests
-- Dashboard user interface to administer user profile and conduits
 
-Follow the links below to get started:
-- [Dashboard](dashboard/README.md)  
-- [Backend](backend/README.md)  
-- [Widgets](examples/widget-gallery/README.md)  
-- [Illustrative use case flows](examples/use-cases/contact-validation-flow/README.md)  
+You need Node.js 24.3 or newer.
 
+```sh
+npm install         # all workspaces
+npm test            # fast tests, all workspaces
+npm run test:all    # fast tests and browser tests
+npm run typecheck   # all workspaces
+```
 
-# Contribution
+To run a gateway on your computer:
 
-We are still in the design stage. When the project gets to a point where it is actually functional, we'll be happy to receive your pull request. Until then stay tuned!
+1. Go to `services/gateway`.
+2. Copy `.env.example` to `.env`.
+3. Copy `conduits.example.yaml` to `conduits.yaml`.
+4. Do the tutorial in [`services/gateway/README.md`](services/gateway/README.md).
+5. Run `npm run gateway`.
+
+# Contributions
+
+- `packages/` and `services/`: we do not accept pull requests that we
+  did not ask for. Open an issue first.
+- `library/`: we accept widget pull requests. Read
+  [`library/CONTRIBUTING.md`](library/CONTRIBUTING.md).
+
+---
+
+**[A product of Million Views, LLC.](https://m5nv.com)**

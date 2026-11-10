@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Ready-to-embed widgets for collecting responses and connecting your site to a conduit." />
+    <title>Widget Library | conduits.xyz</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#library">Skip to library</a>
+    <header class="site-header">
+      <a class="brand" href="../">conduits<span>.xyz</span></a>
+      <nav aria-label="Primary navigation">
+        <a href="./pages/">Pages</a>
+        <a href="./CONTRIBUTING.md">Contribute</a>
+        <a href="https://github.com/conduits-xyz/conduits/blob/main/docs/gateway-api.md" target="_blank" rel="noopener noreferrer">API</a>
+      </nav>
+    </header>
+
+    <main id="library">
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow">FROM INTEREST TO ACTION</p>
+        <h1 id="page-title">Start a conversation with a form.<br /><em>Move it forward with a conduit.</em></h1>
+        <p class="intro-copy">Add a ready-to-embed widget to your site and give every response somewhere useful to go.</p>
+        <div class="intro-actions">
+          <a class="button button-dark" href="#catalog">Find a widget <span aria-hidden="true">↓</span></a>
+        </div>
+      </section>
+
+      <section class="catalog-shell" id="catalog" aria-labelledby="catalog-title">
+        <div class="catalog-heading">
+          <div>
+            <p class="eyebrow">WIDGET LIBRARY</p>
+            <h2 id="catalog-title">Find a widget for the job.</h2>
+          </div>
+          <p class="catalog-count" id="catalog-count" aria-live="polite"></p>
+        </div>
+
+        <div class="catalog-controls">
+          <label class="search-field">
+            <span class="sr-only">Search the library</span>
+            <span aria-hidden="true">⌕</span>
+            <input id="search" type="search" placeholder="Search by name or purpose" autocomplete="off" />
+          </label>
+          <div class="tag-filters" id="tag-filters" role="group" aria-label="Filter by tag">
+          </div>
+        </div>
+
+        <div class="featured-strip" id="featured" aria-labelledby="featured-title">
+          <div class="featured-label">
+            <p class="eyebrow">SELECTED WIDGETS</p>
+            <h3 id="featured-title">Featured</h3>
+          </div>
+          <div class="featured-list" id="featured-list"></div>
+        </div>
+
+        <div class="catalog-grid" id="catalog-grid" aria-live="polite"></div>
+        <p class="empty-state" id="empty-state" hidden>No library items match that search.</p>
+      </section>
+
+      <section class="contribute-band" aria-labelledby="contribute-title">
+        <div>
+          <p class="eyebrow">BUILD A WIDGET</p>
+          <h2 id="contribute-title">Have an idea worth building?</h2>
+        </div>
+        <div class="contribute-copy">
+          <p>Build a useful widget with plain HTML, CSS, and JavaScript, then contribute it to the library in a GitHub pull request. No framework, build pipeline, or package to publish.</p>
+          <a class="button button-light" href="./CONTRIBUTING.md">Start building <span aria-hidden="true">↗</span></a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>conduits.xyz / library</span>
+      <span>MIT-licensed widgets for connected sites</span>
+    </footer>
+    <script src="./config.js"></script>
+    <script type="module" src="./catalog.js"></script>
+  </body>
+</html>

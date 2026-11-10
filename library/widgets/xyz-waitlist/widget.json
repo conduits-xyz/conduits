@@ -1,0 +1,9 @@
+{
+  "slug": "xyz-waitlist",
+  "name": "Waitlist",
+  "kind": "widget",
+  "tags": ["waitlist", "newsletter-signup"],
+  "description": "Collect first-name and email signups for a waitlist or launch.",
+  "author": { "name": "Conduits", "social": { "github": "conduits-xyz" } },
+  "demo": "demo.html"
+}

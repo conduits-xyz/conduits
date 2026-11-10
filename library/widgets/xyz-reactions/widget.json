@@ -1,0 +1,9 @@
+{
+  "slug": "xyz-reactions",
+  "name": "Reactions",
+  "kind": "widget",
+  "tags": ["feedback"],
+  "description": "Collect a thumbs-up or thumbs-down response, one vote per subject and visitor.",
+  "author": { "name": "Conduits", "social": { "github": "conduits-xyz" } },
+  "demo": "demo.html"
+}
